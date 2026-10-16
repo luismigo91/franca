@@ -1,7 +1,9 @@
 import { validateFlow } from '@franca/spec';
-import type { Flow, FlowIssue } from '@franca/spec';
+import type { Flow, FlowIssue, InputNode } from '@franca/spec';
 import { MAX_NESTING_DEPTH } from './constants.js';
 import { cloneJsonWithinDepth, exceedsDepth, toJsonForm } from './json.js';
+import { readUserInput } from './input/user-input.js';
+import { resumeInput } from './nodes/input.js';
 import { run } from './run.js';
 import { parseState } from './state.js';
 import type {
@@ -12,7 +14,7 @@ import type {
   Rejection,
   StartSessionRequest,
 } from './types.js';
-import { createVariableStore } from './variables.js';
+import { createVariableStore, restoreVariableStore } from './variables.js';
 
 type FlowCheck = { flow: Flow } | { rejection: Rejection };
 
@@ -80,23 +82,42 @@ export async function startSession(request: StartSessionRequest, host: EngineHos
   return run(flow, vars, flow.start, host);
 }
 
+const EXPECTED_SHAPE = {
+  text: 'la entrada debe ser {"text": string}',
+  choice: 'la entrada debe ser {"choice": id} con el id de una opción del nodo',
+  choices: 'la entrada debe ser {"choices": [id, …]} con ids de opciones del nodo, sin repetir',
+} as const;
+
+const expectedKey = (node: InputNode): keyof typeof EXPECTED_SHAPE =>
+  node.inputType !== 'choice' ? 'text' : node.multiple === true ? 'choices' : 'choice';
+
 /**
- * Continúa una sesión. Comprueba, en este orden: flujo válido, estado bien formado y de versión
- * conocida, mismo flujo y nodo presente, sesión activa. Un rechazo no produce eventos ni estado.
+ * Continúa una sesión en espera. Comprueba, en este orden: flujo válido, estado bien formado y de
+ * versión conocida, mismo flujo con su nodo presente (y siendo un `input` si espera), sesión en
+ * espera y entrada con la forma del nodo. Un rechazo no produce eventos ni estado.
  *
  * @param request Flujo, estado e `input` del usuario (sin tipar).
- * @param _host Capacidades del host (vacío en esta versión).
- * @returns Siempre un rechazo en esta versión: ninguna sesión queda esperando al usuario.
+ * @param host Capacidades del host (vacío en esta versión).
+ * @returns La respuesta evaluada y la ejecución hasta la siguiente detención, o el rechazo como valor.
  * @throws Si el flujo es un objeto en memoria que no se puede serializar (ciclos, `bigint`).
  */
-export async function continueSession(request: ContinueSessionRequest, _host: EngineHost = {}): Promise<AdvanceResult> {
+export async function continueSession(request: ContinueSessionRequest, host: EngineHost = {}): Promise<AdvanceResult> {
   const checkedFlow = checkFlow(request.flow);
   if ('rejection' in checkedFlow) return checkedFlow.rejection;
   const { flow } = checkedFlow;
   const state = parseState(request.state);
   if (!state) return { ok: false, code: 'invalid_state', message: 'el estado no es válido o su versión no se reconoce' };
-  if (state.flowId !== flow.id || !flow.nodes.some((node) => node.id === state.nodeId)) {
+  const node = state.flowId === flow.id ? flow.nodes.find((candidate) => candidate.id === state.nodeId) : undefined;
+  if (!node || (state.status === 'waiting' && node.type !== 'input')) {
     return { ok: false, code: 'state_mismatch', message: 'el estado no corresponde a este flujo' };
   }
-  return { ok: false, code: 'session_not_active', message: 'la sesión no está activa' };
+  if (state.status !== 'waiting' || node.type !== 'input') {
+    return { ok: false, code: 'session_not_active', message: 'la sesión no está activa' };
+  }
+  const input = readUserInput(node, request.input);
+  if (!input) return { ok: false, code: 'invalid_input', message: EXPECTED_SHAPE[expectedKey(node)] };
+  const vars = restoreVariableStore(flow.variables, state);
+  const language = (flow.locale ?? 'es').split('-')[0]!;
+  const attempt = state.attempt!;
+  return run(flow, vars, node.id, host, (ctx) => resumeInput(node, ctx, { attempt, input, language }));
 }

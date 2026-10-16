@@ -7,15 +7,22 @@ import type { EngineEvent, EngineHost, SessionResult } from './types.js';
 import type { VariableStore } from './variables.js';
 
 /**
- * Ejecuta nodos encadenados desde `startNodeId` hasta que la sesión termina o falla.
+ * Ejecuta nodos encadenados desde `startNodeId` hasta que la sesión termina, falla o espera al usuario.
  *
  * @param flow Flujo ya validado (forma JSON).
  * @param vars Almacén de variables de esta operación.
  * @param startNodeId Nodo donde empieza.
  * @param host Capacidades del host.
+ * @param firstStep Sustituye a la ejecución del primer nodo (la respuesta del usuario al reanudar); cuenta como el paso 1.
  * @returns El resultado, con eventos en orden y el estado final.
  */
-export async function run(flow: Flow, vars: VariableStore, startNodeId: string, host: EngineHost): Promise<SessionResult> {
+export async function run(
+  flow: Flow,
+  vars: VariableStore,
+  startNodeId: string,
+  host: EngineHost,
+  firstStep?: (ctx: StepContext) => StepOutcome | Promise<StepOutcome>,
+): Promise<SessionResult> {
   const nodes = new Map<string, Node>(flow.nodes.map((node) => [node.id, node]));
   const events: EngineEvent[] = [];
   const ctx: StepContext = {
@@ -31,7 +38,9 @@ export async function run(flow: Flow, vars: VariableStore, startNodeId: string, 
     const outcome: StepOutcome =
       steps >= MAX_STEPS_PER_ADVANCE
         ? { kind: 'fail', code: 'step_limit_exceeded', message: `se superó el límite de ${MAX_STEPS_PER_ADVANCE} nodos por avance` }
-        : await execute(nodes.get(nodeId)!, ctx);
+        : steps === 0 && firstStep
+          ? await firstStep(ctx)
+          : await execute(nodes.get(nodeId)!, ctx);
 
     if (outcome.kind === 'next') {
       nodeId = outcome.nodeId;

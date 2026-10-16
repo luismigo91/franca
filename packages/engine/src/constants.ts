@@ -23,6 +23,8 @@ export const SESSION_ERROR_CODES = [
   'invalid_rule',
   'step_limit_exceeded',
   'value_too_large',
+  'invalid_validation',
+  'retries_exhausted',
 ] as const;
 export type SessionErrorCode = (typeof SESSION_ERROR_CODES)[number];
 
@@ -33,6 +35,7 @@ export const REJECTION_CODES = [
   'invalid_state',
   'state_mismatch',
   'session_not_active',
+  'invalid_input',
 ] as const;
 export type RejectionCode = (typeof REJECTION_CODES)[number];
 
