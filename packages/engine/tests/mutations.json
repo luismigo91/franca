@@ -1,0 +1,9 @@
+[
+  {
+    "id": "state-depth",
+    "file": "src/state.ts",
+    "find": "const STATE_MAX_DEPTH = MAX_NESTING_DEPTH + 1;",
+    "replace": "const STATE_MAX_DEPTH = MAX_NESTING_DEPTH;",
+    "tests": ["tests/scenarios/robustness-adversarial.test.ts", "tests/unit/state.test.ts"]
+  }
+]
