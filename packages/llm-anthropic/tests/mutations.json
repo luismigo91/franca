@@ -175,8 +175,36 @@
   {
     "id": "anth-log-level",
     "file": "src/client.ts",
-    "find": "{ ...options, logLevel: 'off', openTelemetry:",
-    "replace": "{ ...options, openTelemetry:",
+    "find": "new Anthropic({ ...options, logLevel: 'off' })",
+    "replace": "new Anthropic({ ...options })",
+    "tests": [
+      "tests/scenarios/client.test.ts",
+      "tests/unit/errors-client.test.ts"
+    ]
+  },
+  {
+    "id": "anth-found-ignored",
+    "file": "src/output.ts",
+    "find": "    if (!slotOutput.found) return;\n",
+    "replace": "",
+    "tests": [
+      "tests/scenarios/response.test.ts"
+    ]
+  },
+  {
+    "id": "anth-union-schema",
+    "file": "src/output.ts",
+    "find": "      return z.number();",
+    "replace": "      return z.number().nullable();",
+    "tests": [
+      "tests/scenarios/request.test.ts"
+    ]
+  },
+  {
+    "id": "anth-content-mode",
+    "file": "src/client.ts",
+    "find": "  if (openTelemetry.traces.contentMode !== 'content') return client;\n",
+    "replace": "  return client;\n",
     "tests": [
       "tests/scenarios/client.test.ts",
       "tests/unit/errors-client.test.ts"

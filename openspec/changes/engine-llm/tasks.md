@@ -82,7 +82,7 @@ Fases secuenciales; cada una empieza cuando la anterior pasa su gate. Comportami
 
 ## 9. Correcciones tras QA y revisión de código
 
-- [ ] 9.1 Esquema de salida sin uniones ni opcionales (`{found, value}` por slot), `max_tokens` 4096, opt-out de OpenTelemetry del entorno y conformidad (`status`, `costCapUsd`, registros con fallos) según los deltas; candado de mutación (`guard-mutate`, recompilar el motor, procesos huérfanos); bajos de la revisión
+- [x] 9.1 Esquema de salida sin uniones ni opcionales (`{found, value}` por slot), `max_tokens` 4096, opt-out de OpenTelemetry del entorno y conformidad (`status`, `costCapUsd`, registros con fallos) según los deltas; candado de mutación (`guard-mutate`, recompilar el motor, procesos huérfanos); bajos de la revisión
 - [ ] 9.2 FOLLOW-UP (feature 6): `unknownModelPrices` y recargos de residencia (`inference_geo`) en la tabla de precios; `invokeCapability<Req>` común a `llm/capability.ts` y `http/capability.ts`
 - [ ] 9.3 Lockfile: el peer opcional `@opentelemetry/api` del SDK se resuelve también en `next` y `vitest` (cambia sus claves de resolución); aceptado, anotarlo en el PR
 
