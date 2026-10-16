@@ -21,12 +21,15 @@
 
 ### Gotchas
 - [tsdown --watch borra dist/ de la spec](../../wiki/gotcha-spec-watch-borra-dist.md) — por qué el dev de @franca/spec lleva --no-clean
+- [ajv y los errores de oneOf](../../wiki/gotcha-ajv-errores-oneof.md) — por qué validate.ts revalida cada nodo contra la definición de su tipo
+- [json-schema-to-typescript y las tuplas](../../wiki/gotcha-json-schema-to-typescript-tuplas.md) — ignoreMinAndMaxItems, no maxItems -1
 
 ### Decisiones
 - [JSON Schema como fuente de verdad](../../wiki/decision-esquema-json-fuente-de-verdad.md) — por qué no Zod ni tipos TS a mano en packages/spec
 
 ### Dominio
-<!-- - [Título](../../wiki/domain-slug.md) — gancho corto -->
+- [Solo el nodo llm puede saltar a sí mismo](../../wiki/domain-llm-puede-saltar-a-si-mismo.md) — no es un descuido; maxTurns y onExhausted lo acotan
+- [Flujos sin secretos](../../wiki/domain-flujos-sin-secretos.md) — secretos y proveedores por nombre, variables pii; implicaciones para api, editor y motor
 
 ### Harness e infra
-<!-- - [Título](../../wiki/harness-slug.md) — gancho corto -->
+- [Falsos positivos de las guardas de entorno](../../wiki/harness-guard-env-falsos-positivos.md) — el deny de settings.json y guard_bash bloquean también el fichero de ejemplo y textos

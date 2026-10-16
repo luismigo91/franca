@@ -43,8 +43,8 @@ Las apps importan `@franca/spec` compilado (`dist/`); turbo lo construye antes (
 
 Pipeline por roles del plugin popi (`/popi:feature`): `product-analyst` → **aprobación humana** → `architect` → `architecture-reviewer` → **aprobación humana** → `backend-developer` → `qa-tester` → `frontend-developer` → `qa-tester` → verificación final. Un especialista activo cada vez; los especialistas no crean ramas, no hacen push ni aprueban su propio trabajo.
 
-- Decisiones de **comportamiento** van primero a la spec (`.claude/rules/always/spec-first.md`, "test del usuario"). Ojo: "spec" aquí son las specs funcionales de features en `docs/specs/`; el formato de flujo es otra cosa (`packages/spec`).
-- Specs funcionales en `docs/specs/` (docs); plantilla en `/popi:spec`.
+- Decisiones de **comportamiento** van primero a la spec (`.claude/rules/always/spec-first.md`, "test del usuario"). Ojo: "spec" aquí son las specs funcionales de features en `openspec/`; el formato de flujo es otra cosa (`packages/spec`).
+- Specs funcionales con OpenSpec en `openspec/` (`openspec/config.yaml`): `/opsx:propose` → `/opsx:apply` → `/opsx:archive`. Plantilla de contenido en `/popi:spec`.
 - Verificación antes de dar algo por hecho: `/popi:verify`.
 
 ## Wiki de conocimiento tácito
