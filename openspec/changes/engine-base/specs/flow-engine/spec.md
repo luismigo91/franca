@@ -53,6 +53,35 @@ El motor SHALL validar y ejecutar la forma JSON del flujo (la que produce `JSON.
 - **WHEN** el host arranca una sesión
 - **THEN** la operación no se rechaza y el evento `message` contiene el texto `"Hola"`
 
+### Requirement: Profundidad máxima de anidamiento
+El motor SHALL rechazar, antes de validarlos, copiarlos o ejecutarlos, los datos recibidos cuyo anidamiento supere 1000 niveles, con un resultado independiente de la pila disponible. La profundidad es el número de arrays y objetos anidados en el camino más largo (un escalar vale 0, `[[1]]` vale 2). Un flujo se rechaza con `invalid_flow` y un único issue de capa `shape`, `path` `""` y un mensaje que nombra el límite; un contacto, con `invalid_contact`; un estado, con `invalid_state`.
+
+#### Scenario: Flujo demasiado anidado
+- **GIVEN** un flujo con una variable `json` cuyo `default` tiene 5000 niveles de arrays anidados
+- **WHEN** el host arranca una sesión o intenta continuarla con ese flujo
+- **THEN** la operación se rechaza con `invalid_flow` y un único issue de capa `shape` con `path` `""` que nombra el límite
+- **AND** la promesa no se rechaza
+
+#### Scenario: Predicado demasiado anidado
+- **GIVEN** un `condition` cuya regla `when` anida 5000 predicados `all` de un elemento
+- **WHEN** el host arranca una sesión
+- **THEN** la operación se rechaza con `invalid_flow`, sin lanzar
+
+#### Scenario: Flujo justo en el límite de anidamiento
+- **GIVEN** un flujo con una variable `json` cuyo `default` es un array con 997 niveles de anidamiento (el flujo tiene profundidad 1000), y otro con 998 niveles (profundidad 1001)
+- **WHEN** el host arranca una sesión con cada uno
+- **THEN** el primero no se rechaza y el segundo se rechaza con `invalid_flow`
+
+#### Scenario: Contacto demasiado anidado
+- **WHEN** el host arranca con un valor de contacto de 100000 niveles de arrays anidados, o con uno de 999 niveles (el contacto tiene profundidad 1000) y otro de 1000 niveles (profundidad 1001)
+- **THEN** el de 100000 y el de 1000 niveles se rechazan con `invalid_contact` y el de 999 no se rechaza
+- **AND** ninguna promesa se rechaza
+
+#### Scenario: Estado demasiado anidado
+- **GIVEN** un estado cuyo valor de una variable anida 100000 niveles de arrays
+- **WHEN** el host intenta continuar la sesión
+- **THEN** la operación se rechaza con `invalid_state`, sin lanzar
+
 ### Requirement: Arranque de sesión
 Al arrancar, el motor SHALL crear una sesión nueva en la que cada variable declarada toma su `default` (copia independiente del flujo) o queda sin valor, y SHALL empezar a ejecutar en el nodo `start`. La operación es asíncrona (devuelve una promesa) y su resultado contiene `status`, la lista ordenada `events` y `state`.
 
@@ -321,7 +350,7 @@ Un nodo `condition` SHALL evaluar sus `rules` en el orden del array y continuar 
 - **THEN** la sesión continúa en el `next` de la primera regla y no hay error
 
 ### Requirement: Predicados all y any
-Un predicado `all` SHALL ser verdadero si y solo si todos sus elementos lo son, y `any` si y solo si alguno lo es. Se evalúan de izquierda a derecha con cortocircuito (`all` se detiene en el primer falso, `any` en el primer verdadero) y pueden anidarse a cualquier profundidad.
+Un predicado `all` SHALL ser verdadero si y solo si todos sus elementos lo son, y `any` si y solo si alguno lo es. Se evalúan de izquierda a derecha con cortocircuito (`all` se detiene en el primer falso, `any` en el primer verdadero) y pueden anidarse hasta la profundidad máxima de anidamiento (ver «Profundidad máxima de anidamiento»).
 
 #### Scenario: all con un elemento falso
 - **GIVEN** `segmento` = `"pyme"` y el predicado `all` de `segmento eq "pyme"` y `segmento eq "empresa"`
@@ -500,6 +529,19 @@ El tamaño de un patrón de `matches` SHALL ser su número de átomos y asercion
 - **WHEN** se evalúan por separado `texto matches "a{1000}"`, `texto matches "a{1001}"` y `texto matches "(a{40}){40}"`
 - **THEN** la primera es falsa sin error, y la segunda y la tercera hacen fallar la sesión con código `invalid_rule`
 
+### Requirement: Profundidad máxima de anidamiento del patrón de matches
+El anidamiento de grupos de un patrón de `matches` (de cualquier tipo: `(...)`, `(?:...)`, `(?<nombre>...)`) SHALL ser como mucho 100. Se comprueba recorriendo el patrón de forma iterativa, antes de compilarlo con el motor nativo y de analizarlo, de modo que el resultado no dependa de la pila disponible. Un patrón que lo supera hace fallar la sesión con `invalid_rule`.
+
+#### Scenario: Patrón demasiado anidado
+- **GIVEN** `texto` = `"a"`
+- **WHEN** se evalúan por separado un patrón con 100 grupos `(?:` anidados alrededor de `a`, uno con 101 y uno con 100000
+- **THEN** el primero es verdadero y los otros dos hacen fallar la sesión con código `invalid_rule`
+
+#### Scenario: Paréntesis que no abren grupo
+- **GIVEN** `texto` = `"("`
+- **WHEN** se evalúan por separado un patrón de 150 `\(` seguidos y un patrón `[` + 150 `(` + `]`
+- **THEN** ninguno falla por profundidad: los paréntesis escapados y los de una clase no cuentan como grupos
+
 ### Requirement: Operadores isSet e isEmpty
 `isSet` SHALL ser verdadero si y solo si la variable tiene valor. `isEmpty` SHALL ser verdadero si la variable no tiene valor, es un string vacío o formado solo por espacios en blanco, un array vacío o un objeto vacío. `0` y `false` no están vacíos. Ambos ignoran `value` si está presente.
 
@@ -524,7 +566,7 @@ El tamaño de un patrón de `matches` SHALL ser su número de átomos y asercion
 - **THEN** es verdadero
 
 ### Requirement: Reglas que no se pueden evaluar
-Si una regla que se llega a evaluar usa un operador distinto de `isSet` o `isEmpty` y no tiene la propiedad `value`, o usa `matches` con un `value` que no es string, no es una regex válida, usa una construcción no admitida (referencias hacia atrás, lookahead, lookbehind, modificadores en línea o nombres de grupo repetidos) o supera el tamaño máximo, la sesión MUST fallar con el error `invalid_rule` y el `nodeId` del `condition`, sin continuar en ninguna salida (tampoco en `else`).
+Si una regla que se llega a evaluar no tiene la propiedad `value` (salvo `isSet` e `isEmpty`), o usa `matches` con un `value` que no es string, no es una regex válida, usa una construcción no admitida (referencias hacia atrás, lookahead, lookbehind, modificadores en línea o nombres de grupo repetidos) o supera el tamaño o la profundidad máximos, la sesión MUST fallar con el error `invalid_rule` y el `nodeId` del `condition`, sin continuar en ninguna salida (tampoco en `else`).
 
 #### Scenario: Falta value
 - **GIVEN** un `condition` cuya única regla es `{variable: "segmento", op: "eq"}`

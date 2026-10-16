@@ -62,6 +62,7 @@ Fases secuenciales; cada una empieza cuando la anterior pasa su gate. Comportami
 - [ ] 6.6 FOLLOW-UP (feature 7): filtrar esquemas de URL peligrosos (`javascript:`, `data:` según el tipo) en `url` de image/video/audio/embed antes de pintarlas, y no mostrar al usuario final el `message` de los eventos `error` (es para el autor y el host)
 - [ ] 6.7 FOLLOW-UP: exportar `TEMPLATE_VAR` desde `@franca/spec` para que el motor lo importe en vez de copiarlo
 - [ ] 6.8 FOLLOW-UP: script `lint` para los paquetes (`spec` y `engine`) y valorar mutación sobre `predicates` y `regex` cuando el motor tenga los ocho nodos
+- [ ] 6.9 FOLLOW-UP: regla semántica en `@franca/spec` para variables con el mismo `name` (el validador las acepta, también con distinto `scope`, y el motor se queda con la primera declaración)
 
 ## Workflow follow-up
 

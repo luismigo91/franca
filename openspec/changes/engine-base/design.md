@@ -100,6 +100,8 @@ export const MAX_STEPS_PER_ADVANCE = 200;
 export const DEFAULT_TYPING_DELAY_MS = 600;
 export const MAX_PATTERN_SIZE = 1000;
 export const MAX_RENDERED_LENGTH = 16384; // unidades de código UTF-16
+export const MAX_NESTING_DEPTH = 1000;    // niveles de array/objeto de flujo, contacto y estado
+export const MAX_PATTERN_DEPTH = 100;     // grupos anidados en un patrón de matches
 
 export const SESSION_ERROR_CODES = ['unsupported_node', 'invalid_rule', 'step_limit_exceeded', 'value_too_large'] as const;
 export type SessionErrorCode = (typeof SESSION_ERROR_CODES)[number];
@@ -196,13 +198,13 @@ Tabla de códigos (el `message` exacto lo fija la implementación y lo congelan 
 
 | Código | Tipo | Cuándo | `nodeId` |
 |---|---|---|---|
-| `invalid_flow` | rechazo | `validateFlow` no da `valid` (con `issues` íntegros) | — |
-| `invalid_contact` | rechazo | `contact` no es objeto plano, o algún valor no es JSON (`NaN`, `±Infinity`, `undefined`, función, símbolo, bigint, instancia no plana, array disperso, ciclo) | — |
-| `invalid_state` | rechazo | `state` no cumple la forma de `SessionState` o su `stateVersion` no es conocida | — |
+| `invalid_flow` | rechazo | `validateFlow` no da `valid` (con `issues` íntegros), o el flujo supera `MAX_NESTING_DEPTH` (un issue `shape`, `path` `""`) | — |
+| `invalid_contact` | rechazo | `contact` no es objeto plano, o supera `MAX_NESTING_DEPTH`, o algún valor no es JSON (`NaN`, `±Infinity`, `undefined`, función, símbolo, bigint, instancia no plana, array disperso, ciclo) | — |
+| `invalid_state` | rechazo | `state` no cumple la forma de `SessionState`, supera `MAX_NESTING_DEPTH` o su `stateVersion` no es conocida | — |
 | `state_mismatch` | rechazo | `state.flowId !== flow.id` o `state.nodeId` no existe en el flujo | — |
 | `session_not_active` | rechazo | `state.status` no es activo (en esta feature, siempre) | — |
 | `unsupported_node` | error de sesión | se alcanza `input`, `http` o `llm` | el nodo |
-| `invalid_rule` | error de sesión | regla evaluada sin `value`, o `matches` con value no string, regex inválida, no admitida o demasiado grande | el `condition` |
+| `invalid_rule` | error de sesión | regla evaluada sin `value`, o `matches` con value no string, regex inválida, no admitida o demasiado grande o demasiado anidada | el `condition` |
 | `step_limit_exceeded` | error de sesión | se iba a ejecutar el nodo 201 del avance | ese nodo |
 | `value_too_large` | error de sesión | una plantilla (`text`, `url`, `alt` o string de `set`) renderiza más de `MAX_RENDERED_LENGTH` unidades de código | el nodo que renderiza |
 
@@ -265,6 +267,14 @@ Cada operación hace primero `toJsonForm(flow)` = semántica de `JSON.parse(JSON
 - Coste O(tamaño del flujo), el mismo orden que la validación que ya se hace en cada operación.
 - `contact` y `state` **no** se normalizan sino que se comprueban (`checkJsonValue`, estricto, detecta ciclos con la pila de ancestros) y se copian: son datos del host y la spec exige rechazarlos (`invalid_contact`/`invalid_state`). Objeto plano = prototipo `Object.prototype` o `null`; claves propias enumerables de tipo string.
 - Alternativa descartada: rechazar con `invalid_flow` un `default` no JSON. Contradice "issues = los del validador" y sería una regla semántica que pertenece a `packages/spec` (FOLLOW-UP de la proposal).
+
+### D4b. Límites de profundidad deterministas
+
+`validateFlow` (ajv), `JSON.stringify` y el clonado son recursivos: con datos hostiles desbordan la pila (medido: ~1500 niveles de predicados, ~2500 de JSON en contacto, 100 000 en un `default`) y el resultado dependería de la pila libre y del JIT. Capturar `RangeError` no sirve como contrato, así que se fija un límite explícito:
+
+- `MAX_NESTING_DEPTH` = 1000 niveles de array/objeto. Un flujo real anida del orden de 10 (≈ 450 predicados `all`/`any` anidados caben, cada uno ocupa 2 niveles); 1000 deja un margen de ×100 y queda bien por debajo de lo que la pila soporta en ajv (un flujo de ~1000 predicados, ≈ 2000 niveles, aún se valida). Se mide con `exceedsDepth` (`json.ts`): recorrido **iterativo** con pila explícita, que sigue `Object.keys` (no `length`, para que un array disperso enorme no cueste) y recuerda la mayor profundidad con la que visitó cada objeto (un grafo compartido no es exponencial y un ciclo sube hasta el límite y se rechaza).
+- Se aplica **antes** de cualquier operación recursiva: al flujo antes de `toJsonForm` (→ `invalid_flow`, un issue `shape` con `path` `""`), al contacto antes de copiarlo (→ `invalid_contact`) y al estado dentro de `cloneJsonStrict`, que lo protege en todos sus usos (→ `invalid_state`). Se mide la estructura recibida; un `toJSON` propio que devuelva algo más profundo es un defecto del host (como los ciclos con `bigint`) y no se cubre.
+- `MAX_PATTERN_DEPTH` = 100 grupos anidados en un patrón de `matches`, contados por un barrido iterativo (`regex/parse.ts`) que salta escapes y clases, **antes** del precheck nativo y del parser. Ningún patrón real anida más de unos pocos grupos. El `catch` de `RangeError` en `compilePattern` queda solo como red de seguridad; ya no define el resultado.
 
 ### D5. Variables: `Map` interno, objetos de estado sin prototipo trampa
 
@@ -367,7 +377,7 @@ Recomendación: **`apply normal`** para todo el cambio. Si el usuario quiere, la
 - [La sintaxis aceptada depende del V8 del host] → se rechazan explícitamente las extensiones posteriores a Node 22 que conocemos (modificadores `(?i:)`, nombres repetidos); `engines` fija Node ≥ 22.
 - [El texto de `message` cambia y rompe golden] → el contrato es `code`; los golden se regraban con comando explícito y diff revisado.
 - [Flujo construido en memoria con ciclos o `bigint` en cualquier campo] → `toJsonForm` lanza antes de validar y la promesa se rechaza (defecto del host, no rechazo de contrato): los flujos reales llegan como JSON. Documentado en el README del paquete.
-- [Recursión profunda en predicados o valores muy anidados] → acotada en la práctica por el tamaño del JSON; no hay requisito de profundidad. Se acepta.
+- [Recursión profunda en predicados, valores o patrones muy anidados] → límites explícitos y deterministas (D4b).
 - [Validar en cada operación cuesta] → O(tamaño del flujo) con ajv ya compilado en `@franca/spec`; la spec lo exige. Se acepta.
 - [`pnpm --filter @franca/engine test` sin turbo falla si `@franca/spec` no está compilado] → mismo gotcha que las apps (ya en `gotchas.md`); el README del paquete lo dice.
 - [Los hooks de popi no verían `packages/engine/src/**` ni protegerían los golden] → la tarea 1.4 los añade a `.claude/popi.json` (D1).
