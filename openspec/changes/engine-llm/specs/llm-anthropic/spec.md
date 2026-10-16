@@ -30,6 +30,11 @@ Conectar el nodo `llm` del motor de Franca con los modelos Claude de Anthropic m
 - **WHEN** se crea un cliente con `createAnthropicClient({apiKey, fetch})`, con un `fetch` inyectado, y el proveedor resuelve un turno con él
 - **THEN** el cliente tiene nivel de registro `"off"` y trazas en modo de solo metadatos, y ningún método de `console` se ha llamado
 
+#### Scenario: Opt-out de trazas del entorno
+- **GIVEN** la variable de entorno `ANTHROPIC_OPEN_TELEMETRY` = `"false"`
+- **WHEN** se crea un cliente con `createAnthropicClient({apiKey, fetch})`
+- **THEN** las trazas del cliente están desactivadas (`traces.enabled` `false`)
+
 ### Requirement: Cliente y credenciales
 El proveedor SHALL usar el cliente de `options.client` o, sin él, uno de `createAnthropicClient()`, cuyas credenciales resuelve el SDK desde el entorno; si el SDK no puede crearlo, `createAnthropicProvider` lanza ese error al crearse. Sin credenciales, cada turno falla antes de enviar nada y resuelve `{kind: "failed", costUsd: 0}`. El paquete no contiene claves, no lee el entorno por su cuenta y no pone credenciales en resultados, avisos ni registros.
 
@@ -135,7 +140,7 @@ Un modelo SHALL tener una tarifa base y, opcionalmente, una tarifa de prompt lar
 - **THEN** se aplica la tarifa de prompt largo: `costUsd` es 0.03450005, con una tolerancia de 1e-12
 
 ### Requirement: Petición a la API de Mensajes
-Cada turno SHALL enviar `model`, `max_tokens` (`options.maxOutputTokens`, 8192 por defecto), `system` y `messages`. `system` es un único bloque estable (instrucciones, `system`, `goal` y slots). `messages` empieza con un mensaje fijo de rol `user`, sigue con `history` en orden y con sus roles, y nunca termina en un mensaje del asistente. El contenido de todo mensaje es un array de bloques `text`. El estado del turno va como último bloque del último mensaje `user`, y solo ahí.
+Cada turno SHALL enviar `model`, `max_tokens` (`options.maxOutputTokens`, 4096 por defecto), `system` y `messages`. `system` es un único bloque estable (instrucciones, `system`, `goal` y slots). `messages` empieza con un mensaje fijo de rol `user`, sigue con `history` en orden y con sus roles, y nunca termina en un mensaje del asistente. El contenido de todo mensaje es un array de bloques `text`. El estado del turno va como último bloque del último mensaje `user`, y solo ahí.
 
 #### Scenario: Mensajes del primer turno
 - **GIVEN** una petición con `history` `[]`
@@ -155,7 +160,7 @@ Cada turno SHALL enviar `model`, `max_tokens` (`options.maxOutputTokens`, 8192 p
 #### Scenario: Tope de tokens de salida
 - **GIVEN** un proveedor sin `maxOutputTokens` y otro con `maxOutputTokens` 2048
 - **WHEN** cada uno envía una petición
-- **THEN** llevan `max_tokens` 8192 y 2048 respectivamente
+- **THEN** llevan `max_tokens` 4096 y 2048 respectivamente
 
 ### Requirement: Caché de la conversación
 El proveedor SHALL marcar con `cache_control` `{type: "ephemeral"}` dos bloques: el de `system` y el bloque inmediatamente anterior al estado del turno (el texto del último mensaje `user`), y ninguno más ni `cache_control` de nivel superior. Así, todo lo que una petición envía hasta su segunda marca es, sin cambios y en el mismo orden, el principio de la petición del turno siguiente del mismo nodo.
@@ -183,7 +188,7 @@ El bloque de `system` SHALL indicar al modelo que responda en el idioma de `loca
 - **THEN** `"MARCA-USUARIO"` aparece solo en el último mensaje de rol `user` y no en `system`
 
 ### Requirement: Formatos de los slots
-El bloque de `system` SHALL describir, para cada tipo de slot de la petición, el formato que acepta el conversor del motor: `date` como `YYYY-MM-DD`; `url` con `http` o `https` y un nombre de dominio (sin IP ni `localhost`); `phone` con 7 a 15 cifras y un `+` inicial opcional; `number` con signo opcional y un único separador decimal, sin separador de miles; `boolean` y `number` como valores JSON; `email` como una dirección; `string` como texto, y `json` como texto JSON.
+El bloque de `system` SHALL describir, para cada tipo de slot de la petición, el formato que acepta el conversor del motor: `date` como `YYYY-MM-DD`; `url` con `http` o `https` y un nombre de dominio (sin IP ni `localhost`); `phone` con 7 a 15 cifras y un `+` inicial opcional; `number` como un número JSON; `boolean` como un valor JSON; `email` como una dirección; `string` como texto, y `json` como texto JSON.
 
 #### Scenario: Formatos en el system
 - **GIVEN** una petición con slots de tipo `date`, `url`, `phone` y `number`
@@ -230,18 +235,23 @@ Cuando una petición trae `temperature` distinta de `null`, el proveedor SHALL i
 - **THEN** `onWarning` no se ha llamado
 
 ### Requirement: Salida estructurada
-El proveedor SHALL pedir la respuesta con salida estructurada: `messages.create` con `output_config.format`, el JSON Schema que genera `zodOutputFormat` a partir de un esquema zod con el texto de la respuesta, si el objetivo está cumplido y un valor (o ninguno) por cada slot de la petición, identificado por su posición. Un slot de una variable `json` se pide como texto JSON.
+El proveedor SHALL pedir la respuesta con salida estructurada: `messages.create` con `output_config.format`, el JSON Schema que genera `zodOutputFormat` a partir de un esquema zod con el texto de la respuesta, si el objetivo está cumplido y, por cada slot de la petición, identificado por su posición, un objeto requerido `{found, value}`: `found` (boolean) dice si el slot tiene valor y `value` tiene un tipo fijo (string para los textuales, number, boolean; un slot de una variable `json` se pide como string con texto JSON). El esquema no usa tipos unión ni propiedades opcionales (la API limita a 16 parámetros con tipo unión y a 24 opcionales por petición, y un nodo puede tener más slots que eso), y todos sus objetos son cerrados.
 
 #### Scenario: Esquema de la petición
 - **GIVEN** una petición con los slots `resuelto` (`boolean`) y `motivo` (`string`)
 - **WHEN** el proveedor la envía
-- **THEN** `output_config.format` es de tipo `json_schema` y su esquema exige `text` (string), `done` (boolean) y `slots` con un valor boolean o `null` para el primer slot y string o `null` para el segundo, sin propiedades adicionales, y no nombra ninguna variable como propiedad
+- **THEN** `output_config.format` es de tipo `json_schema` y su esquema exige `text` (string), `done` (boolean) y `slots` con, para el primer slot, un objeto `{found: boolean, value: boolean}` y, para el segundo, `{found: boolean, value: string}`, todos sus campos requeridos, sin propiedades adicionales, y no nombra ninguna variable como propiedad
+
+#### Scenario: Esquema con muchos slots
+- **GIVEN** una petición con 50 slots de todos los tipos de variable
+- **WHEN** el proveedor la envía
+- **THEN** el esquema de `output_config.format` no tiene ningún tipo unión (`anyOf`, `oneOf` ni `type` como array), ninguna propiedad opcional y `additionalProperties` `false` en todos sus objetos
 
 ### Requirement: Lectura de la salida estructurada
-Con `stop_reason` `end_turn`, el proveedor SHALL unir los bloques `text` posteriores al último bloque `fallback` (o todos, si no hay), parsearlos como JSON y validarlos con el esquema zod. Si la salida es válida, resuelve un `turn` con ese `text` y ese `done`, y en `slots`, con el nombre de su variable, solo los slots que tienen valor, también si se llaman `__proto__` o `constructor`. Un slot `json` se parsea y, si no es JSON o es `null`, no se incluye.
+Con `stop_reason` `end_turn`, el proveedor SHALL unir los bloques `text` posteriores al último bloque `fallback` (o todos, si no hay), parsearlos como JSON y validarlos con el esquema zod. Si la salida es válida, resuelve un `turn` con ese `text` y ese `done`, y en `slots`, con el nombre de su variable, solo los slots con `found` `true`, también si se llaman `__proto__` o `constructor`; el `value` de un slot con `found` `false` se ignora. Un slot `json` se parsea y, si no es JSON o es `null`, no se incluye.
 
 #### Scenario: Turno con slots
-- **GIVEN** una petición con los slots `resuelto` (`boolean`) y `motivo` (`string`), y una respuesta cuya salida estructurada da el texto `"¡Perfecto!"`, `done` `true`, `resuelto` `true` y `motivo` sin valor
+- **GIVEN** una petición con los slots `resuelto` (`boolean`) y `motivo` (`string`), y una respuesta cuya salida estructurada da el texto `"¡Perfecto!"`, `done` `true`, `resuelto` con `found` `true` y valor `true`, y `motivo` con `found` `false` y un `value` cualquiera
 - **WHEN** el proveedor la convierte
 - **THEN** resuelve `{kind: "turn", text: "¡Perfecto!", slots: {resuelto: true}, done: true, costUsd}` con el coste de su `usage`
 
@@ -256,7 +266,7 @@ Con `stop_reason` `end_turn`, el proveedor SHALL unir los bloques `text` posteri
 - **THEN** resuelve un `turn` con `text` `"Hola"`
 
 #### Scenario: Slot json
-- **GIVEN** una petición con un slot `datos` (`json`) y, por separado, respuestas que lo dan como el texto JSON `"{\"a\": [1]}"` y como el texto `"{no es json"`
+- **GIVEN** una petición con un slot `datos` (`json`) y, por separado, respuestas que lo dan con `found` `true` y como el texto JSON `"{\"a\": [1]}"` y como el texto `"{no es json"`
 - **WHEN** el proveedor las convierte
 - **THEN** la primera da `slots` `{datos: {a: [1]}}` y la segunda no incluye `datos`
 

@@ -80,6 +80,12 @@ Fases secuenciales; cada una empieza cuando la anterior pasa su gate. Comportami
 - [ ] 8.5 FOLLOW-UP (feature 8): vista previa con proveedor simulado y el evento `llm`
 - [ ] 8.6 FOLLOW-UP (`packages/spec` y RFC-0001): anotar en `docs/rfcs/` la regla del `onExhausted`, que `system` y `goal` son plantillas, que `maxTurns` cuenta llamadas, la conversión de slots por `type`, el autosalto y que `temperature` es una preferencia; avisos del validador cuando `temperature` aparece en un flujo y cuando `system`/`goal` citan una variable que escribe un `input`
 
+## 9. Correcciones tras QA y revisión de código
+
+- [ ] 9.1 Esquema de salida sin uniones ni opcionales (`{found, value}` por slot), `max_tokens` 4096, opt-out de OpenTelemetry del entorno y conformidad (`status`, `costCapUsd`, registros con fallos) según los deltas; candado de mutación (`guard-mutate`, recompilar el motor, procesos huérfanos); bajos de la revisión
+- [ ] 9.2 FOLLOW-UP (feature 6): `unknownModelPrices` y recargos de residencia (`inference_geo`) en la tabla de precios; `invokeCapability<Req>` común a `llm/capability.ts` y `http/capability.ts`
+- [ ] 9.3 Lockfile: el peer opcional `@opentelemetry/api` del SDK se resuelve también en `next` y `vitest` (cambia sus claves de resolución); aceptado, anotarlo en el PR
+
 ## Workflow follow-up
 
 - Revisión adversarial del diseño (`popi:architecture-reviewer`) y aprobación explícita del usuario antes de implementar.

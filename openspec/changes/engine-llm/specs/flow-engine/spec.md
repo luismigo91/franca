@@ -203,7 +203,7 @@ Un `turn` cuyo `text`, recortado, está vacío, tiene más de 4096 unidades de c
 - **THEN** se emite un `message` con los 4096 caracteres y la sesión queda en `waiting`
 
 ### Requirement: Mensaje del usuario en un llm
-Al continuar una sesión que espera en un `llm`, la entrada SHALL ser `{text: string}`; si no, la operación se rechaza con `invalid_input`. Un `text` de más de 4096 unidades (`too_long`), vacío al recortarlo (`required`) o con U+0000 o un sustituto suelto (`invalid_format`) es inválido: no se llama al host, no cuenta como turno ni modifica la conversación, y el único evento es un `input` con `attempt` aumentado en 1 y ese `reason`. La sesión sigue en `waiting`.
+Al continuar una sesión que espera en un `llm`, la entrada SHALL ser `{text: string}`; si no, la operación se rechaza con `invalid_input`. Un `text` de más de 4096 unidades (`too_long`), vacío al recortarlo (`required`) o con U+0000 o un sustituto suelto (`invalid_format`) es inválido: no se llama al host, no cuenta como turno ni modifica la conversación, y el único evento es un `input` con `attempt` aumentado en 1 y ese `reason`. La sesión sigue en `waiting`. La conversación se devuelve tal como llegó, también sus slots recogidos: no se revalidan hasta el siguiente mensaje válido.
 
 #### Scenario: Formas incorrectas en un llm
 - **GIVEN** una sesión de `llm-email` esperando en `a`
@@ -571,6 +571,7 @@ El host de producción MUST tratar toda petición `llm` y su resultado como dato
 - **GIVEN** una petición `llm` cuyo `history` contiene `"me llamo Ana, ana@example.com"` y un resultado con `slots` `{email: "ana@example.com"}`
 - **WHEN** el host de producción la ejecuta
 - **THEN** sus registros no contienen `ana@example.com` ni `me llamo Ana`
+- **AND** tampoco los contienen cuando el proveedor devuelve `failed`, `refusal` o `not_configured`, ni cuando rechaza con un error cuyo mensaje incluye esos datos
 
 ### Requirement: Host de producción: custodia del estado
 El host de producción MUST guardar en el servidor el estado de cada sesión y continuarla solo con el estado que guardó, nunca con uno que aporte el cliente. Sin esto, un cliente podría reiniciar turnos y coste reenviando un estado anterior, y `maxTurns` y `costCapUsd` no serían verificables.
@@ -579,6 +580,7 @@ El host de producción MUST guardar en el servidor el estado de cada sesión y c
 - **GIVEN** una sesión de `llm-email` custodiada por el host de producción, esperando tras dos turnos
 - **WHEN** un cliente la continúa con `{text: "Hola"}` y envía además un estado propio con la conversación vacía y coste 0
 - **THEN** el host ignora ese estado: la petición `llm` tiene `turn` 3 y el `history` guardado
+- **AND** con `costCapUsd` 0.025 y turnos de 0.01, la continuación termina la sesión por `cost_cap` (el coste guardado cuenta; el que aporta el cliente, no)
 
 ### Requirement: Host de producción: una continuación por estado
 El host de producción MUST reclamar el estado guardado **antes** de ejecutar el motor (compare-and-swap sobre su versión, o una concesión «en curso»): una segunda continuación del mismo estado, mientras la reclamación existe o una vez aplicada, se rechaza por conflicto sin ejecutar el motor ni llamar al proveedor. Una reclamación que no termina caduca y el estado vuelve a poder continuarse.
