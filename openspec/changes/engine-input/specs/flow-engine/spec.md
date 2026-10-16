@@ -253,7 +253,7 @@ Con `url`, un texto (ya recortado) que contiene espacios en blanco, caracteres d
 
 #### Scenario: Caracteres invisibles y sustitutos sueltos
 - **GIVEN** una sesión esperando en un input de tipo `url`
-- **WHEN** el host continúa por separado con `"ex\u00adample.com"`, `"ex\u200bample.com"`, `"example.com/\ufeff"` y `"example.com/\ud800"`
+- **WHEN** el host continúa por separado con `"ex\u00adample.com"`, `"ex\u200bample.com"`, `"example.com/\ufeffa"` (BOM interior: uno final lo quita el recorte de espacios antes de convertir) y `"example.com/\ud800"`
 - **THEN** cada respuesta es inválida con `reason` `invalid_format` (el parser quitaría en silencio los tres primeros caracteres del host o de la ruta, o cambiaría el sustituto por U+FFFD)
 
 ### Requirement: Tamaño máximo del valor guardado
