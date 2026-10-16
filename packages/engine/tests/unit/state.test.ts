@@ -150,3 +150,25 @@ describe('buildState: attempt', () => {
     expect(e).not.toHaveProperty('attempt');
   });
 });
+
+describe('parseState: profundidad por campo (D13)', () => {
+  const chain = (levels: number): unknown => {
+    let value: unknown = 1;
+    for (let i = 0; i < levels; i++) value = [value];
+    return value;
+  };
+
+  it.each(['contact', 'variables'] as const)('%s: profundidad 1000 aceptada y 1001 rechazada', (field) => {
+    // el campo es un objeto (1) con un valor de 999 niveles: profundidad 1000
+    expect(parseState({ ...ended(), [field]: { v: chain(999) } })).not.toBeNull();
+    expect(parseState({ ...ended(), [field]: { v: chain(1000) } })).toBeNull();
+  });
+
+  it('un campo extra de 100000 niveles se rechaza sin lanzar', () => {
+    expect(parseState({ ...ended(), extra: chain(100000) })).toBeNull();
+  });
+
+  it('el propio objeto del estado no cuenta', () => {
+    expect(parseState({ ...ended(), contact: { v: chain(999) }, variables: { w: chain(999) } })).not.toBeNull();
+  });
+});
