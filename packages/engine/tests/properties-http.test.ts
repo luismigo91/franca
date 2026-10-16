@@ -9,7 +9,7 @@ import { prng } from './helpers/regex.js';
  * nunca se rechaza, el estado es JSON, hay un único evento terminal, el presupuesto se respeta y ningún
  * marcador sensible aparece en eventos, errores ni estado.
  */
-const SECRET = 'ZQXJ-QA3-SECRETO';
+const SECRET = 'ZQXJ-QA3-SECRETO'; // gitleaks:allow (marcador de test, no es un secreto)
 const PII = 'zqxj-qa3-pii@example.com';
 
 const URLS = [
