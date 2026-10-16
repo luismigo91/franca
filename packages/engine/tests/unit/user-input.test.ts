@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readUserInput } from '../../src/input/user-input.js';
+import { readTextInput, readUserInput } from '../../src/input/user-input.js';
 import { choiceNode, inputNode } from '../helpers/input-node.js';
 
 const text = inputNode('text');
@@ -79,5 +79,45 @@ describe('readUserInput: selección múltiple', () => {
 
   it('un Proxy de array pasa Array.isArray y se lee como un array', () => {
     expect(readUserInput(multiple, { choices: new Proxy(['b'], {}) })).toEqual({ kind: 'choices', options: [1] });
+  });
+});
+
+describe('readTextInput (mensaje del usuario en un llm)', () => {
+  it('{text: string} → el texto sin recortar', () => {
+    expect(readTextInput({ text: '  Hola  ' })).toBe('  Hola  ');
+    expect(readTextInput(Object.assign(Object.create(null), { text: 'Ana' }))).toBe('Ana');
+  });
+
+  it.each([
+    ['string', 'Ana'],
+    ['text no string', { text: 5 }],
+    ['propiedad extra', { text: 'Ana', extra: 1 }],
+    ['choice', { choice: 'a' }],
+    ['choices', { choices: ['a'] }],
+    ['vacío', {}],
+    ['null', null],
+    ['undefined', undefined],
+    ['array', ['Ana']],
+    ['String objeto', { text: new String('Ana') }],
+    ['instancia de clase', new (class X { text = 'Ana'; })()],
+    ['Date', new Date()],
+    ['número', 5],
+  ])('%s → null (las mismas formas que {text} de readUserInput)', (_name, input) => {
+    expect(readTextInput(input)).toBeNull();
+    expect(readUserInput(text, input)).toBeNull();
+  });
+
+  it('clave símbolo extra o no enumerable extra → null', () => {
+    expect(readTextInput({ text: 'Ana', [Symbol('x')]: 1 })).toBeNull();
+    const hidden = { text: 'Ana' };
+    Object.defineProperty(hidden, 'oculta', { value: 1, enumerable: false });
+    expect(readTextInput(hidden)).toBeNull();
+    expect(readTextInput({ [Symbol('text')]: 'Ana' })).toBeNull();
+  });
+
+  it('text anidado 100000 niveles → null sin recursar', () => {
+    let x: unknown = 1;
+    for (let i = 0; i < 100000; i++) x = [x];
+    expect(readTextInput({ text: x })).toBeNull();
   });
 });
