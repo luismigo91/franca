@@ -53,7 +53,7 @@ El motor SHALL validar y ejecutar la forma JSON del flujo (la que produce `JSON.
 - **THEN** la operación no se rechaza y el evento `message` contiene el texto `"Hola"`
 
 ### Requirement: Profundidad máxima de anidamiento
-El motor SHALL rechazar, antes de validarlos, copiarlos o ejecutarlos, los datos recibidos cuyo anidamiento supere 1000 niveles, con un resultado independiente de la pila disponible. La profundidad es el número de arrays y objetos anidados en el camino más largo (un escalar vale 0, `[[1]]` vale 2). En un estado no cuenta el propio objeto del estado: cada uno de sus campos admite 1000 niveles, de modo que su `contact` admite lo mismo que los valores de contacto recibidos al arrancar y todo estado que devuelve el motor se puede continuar. Un flujo se rechaza con `invalid_flow` y un único issue de capa `shape`, `path` `""` y un mensaje que nombra el límite; un contacto, con `invalid_contact`; un estado, con `invalid_state`.
+El motor SHALL rechazar, antes de validarlos, copiarlos o ejecutarlos, los datos recibidos cuyo anidamiento supere 1000 niveles, con un resultado independiente de la pila disponible. La profundidad es el número de arrays y objetos anidados en el camino más largo (un escalar vale 0, `[[1]]` vale 2). Un flujo se rechaza con `invalid_flow` y un único issue de capa `shape`, `path` `""` y un mensaje que nombra el límite; un contacto, con `invalid_contact`.
 
 #### Scenario: Flujo demasiado anidado
 - **GIVEN** un flujo con una variable `json` cuyo `default` tiene 5000 niveles de arrays anidados
@@ -75,6 +75,9 @@ El motor SHALL rechazar, antes de validarlos, copiarlos o ejecutarlos, los datos
 - **WHEN** el host arranca con un valor de contacto de 100000 niveles de arrays anidados, o con uno de 999 niveles (el contacto tiene profundidad 1000) y otro de 1000 niveles (profundidad 1001)
 - **THEN** el de 100000 y el de 1000 niveles se rechazan con `invalid_contact` y el de 999 no se rechaza
 - **AND** ninguna promesa se rechaza
+
+### Requirement: Profundidad de los campos del estado
+En un estado el límite de 1000 niveles SHALL aplicarse a cada uno de sus campos, sin contar el propio objeto del estado, de modo que su `contact` admite lo mismo que los valores de contacto recibidos al arrancar y todo estado que devuelve el motor se puede continuar. Un estado que lo supera se rechaza con `invalid_state`.
 
 #### Scenario: Ida y vuelta con un contacto en el límite
 - **GIVEN** un flujo con la variable de contacto `c` y un `input` de tipo `text`, y un valor de contacto `c` de 999 niveles de arrays anidados
