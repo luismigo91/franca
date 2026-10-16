@@ -249,7 +249,7 @@ Con `url`, el host serializado por WHATWG SHALL cumplir la regla del dominio de 
 - **THEN** `web` vale `"https://xn--exmple-qta.com/"`
 
 ### Requirement: Espacios y controles en una url
-Con `url`, un texto (ya recortado) que contiene espacios en blanco, caracteres de control (U+0000 a U+001F y U+007F), caracteres ignorables por defecto de Unicode (`Default_Ignorable_Code_Point`, como U+00AD o U+200B) o sustitutos UTF-16 sueltos SHALL ser inválido con `reason` `invalid_format`, antes de aplicar el parser de WHATWG. También lo es si el host (hasta el primer `/`, `?`, `#` o `\`) contiene `%`.
+Con `url`, un texto (ya recortado) que contiene espacios en blanco, caracteres de control (U+0000 a U+001F y U+007F), caracteres ignorables por defecto de Unicode (`Default_Ignorable_Code_Point`, como U+00AD o U+200B) o sustitutos UTF-16 sueltos SHALL ser inválido con `reason` `invalid_format`, antes de aplicar el parser de WHATWG. También lo es si el host contiene `%`; el host va tras las `/` o `\` iniciales, que WHATWG ignora, hasta el primer `/`, `?`, `#` o `\`.
 
 #### Scenario: Espacios y caracteres de control
 - **GIVEN** una sesión esperando en un input de tipo `url`
@@ -263,13 +263,13 @@ Con `url`, un texto (ya recortado) que contiene espacios en blanco, caracteres d
 
 #### Scenario: Invisibles codificados en el host
 - **GIVEN** una sesión esperando en un input de tipo `url`
-- **WHEN** el host continúa por separado con `"exa%C2%ADmple.com"`, `"exa%E2%80%8Bmple.com"`, `"exa%EF%BB%BFmple.com"`, `"https://exa%C2%ADmple.com/"` y `"exa%41mple.com"`
+- **WHEN** el host continúa por separado con `"exa%C2%ADmple.com"`, `"exa%E2%80%8Bmple.com"`, `"exa%EF%BB%BFmple.com"`, `"https://exa%C2%ADmple.com/"`, `"exa%41mple.com"`, `"/exa%C2%ADmple.com"`, `"//exa%C2%ADmple.com"`, `"https:///exa%C2%ADmple.com"`, `"https:////exa%C2%ADmple.com"` y `"https://\exa%C2%ADmple.com"`
 - **THEN** cada respuesta es inválida con `reason` `invalid_format` (el parser decodificaría el porcentaje y luego quitaría el carácter invisible del host)
 
 #### Scenario: Porcentaje fuera del host
 - **GIVEN** una sesión esperando en un input de tipo `url` sobre `web`
-- **WHEN** el host continúa con `"example.com/a%20b?q=%C3%B1"`
-- **THEN** `web` vale `"https://example.com/a%20b?q=%C3%B1"`
+- **WHEN** el host continúa por separado con `"example.com/a%20b?q=%C3%B1"`, `"https:///example.com/%41"` y `"example.com\a%41"`
+- **THEN** `web` vale respectivamente `"https://example.com/a%20b?q=%C3%B1"`, `"https://example.com/%41"` y `"https://example.com/a%41"`
 
 ### Requirement: Tamaño máximo del valor guardado
 La forma textual (ver «Forma textual de los valores») de un valor que guarda un input de tipo distinto de `choice` SHALL tener como mucho 4096 unidades de código UTF-16, aunque la conversión lo haga crecer. Si la conversión produciría un valor más largo, la respuesta es inválida con `reason` `invalid_format`.
