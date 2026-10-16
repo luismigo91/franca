@@ -3,7 +3,7 @@ name: decision-matches-regex-lineal
 description: Por qué el operador matches del motor usa una Pike VM propia con átomos nativos y no RegExp nativo, timeout ni RE2
 metadata:
   type: project
-  enforcement: packages/engine/tests/unit/regex-match.test.ts, packages/engine/tests/static-guard.test.ts
+  enforcement: packages/engine/tests/unit/regex-match.test.ts, packages/engine/tests/unit/regex-adversarial.test.ts, packages/engine/tests/static-guard.test.ts
 ---
 
 # `matches` se evalúa con un motor lineal propio, nunca con el `RegExp` nativo
@@ -17,6 +17,8 @@ metadata:
 - Port de RE2 en JS: dependencia nueva y semántica distinta de ECMAScript (`.`, `\s`, `\p{Script=…}`).
 
 **Consecuencias que no se ven en el código:**
+- La linealidad depende de acotar las **instrucciones emitidas**, no solo los átomos: una alternativa vacía emite split+jump y un `*` emite split+jump aunque su contenido pese 0. Con la métrica antigua, `(?:(?:(?:|){1000}){1000}){1000}a` agotaba el heap antes de evaluar nada. `patternSize` cuenta lo que se emite y el invariante `instrucciones ≤ 2·tamaño + 1` (m ≤ 2001) se comprueba por test en cada patrón aceptado; quien toque el compilador debe mantenerlo.
+- Un contador `{n,m}` se lee acotado a `MAX_SAFE_INTEGER`: con 309 cifras `Number()` da `Infinity`, que significaría «sin tope».
 - Se rechazan referencias, lookarounds, modificadores en línea y nombres de grupo repetidos aunque el V8 del host ya los rechace (Node 22) o los admita en el futuro: así el resultado no depende de la versión.
 - `\p{…}` depende de la versión de Unicode del V8 del host: un carácter añadido a Unicode puede clasificarse distinto entre versiones de Node. Se acepta (Node ≥ 22).
 - El oráculo diferencial contra el nativo no es fiable en un caso: V8 prueba `\B` entre las dos mitades de un par sustituto aunque el modo `u` lo prohíbe (`/\B/u.test('a😀b')` da `true`). El motor sigue la spec (`false`) y el diferencial salta esos casos.
