@@ -47,10 +47,10 @@ Fases secuenciales; cada una empieza cuando la anterior pasa su gate. Comportami
 
 ## 5. Verificación — dueño: `popi:qa-tester` (modo verificación de spec)
 
-- [ ] 5.1 Matriz escenario → test: cada `#### Scenario` de `specs/flow-engine/spec.md` tiene un `it` con su título; listar los que falten y devolverlos a la fase 4
-- [ ] 5.2 Validar cada test negativo rompiendo el código temporalmente y viendo que falla: escritura en consola, mutación del flujo o del contacto, aliasing de un `default` json con el estado, un valor de variable en un mensaje de error, quitar el corte por `MAX_RENDERED_LENGTH` (el escenario de duplicación debe fallar), un `Date` en `src/` (guarda estática), ejecución del patrón completo con `RegExp` nativo (el test de retroceso catastrófico debe colgarse o agotar el timeout); revertir y dejar constancia en el informe
-- [ ] 5.3 Revisar que el diff solo añade `packages/engine/**` y cambia `pnpm-lock.yaml`, `.claude/popi.json`, `CLAUDE.md`, los artefactos de `openspec/changes/engine-base/` y la wiki (`.claude/wiki/` y su índice) (`git diff --stat main...`)
-- [ ] 5.4 Gate: ejecutar en local la secuencia de la CI (`pnpm install --frozen-lockfile && pnpm lint && pnpm typecheck && pnpm build && pnpm test && pnpm test:e2e && pnpm validate`) y `openspec validate engine-base --strict`; informar solo de lo ejecutado
+- [x] 5.1 Matriz escenario → test: cada `#### Scenario` de `specs/flow-engine/spec.md` tiene un `it` con su título; listar los que falten y devolverlos a la fase 4
+- [x] 5.2 Validar cada test negativo rompiendo el código temporalmente y viendo que falla: escritura en consola, mutación del flujo o del contacto, aliasing de un `default` json con el estado, un valor de variable en un mensaje de error, quitar el corte por `MAX_RENDERED_LENGTH` (el escenario de duplicación debe fallar), un `Date` en `src/` (guarda estática), ejecución del patrón completo con `RegExp` nativo (el test de retroceso catastrófico debe colgarse o agotar el timeout); revertir y dejar constancia en el informe
+- [x] 5.3 Revisar que el diff solo añade `packages/engine/**` y cambia `pnpm-lock.yaml`, `.claude/popi.json`, `CLAUDE.md`, los artefactos de `openspec/changes/engine-base/` y la wiki (`.claude/wiki/` y su índice) (`git diff --stat main...`)
+- [x] 5.4 Gate: ejecutar en local la secuencia de la CI (`pnpm install --frozen-lockfile && pnpm lint && pnpm typecheck && pnpm build && pnpm test && pnpm test:e2e && pnpm validate`) y `openspec validate engine-base --strict`; informar solo de lo ejecutado
 
 ## 6. Seguimiento (no bloquea verify/archive)
 
