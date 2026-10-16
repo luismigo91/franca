@@ -128,6 +128,20 @@ describe('semántica', () => {
     expect(messages(flow)).not.toContainEqual(expect.stringContaining('apunta a sí mismo'));
   });
 
+  it('un llm no puede agotarse hacia sí mismo (onExhausted)', () => {
+    const flow = faq();
+    flow.nodes[1].onExhausted = 'asistente';
+    expect(messages(flow)).toEqual(['semantic /nodes/1/onExhausted onExhausted apunta a sí mismo']);
+    expect(issues(flow)).toEqual([{ path: '/nodes/1/onExhausted', nodeId: 'asistente', message: 'onExhausted apunta a sí mismo' }]);
+  });
+
+  it('un llm sí puede seguir hacia sí mismo por next y el onExhausted ajeno no se queja', () => {
+    const flow = faq();
+    flow.nodes[1].next = 'asistente';
+    expect(messages(flow)).not.toContainEqual(expect.stringContaining('apunta a sí mismo'));
+    expect(validateFlow(flow).issues.every((issue) => !issue.path.endsWith('/onExhausted'))).toBe(true);
+  });
+
   it('detecta saltos rotos en reglas y opciones', () => {
     const flow = leads();
     flow.nodes[7].rules[0].next = 'fantasma';
