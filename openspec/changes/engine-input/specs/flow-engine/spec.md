@@ -322,7 +322,7 @@ Con `boolean`, la respuesta SHALL ser válida si, normalizada a NFC y sin distin
 
 #### Scenario: Acento combinado
 - **GIVEN** un flujo con `locale` `"es"` y una sesión esperando en un input de tipo `boolean`
-- **WHEN** el host continúa con `{text: "sí"}` (la letra `si` con una `i` seguida de U+0301, el acento combinante)
+- **WHEN** el host continúa con la `s` y la `i` seguidas de U+0301, el acento combinante (el texto equivale a `sí` en forma NFD)
 - **THEN** la respuesta se acepta como true
 
 ### Requirement: Selección única
