@@ -145,8 +145,8 @@ class Parser {
     else if (c === '{') {
       const close = this.src.indexOf('}', this.pos);
       const [low = '', high] = this.src.slice(this.pos + 1, close).split(',');
-      min = Number(low);
-      max = high === undefined ? min : high === '' ? Infinity : Number(high);
+      min = readCount(low);
+      max = high === undefined ? min : high === '' ? Infinity : readCount(high);
       this.pos = close;
     } else return atom;
     this.pos++;
@@ -255,6 +255,11 @@ class Parser {
     this.pos += 4;
     return String.fromCharCode(parseInt(hex, 16));
   }
+}
+
+/** Lee un contador de `{n,m}` acotado a `MAX_SAFE_INTEGER`: `Infinity` solo significa «sin tope». */
+function readCount(digits: string): number {
+  return Math.min(Number(digits), Number.MAX_SAFE_INTEGER);
 }
 
 function unsupported(what: string): PatternError {
