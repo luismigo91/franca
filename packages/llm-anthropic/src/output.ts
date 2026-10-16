@@ -3,36 +3,46 @@ import type { LlmSlotRequest, VariableType } from '@franca/engine';
 import * as z from 'zod/v4';
 import { slotKey } from './prompt.js';
 
-/** Un slot de tipo `json` se pide como texto JSON: un esquema cerrado no admite un objeto libre. */
-function slotSchema(type: VariableType): z.ZodType {
+/**
+ * El `value` de un slot, de tipo fijo (un slot de tipo `json` se pide como texto JSON: un esquema
+ * cerrado no admite un objeto libre). Sin uniones: la API limita a 16 parámetros con tipo unión.
+ */
+function valueSchema(type: VariableType): z.ZodType {
   switch (type) {
     case 'number':
-      return z.number().nullable();
+      return z.number();
     case 'boolean':
-      return z.boolean().nullable();
+      return z.boolean();
     default:
-      return z.string().nullable();
+      return z.string();
   }
 }
 
-/** El esquema de la salida de una petición: el texto, `done` y un valor (o `null`) por slot, con claves posicionales. */
+/**
+ * El esquema de la salida de una petición: el texto, `done` y, por slot, un objeto requerido
+ * `{ found, value }` con clave posicional. Sin uniones (`[T, "null"]`) ni propiedades opcionales: la API
+ * admite 16 y 24 por petición, y un nodo puede tener más slots. El `value` de un slot con `found` `false`
+ * se ignora.
+ */
 export function buildOutputSchema(slots: readonly LlmSlotRequest[]) {
   return z.object({
     text: z.string(),
     done: z.boolean(),
-    slots: z.object(Object.fromEntries(slots.map((slot, index) => [slotKey(index), slotSchema(slot.type)]))),
+    slots: z.object(Object.fromEntries(slots.map((slot, index) => [slotKey(index), z.object({ found: z.boolean(), value: valueSchema(slot.type) })]))),
   });
 }
 
+export type OutputSchema = ReturnType<typeof buildOutputSchema>;
+
 /** El `output_config.format` de la petición: el JSON Schema que genera `zodOutputFormat`, sin la función de parseo. */
-export function buildOutputFormat(slots: readonly LlmSlotRequest[]): { type: 'json_schema'; schema: Record<string, unknown> } {
-  return { type: 'json_schema', schema: zodOutputFormat(buildOutputSchema(slots)).schema };
+export function buildOutputFormat(slots: readonly LlmSlotRequest[], schema: OutputSchema = buildOutputSchema(slots)): { type: 'json_schema'; schema: Record<string, unknown> } {
+  return { type: 'json_schema', schema: zodOutputFormat(schema).schema };
 }
 
 export interface StructuredOutput {
   text: string;
   done: boolean;
-  /** Solo los slots que tienen valor, con el nombre de su variable (también `__proto__` o `constructor`). */
+  /** Solo los slots con `found` `true`, con el nombre de su variable (también `__proto__` o `constructor`). */
   slots: Record<string, unknown>;
 }
 
@@ -54,14 +64,14 @@ function outputText(content: unknown): string | null {
 /**
  * Lee la salida estructurada de una respuesta con `stop_reason` `end_turn`: une los bloques `text`
  * posteriores al último `fallback`, los parsea como JSON y los valida con el esquema de la petición.
- * Un slot `null` no se incluye; uno `json` se parsea y, si no es JSON o es `null`, tampoco. El resto
+ * Un slot con `found` `false` no se incluye; uno `json` se parsea y, si no es JSON o es `null`, tampoco. El resto
  * pasa tal cual (la conversión es del motor). Los pensamientos y los demás bloques se ignoran.
  *
  * @param content El `content` de la respuesta (sin tipar).
  * @param slots Los slots de la petición.
  * @returns La salida, o `null` si no es JSON o no cumple el esquema.
  */
-export function readStructuredOutput(content: unknown, slots: readonly LlmSlotRequest[]): StructuredOutput | null {
+export function readStructuredOutput(content: unknown, slots: readonly LlmSlotRequest[], schema: OutputSchema = buildOutputSchema(slots)): StructuredOutput | null {
   const raw = outputText(content);
   if (raw === null) return null;
   let json: unknown;
@@ -70,12 +80,13 @@ export function readStructuredOutput(content: unknown, slots: readonly LlmSlotRe
   } catch {
     return null;
   }
-  const parsed = buildOutputSchema(slots).safeParse(json);
+  const parsed = schema.safeParse(json);
   if (!parsed.success) return null;
   const entries: [string, unknown][] = [];
   slots.forEach((slot, index) => {
-    let value: unknown = (parsed.data.slots as Record<string, unknown>)[slotKey(index)];
-    if (value === null || value === undefined) return;
+    const slotOutput = (parsed.data.slots as Record<string, { found: boolean; value: unknown }>)[slotKey(index)]!;
+    if (!slotOutput.found) return;
+    let value: unknown = slotOutput.value;
     if (slot.type === 'json') {
       try {
         value = JSON.parse(value as string);

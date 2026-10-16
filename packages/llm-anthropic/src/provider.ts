@@ -2,46 +2,38 @@ import type { JsonValue, LlmCapability, LlmTurnRequest, LlmTurnResult } from '@f
 import { createAnthropicClient } from './client.js';
 import { messageCostUsd } from './cost.js';
 import { classifyError } from './errors.js';
-import { buildOutputFormat, readStructuredOutput } from './output.js';
+import { readProperty } from './read.js';
+import { buildOutputFormat, buildOutputSchema, readStructuredOutput, type OutputSchema } from './output.js';
 import { resolveOptions, type AnthropicProviderOptions, type ResolvedModel, type ResolvedOptions } from './options.js';
 import { buildMessages, buildSystem } from './prompt.js';
 
 /** Cabecera beta del fallback de rechazo en el servidor. */
 const SERVER_FALLBACK_BETA = 'server-side-fallback-2026-07-01';
 
-const FAILED: LlmTurnResult = { kind: 'failed', costUsd: 0 };
-const NOT_CONFIGURED: LlmTurnResult = { kind: 'not_configured' };
+// Congelados: el mismo objeto se devuelve en cada turno y el host no debe poder mutarlo para los siguientes.
+const FAILED: LlmTurnResult = Object.freeze({ kind: 'failed', costUsd: 0 });
+const NOT_CONFIGURED: LlmTurnResult = Object.freeze({ kind: 'not_configured' });
 const EXPIRED = Symbol('turn-expired');
 
-/** Lee una propiedad de la respuesta sin fiarse de ella: lo que no es un objeto, o cuyo getter lanza, no tiene valor. */
-function read(source: unknown, key: string): unknown {
-  if (typeof source !== 'object' || source === null) return undefined;
-  try {
-    return (source as Record<string, unknown>)[key];
-  } catch {
-    return undefined;
-  }
-}
-
 /** Convierte una respuesta de la API en el resultado del turno: primero el coste, después `stop_reason`, y solo entonces el contenido. */
-function resultOf(message: unknown, request: LlmTurnRequest, options: ResolvedOptions): LlmTurnResult {
+function resultOf(message: unknown, request: LlmTurnRequest, options: ResolvedOptions, schema: OutputSchema): LlmTurnResult {
   const costUsd = messageCostUsd(message, options);
-  const stopReason = read(message, 'stop_reason');
+  const stopReason = readProperty(message, 'stop_reason');
   if (stopReason === 'refusal') return { kind: 'refusal', costUsd };
   if (stopReason !== 'end_turn') return { kind: 'failed', costUsd };
-  const output = readStructuredOutput(read(message, 'content'), request.slots);
+  const output = readStructuredOutput(readProperty(message, 'content'), request.slots, schema);
   if (output === null) return { kind: 'failed', costUsd };
   return { kind: 'turn', text: output.text, slots: output.slots as Record<string, JsonValue>, done: output.done, costUsd };
 }
 
 /** El cuerpo de la petición, con el orden de claves que congela el golden. */
-function buildBody(request: LlmTurnRequest, model: string, config: ResolvedModel, options: ResolvedOptions) {
+function buildBody(request: LlmTurnRequest, model: string, config: ResolvedModel, options: ResolvedOptions, schema: OutputSchema) {
   return {
     model,
     max_tokens: options.maxOutputTokens,
     system: buildSystem(request),
     messages: buildMessages(request),
-    output_config: { ...(config.effort === null ? {} : { effort: config.effort }), format: buildOutputFormat(request.slots) },
+    output_config: { ...(config.effort === null ? {} : { effort: config.effort }), format: buildOutputFormat(request.slots, schema) },
   };
 }
 
@@ -82,7 +74,9 @@ export function createAnthropicProvider(options: AnthropicProviderOptions = {}):
     if (config === undefined) return NOT_CONFIGURED;
     warnTemperature(request, model, resolved);
 
-    const body = buildBody(request, model, config, resolved);
+    // El esquema se construye una sola vez por turno: lo usan la petición y la lectura.
+    const schema = buildOutputSchema(request.slots);
+    const body = buildBody(request, model, config, resolved, schema);
     const useServerFallback = resolved.serverFallback && config.serverFallback;
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -108,7 +102,7 @@ export function createAnthropicProvider(options: AnthropicProviderOptions = {}):
       const settled = await Promise.race([attempt(), expired]);
       if (settled === EXPIRED) return FAILED;
       if (!settled.ok) return classifyError(settled.error) === 'not_configured' ? NOT_CONFIGURED : FAILED;
-      return resultOf(settled.message, request, resolved);
+      return resultOf(settled.message, request, resolved, schema);
     } finally {
       clearTimeout(timer);
     }

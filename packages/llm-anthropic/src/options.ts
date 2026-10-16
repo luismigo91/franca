@@ -22,7 +22,7 @@ export interface AnthropicProviderOptions {
   defaultModel?: string;
   /** Sustituye a la tabla por defecto; para ampliarla, `{ ...DEFAULT_ANTHROPIC_MODELS, … }`. */
   models?: Readonly<Record<string, AnthropicModelConfig>>;
-  /** `max_tokens` de cada petición. Por defecto 8192. */
+  /** `max_tokens` de cada petición. Por defecto 4096: el texto (≤ 4096 caracteres) y el JSON caben de sobra y un turno no debe rozar `turnTimeoutMs`. */
   maxOutputTokens?: number;
   /** Reintentos del SDK ante errores transitorios. Por defecto 2. */
   maxRetries?: number;
@@ -56,7 +56,7 @@ export interface ResolvedOptions {
   onWarning: ((warning: AnthropicWarning) => void) | null;
 }
 
-const DEFAULT_MAX_OUTPUT_TOKENS = 8192;
+const DEFAULT_MAX_OUTPUT_TOKENS = 4096;
 const DEFAULT_MAX_RETRIES = 2;
 const DEFAULT_TURN_TIMEOUT_MS = 60000;
 /** Mayor retardo que admite un temporizador de JavaScript. */
