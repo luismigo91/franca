@@ -1,0 +1,40 @@
+{
+  "ok": true,
+  "status": "failed",
+  "events": [
+    {
+      "type": "message",
+      "nodeId": "saludo",
+      "content": [
+        {
+          "kind": "text",
+          "text": "Hola, soy el asistente. Pregúntame lo que necesites sobre el servicio."
+        }
+      ],
+      "typingDelayMs": 400
+    },
+    {
+      "type": "error",
+      "nodeId": "asistente",
+      "code": "unsupported_node",
+      "message": "el nodo de tipo llm aún no está soportado"
+    }
+  ],
+  "state": {
+    "stateVersion": 1,
+    "flowId": "faq-ia",
+    "status": "failed",
+    "nodeId": "asistente",
+    "variables": {
+      "resuelto": false
+    },
+    "contact": {
+      "email": null
+    },
+    "outcome": null,
+    "error": {
+      "code": "unsupported_node",
+      "nodeId": "asistente"
+    }
+  }
+}

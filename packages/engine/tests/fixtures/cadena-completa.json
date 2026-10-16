@@ -1,0 +1,93 @@
+{
+  "specVersion": "0.1",
+  "id": "cadena-completa",
+  "name": "cadena-completa",
+  "variables": [
+    {
+      "name": "nombre",
+      "type": "string",
+      "default": "visitante"
+    },
+    {
+      "name": "empleados",
+      "type": "number"
+    },
+    {
+      "name": "saludo",
+      "type": "string"
+    }
+  ],
+  "start": "saludo",
+  "nodes": [
+    {
+      "id": "saludo",
+      "type": "message",
+      "content": [
+        {
+          "kind": "text",
+          "text": "Hola {{nombre}}, vamos a empezar."
+        }
+      ],
+      "next": "marcar"
+    },
+    {
+      "id": "marcar",
+      "type": "set",
+      "assignments": [
+        {
+          "variable": "nombre",
+          "value": "Ana"
+        },
+        {
+          "variable": "empleados",
+          "value": 51
+        },
+        {
+          "variable": "saludo",
+          "value": "{{nombre}}!"
+        }
+      ],
+      "next": "decidir"
+    },
+    {
+      "id": "decidir",
+      "type": "condition",
+      "rules": [
+        {
+          "when": {
+            "all": [
+              {
+                "variable": "empleados",
+                "op": "gt",
+                "value": 50
+              },
+              {
+                "variable": "nombre",
+                "op": "startsWith",
+                "value": "A"
+              }
+            ]
+          },
+          "next": "fin-grande"
+        }
+      ],
+      "else": "fin-pequena"
+    },
+    {
+      "id": "fin-grande",
+      "type": "end",
+      "outcome": "grande",
+      "content": [
+        {
+          "kind": "text",
+          "text": "Gracias, {{saludo}}"
+        }
+      ]
+    },
+    {
+      "id": "fin-pequena",
+      "type": "end",
+      "outcome": "pequena"
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "ok": true,
+  "status": "ended",
+  "events": [
+    {
+      "type": "message",
+      "nodeId": "fin-conocido",
+      "content": [
+        {
+          "kind": "text",
+          "text": "Te escribimos a ana@example.com."
+        }
+      ],
+      "typingDelayMs": 600
+    },
+    {
+      "type": "end",
+      "nodeId": "fin-conocido",
+      "outcome": "conocido"
+    }
+  ],
+  "state": {
+    "stateVersion": 1,
+    "flowId": "contacto",
+    "status": "ended",
+    "nodeId": "fin-conocido",
+    "variables": {
+      "segmento": "conocido"
+    },
+    "contact": {
+      "email": "ana@example.com",
+      "visitas": 1
+    },
+    "outcome": "conocido",
+    "error": null
+  }
+}

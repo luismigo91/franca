@@ -131,7 +131,7 @@ describe('Operadores contains y startsWith', () => {
     expect(ev(['a'], 'contains', null)).toBe(false);
   });
 
-  it('Forma textual de un number y de un boolean', () => {
+  it('Forma textual de un number', () => {
     expect(ev(28001, 'startsWith', '28')).toBe(true);
     expect(ev(true, 'contains', 'ru')).toBe(true);
     expect(ev('x28', 'contains', 28)).toBe(true);

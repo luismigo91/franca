@@ -1,0 +1,35 @@
+{
+  "ok": true,
+  "status": "ended",
+  "events": [
+    {
+      "type": "message",
+      "nodeId": "mostrar",
+      "content": [
+        {
+          "kind": "text",
+          "text": "[] x x-y"
+        }
+      ],
+      "typingDelayMs": 600
+    },
+    {
+      "type": "end",
+      "nodeId": "fin",
+      "outcome": null
+    }
+  ],
+  "state": {
+    "stateVersion": 1,
+    "flowId": "nombres-especiales",
+    "status": "ended",
+    "nodeId": "fin",
+    "variables": {
+      "__proto__": "x",
+      "toString": "x-y"
+    },
+    "contact": {},
+    "outcome": null,
+    "error": null
+  }
+}

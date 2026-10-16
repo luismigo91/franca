@@ -1,0 +1,17 @@
+{
+  "ok": false,
+  "code": "invalid_flow",
+  "message": "el flujo no es válido",
+  "issues": [
+    {
+      "layer": "shape",
+      "path": "",
+      "message": "falta la propiedad obligatoria 'start'"
+    },
+    {
+      "layer": "shape",
+      "path": "/nodes",
+      "message": "debe tener al menos 1 elemento(s)"
+    }
+  ]
+}

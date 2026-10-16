@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "status": "failed",
+  "events": [
+    {
+      "type": "error",
+      "nodeId": "enviar",
+      "code": "unsupported_node",
+      "message": "el nodo de tipo http aún no está soportado"
+    }
+  ],
+  "state": {
+    "stateVersion": 1,
+    "flowId": "nodo-http",
+    "status": "failed",
+    "nodeId": "enviar",
+    "variables": {
+      "estado": "listo"
+    },
+    "contact": {},
+    "outcome": null,
+    "error": {
+      "code": "unsupported_node",
+      "nodeId": "enviar"
+    }
+  }
+}

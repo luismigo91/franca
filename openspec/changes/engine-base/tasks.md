@@ -33,17 +33,17 @@ Fases secuenciales; cada una empieza cuando la anterior pasa su gate. Comportami
 
 ## 4. Sesión, nodos y API pública — dueño: `popi:backend-developer`
 
-- [ ] 4.1 `src/nodes/*` (`message`, `set`, `jump`, `condition`, `end`, `unsupported`; `message`, `end` y `set` convierten `ValueTooLargeError` en `value_too_large`) y la tabla `EXECUTORS` tipada como en D3; verificar con `typecheck` que quitar una entrada de la tabla rompe la compilación
-- [ ] 4.2 `src/state.ts` (`buildState`, `parseState`) con `tests/unit/state.test.ts`: `{}`, versión desconocida, cada campo con tipo erróneo, incoherencias `status`/`outcome`/`error` y valores no JSON → `null`
-- [ ] 4.3 `src/run.ts` (bucle con límite de 200 comprobado antes de mirar el tipo, despacho, resultado) y `src/session.ts` (`startSession`, `continueSession` con el orden de comprobaciones de la spec; validan `toJsonForm(flow)`); exportar desde `src/index.ts` solo lo de D2 y ampliar `tests/exports.test.ts` para que la lista de exports en runtime sea exactamente la de D2
-- [ ] 4.4 Fixtures en `tests/fixtures/*.json` y constructores en `tests/helpers/flows.ts`, con `tests/fixtures.test.ts` que comprueba que todo fixture pasa `validateFlow`
-- [ ] 4.5 `tests/scenarios/*.test.ts`: un `it` por cada `#### Scenario` restante de la spec (validación, forma JSON, arranque, contacto, estado, eventos, retardo con temporizadores simulados, nodos, tamaño máximo de un texto renderizado, límite de pasos, no soportados con los dos ejemplos de `packages/spec/examples/`, determinismo, privacidad, continuar)
-- [ ] 4.6 `tests/examples.test.ts`: para cada fichero de `packages/spec/examples/` (por ruta relativa), arrancar no se rechaza y termina en `ended` o en `unsupported_node`
-- [ ] 4.7 `tests/golden.test.ts` con `toMatchFileSnapshot` en `tests/golden/` para cada fixture y ejemplo; verificar que los ficheros generados coinciden con el ejemplo de resultado de `design.md` D2 para `captacion-leads`
-- [ ] 4.8 `tests/parity.test.ts`: nodos de `schema` = claves de `EXECUTORS`, `rule.op` = claves de `OPERATORS` y códigos emitidos ∈ arrays de códigos
-- [ ] 4.9 `tests/properties.test.ts`: determinismo, entradas congeladas y sin cambios, ida y vuelta JSON de cada estado, ningún método de `console` llamado (sesiones que terminan, fallan y se rechazan); y `tests/static-guard.test.ts` con los tokens prohibidos de D10
-- [ ] 4.10 Añadir a la wiki (`/popi:wiki add`, con su línea en el índice) `decision-matches-regex-lineal` (por qué no `RegExp` nativo ni timeout ni RE2) (incluida la dependencia de `\p{…}` con la versión de Unicode del V8 del host) y `gotcha-variables-nombre-proto` (por qué `Map` y `Object.fromEntries`), con `metadata.enforcement` apuntando a sus tests; verificar con `pnpm wiki:lint`
-- [ ] 4.11 Gate: `pnpm check` en verde
+- [x] 4.1 `src/nodes/*` (`message`, `set`, `jump`, `condition`, `end`, `unsupported`; `message`, `end` y `set` convierten `ValueTooLargeError` en `value_too_large`) y la tabla `EXECUTORS` tipada como en D3; verificar con `typecheck` que quitar una entrada de la tabla rompe la compilación
+- [x] 4.2 `src/state.ts` (`buildState`, `parseState`) con `tests/unit/state.test.ts`: `{}`, versión desconocida, cada campo con tipo erróneo, incoherencias `status`/`outcome`/`error` y valores no JSON → `null`
+- [x] 4.3 `src/run.ts` (bucle con límite de 200 comprobado antes de mirar el tipo, despacho, resultado) y `src/session.ts` (`startSession`, `continueSession` con el orden de comprobaciones de la spec; validan `toJsonForm(flow)`); exportar desde `src/index.ts` solo lo de D2 y ampliar `tests/exports.test.ts` para que la lista de exports en runtime sea exactamente la de D2
+- [x] 4.4 Fixtures en `tests/fixtures/*.json` y constructores en `tests/helpers/flows.ts`, con `tests/fixtures.test.ts` que comprueba que todo fixture pasa `validateFlow`
+- [x] 4.5 `tests/scenarios/*.test.ts`: un `it` por cada `#### Scenario` restante de la spec (validación, forma JSON, arranque, contacto, estado, eventos, retardo con temporizadores simulados, nodos, tamaño máximo de un texto renderizado, límite de pasos, no soportados con los dos ejemplos de `packages/spec/examples/`, determinismo, privacidad, continuar)
+- [x] 4.6 `tests/examples.test.ts`: para cada fichero de `packages/spec/examples/` (por ruta relativa), arrancar no se rechaza y termina en `ended` o en `unsupported_node`
+- [x] 4.7 `tests/golden.test.ts` con `toMatchFileSnapshot` en `tests/golden/` para cada fixture y ejemplo; verificar que los ficheros generados coinciden con el ejemplo de resultado de `design.md` D2 para `captacion-leads`
+- [x] 4.8 `tests/parity.test.ts`: nodos de `schema` = claves de `EXECUTORS`, `rule.op` = claves de `OPERATORS` y códigos emitidos ∈ arrays de códigos
+- [x] 4.9 `tests/properties.test.ts`: determinismo, entradas congeladas y sin cambios, ida y vuelta JSON de cada estado, ningún método de `console` llamado (sesiones que terminan, fallan y se rechazan); y `tests/static-guard.test.ts` con los tokens prohibidos de D10
+- [x] 4.10 Añadir a la wiki (`/popi:wiki add`, con su línea en el índice) `decision-matches-regex-lineal` (por qué no `RegExp` nativo ni timeout ni RE2) (incluida la dependencia de `\p{…}` con la versión de Unicode del V8 del host) y `gotcha-variables-nombre-proto` (por qué `Map` y `Object.fromEntries`), con `metadata.enforcement` apuntando a sus tests; verificar con `pnpm wiki:lint`
+- [x] 4.11 Gate: `pnpm check` en verde
 
 ## 5. Verificación — dueño: `popi:qa-tester` (modo verificación de spec)
 

@@ -1,0 +1,52 @@
+{
+  "specVersion": "0.1",
+  "id": "nombres-especiales",
+  "name": "nombres-especiales",
+  "variables": [
+    {
+      "name": "constructor",
+      "type": "string"
+    },
+    {
+      "name": "__proto__",
+      "type": "string"
+    },
+    {
+      "name": "toString",
+      "type": "string"
+    }
+  ],
+  "start": "asignar",
+  "nodes": [
+    {
+      "id": "asignar",
+      "type": "set",
+      "assignments": [
+        {
+          "variable": "__proto__",
+          "value": "x"
+        },
+        {
+          "variable": "toString",
+          "value": "{{__proto__}}-y"
+        }
+      ],
+      "next": "mostrar"
+    },
+    {
+      "id": "mostrar",
+      "type": "message",
+      "content": [
+        {
+          "kind": "text",
+          "text": "[{{constructor}}] {{__proto__}} {{toString}}"
+        }
+      ],
+      "next": "fin"
+    },
+    {
+      "id": "fin",
+      "type": "end"
+    }
+  ]
+}

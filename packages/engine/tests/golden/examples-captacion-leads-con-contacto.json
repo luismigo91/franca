@@ -1,0 +1,38 @@
+{
+  "ok": true,
+  "status": "failed",
+  "events": [
+    {
+      "type": "message",
+      "nodeId": "bienvenida",
+      "content": [
+        {
+          "kind": "text",
+          "text": "¡Hola! Te hago tres preguntas y te paso con la persona adecuada."
+        }
+      ],
+      "typingDelayMs": 600
+    },
+    {
+      "type": "error",
+      "nodeId": "pedir-nombre",
+      "code": "unsupported_node",
+      "message": "el nodo de tipo input aún no está soportado"
+    }
+  ],
+  "state": {
+    "stateVersion": 1,
+    "flowId": "captacion-leads",
+    "status": "failed",
+    "nodeId": "pedir-nombre",
+    "variables": {},
+    "contact": {
+      "email": "ana@example.com"
+    },
+    "outcome": null,
+    "error": {
+      "code": "unsupported_node",
+      "nodeId": "pedir-nombre"
+    }
+  }
+}

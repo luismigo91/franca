@@ -1,0 +1,28 @@
+{
+  "ok": true,
+  "status": "ended",
+  "events": [
+    {
+      "type": "end",
+      "nodeId": "fin-vip",
+      "outcome": "vip"
+    }
+  ],
+  "state": {
+    "stateVersion": 1,
+    "flowId": "condiciones",
+    "status": "ended",
+    "nodeId": "fin-vip",
+    "variables": {
+      "edad": 30,
+      "etiquetas": [
+        "nuevo",
+        "vip"
+      ],
+      "fecha": "2026-10-16"
+    },
+    "contact": {},
+    "outcome": "vip",
+    "error": null
+  }
+}

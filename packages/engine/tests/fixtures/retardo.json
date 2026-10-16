@@ -1,0 +1,43 @@
+{
+  "specVersion": "0.1",
+  "id": "retardo",
+  "name": "retardo",
+  "settings": {
+    "typingDelayMs": 0
+  },
+  "start": "uno",
+  "nodes": [
+    {
+      "id": "uno",
+      "type": "message",
+      "content": [
+        {
+          "kind": "text",
+          "text": "Uno"
+        }
+      ],
+      "next": "dos"
+    },
+    {
+      "id": "dos",
+      "type": "message",
+      "content": [
+        {
+          "kind": "text",
+          "text": "Dos"
+        }
+      ],
+      "next": "fin"
+    },
+    {
+      "id": "fin",
+      "type": "end",
+      "content": [
+        {
+          "kind": "text",
+          "text": "Fin"
+        }
+      ]
+    }
+  ]
+}

@@ -23,3 +23,26 @@ describe('constantes públicas', () => {
     ]);
   });
 });
+
+describe('API pública', () => {
+  it('exporta en runtime exactamente lo de D2', () => {
+    expect(Object.keys(engine).sort()).toEqual(
+      [
+        'DEFAULT_TYPING_DELAY_MS',
+        'MAX_PATTERN_SIZE',
+        'MAX_RENDERED_LENGTH',
+        'MAX_STEPS_PER_ADVANCE',
+        'REJECTION_CODES',
+        'SESSION_ERROR_CODES',
+        'STATE_VERSION',
+        'continueSession',
+        'startSession',
+      ].sort(),
+    );
+  });
+
+  it('startSession y continueSession son asíncronas', () => {
+    expect(engine.startSession({ flow: {} })).toBeInstanceOf(Promise);
+    expect(engine.continueSession({ flow: {}, state: {}, input: null })).toBeInstanceOf(Promise);
+  });
+});

@@ -1,0 +1,5 @@
+{
+  "ok": false,
+  "code": "invalid_contact",
+  "message": "el valor de contacto 'email' no es representable en JSON"
+}

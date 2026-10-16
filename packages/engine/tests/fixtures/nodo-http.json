@@ -1,0 +1,39 @@
+{
+  "specVersion": "0.1",
+  "id": "nodo-http",
+  "name": "nodo-http",
+  "variables": [
+    {
+      "name": "estado",
+      "type": "string"
+    }
+  ],
+  "start": "preparar",
+  "nodes": [
+    {
+      "id": "preparar",
+      "type": "set",
+      "assignments": [
+        {
+          "variable": "estado",
+          "value": "listo"
+        }
+      ],
+      "next": "enviar"
+    },
+    {
+      "id": "enviar",
+      "type": "http",
+      "request": {
+        "method": "GET",
+        "url": "https://example.com/ping"
+      },
+      "next": "fin",
+      "onError": "fin"
+    },
+    {
+      "id": "fin",
+      "type": "end"
+    }
+  ]
+}
