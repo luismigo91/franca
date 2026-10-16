@@ -25,7 +25,8 @@
     "replace": "out += encoded[i];",
     "tests": [
       "tests/unit/http-url.test.ts",
-      "tests/unit/http-url-oracle.test.ts"
+      "tests/unit/http-url-oracle.test.ts",
+      "tests/scenarios/http-request.test.ts"
     ]
   },
   {
@@ -35,7 +36,8 @@
     "replace": "const decoded = segment;",
     "tests": [
       "tests/unit/http-url.test.ts",
-      "tests/unit/http-url-oracle.test.ts"
+      "tests/unit/http-url-oracle.test.ts",
+      "tests/scenarios/http-request.test.ts"
     ]
   },
   {
@@ -45,7 +47,8 @@
     "replace": "segment[i + 2] === 'e'",
     "tests": [
       "tests/unit/http-url.test.ts",
-      "tests/unit/http-url-oracle.test.ts"
+      "tests/unit/http-url-oracle.test.ts",
+      "tests/scenarios/http-request.test.ts"
     ]
   },
   {
@@ -55,7 +58,8 @@
     "replace": "",
     "tests": [
       "tests/unit/http-url.test.ts",
-      "tests/unit/http-hypotheses.test.ts"
+      "tests/unit/http-hypotheses.test.ts",
+      "tests/scenarios/http-request.test.ts"
     ]
   },
   {
@@ -64,7 +68,8 @@
     "find": "const host = url.hostname;",
     "replace": "const host = text.slice(authorityStart).split('/')[0]!.split('?')[0]!.split(':')[0]!;",
     "tests": [
-      "tests/unit/http-url.test.ts"
+      "tests/unit/http-url.test.ts",
+      "tests/scenarios/http-request.test.ts"
     ]
   },
   {
@@ -74,7 +79,8 @@
     "replace": "",
     "tests": [
       "tests/unit/http-url.test.ts",
-      "tests/unit/http-hypotheses.test.ts"
+      "tests/unit/http-hypotheses.test.ts",
+      "tests/scenarios/http-request.test.ts"
     ]
   },
   {
@@ -83,7 +89,8 @@
     "find": "if (hasUnstorable(text) || hasHiddenChars(text)",
     "replace": "if (hasHiddenChars(text)",
     "tests": [
-      "tests/unit/http-url.test.ts"
+      "tests/unit/http-url.test.ts",
+      "tests/scenarios/http-request.test.ts"
     ]
   },
   {
@@ -92,7 +99,8 @@
     "find": "{ maxLength: MAX_URL_LENGTH, insert: encodeUrlValue }",
     "replace": "{ insert: encodeUrlValue }",
     "tests": [
-      "tests/unit/http-url.test.ts"
+      "tests/unit/http-url.test.ts",
+      "tests/scenarios/http-request.test.ts"
     ]
   },
   {
@@ -101,7 +109,8 @@
     "find": "if (code !== 0x20 && code !== 0x09 && (code < 0x21 || code > 0x7e)) return false;",
     "replace": "if (code > 0x7e) return false;",
     "tests": [
-      "tests/unit/http-request.test.ts"
+      "tests/unit/http-request.test.ts",
+      "tests/scenarios/http-request.test.ts"
     ]
   },
   {
@@ -110,7 +119,8 @@
     "find": "!TCHAR_SYMBOLS.includes(c)",
     "replace": "!(TCHAR_SYMBOLS + ' ').includes(c)",
     "tests": [
-      "tests/unit/http-config.test.ts"
+      "tests/unit/http-config.test.ts",
+      "tests/scenarios/http-request.test.ts"
     ]
   },
   {
@@ -119,7 +129,8 @@
     "find": "const lower = lowerAscii(name);",
     "replace": "const lower = name;",
     "tests": [
-      "tests/unit/http-config.test.ts"
+      "tests/unit/http-config.test.ts",
+      "tests/scenarios/http-request.test.ts"
     ]
   },
   {
@@ -128,7 +139,8 @@
     "find": "header.name.toLowerCase() === 'content-type'",
     "replace": "header.name === 'Content-Type'",
     "tests": [
-      "tests/unit/http-request.test.ts"
+      "tests/unit/http-request.test.ts",
+      "tests/scenarios/http-request.test.ts"
     ]
   },
   {
@@ -137,7 +149,8 @@
     "find": "node.request.method === 'GET' && body !== undefined",
     "replace": "false && body !== undefined",
     "tests": [
-      "tests/unit/http-config.test.ts"
+      "tests/unit/http-config.test.ts",
+      "tests/scenarios/http-request.test.ts"
     ]
   },
   {
@@ -146,7 +159,8 @@
     "find": "  POST: false,",
     "replace": "  POST: true,",
     "tests": [
-      "tests/unit/http-retry.test.ts"
+      "tests/unit/http-retry.test.ts",
+      "tests/scenarios/http-result.test.ts"
     ]
   },
   {
@@ -155,7 +169,8 @@
     "find": "requestSent ?? true",
     "replace": "requestSent ?? false",
     "tests": [
-      "tests/unit/http-result.test.ts"
+      "tests/unit/http-result.test.ts",
+      "tests/scenarios/http-result.test.ts"
     ]
   },
   {
@@ -164,7 +179,8 @@
     "find": "body.length > MAX_RESPONSE_BODY_LENGTH",
     "replace": "body.length < 0",
     "tests": [
-      "tests/unit/http-retry.test.ts"
+      "tests/unit/http-retry.test.ts",
+      "tests/scenarios/http-result.test.ts"
     ]
   },
   {
@@ -174,7 +190,8 @@
     "replace": "",
     "tests": [
       "tests/unit/http-hypotheses.test.ts",
-      "tests/unit/http-response-map.test.ts"
+      "tests/unit/http-response-map.test.ts",
+      "tests/scenarios/http-result.test.ts"
     ]
   },
   {
@@ -183,7 +200,8 @@
     "find": "if (hasUnstorable(key)) return true;",
     "replace": "",
     "tests": [
-      "tests/unit/http-response-map.test.ts"
+      "tests/unit/http-response-map.test.ts",
+      "tests/scenarios/http-result.test.ts"
     ]
   },
   {
@@ -192,7 +210,8 @@
     "find": "if (token.length === 0 || (token.length > 1 && token[0] === '0')) return undefined;",
     "replace": "if (token.length === 0) return undefined;",
     "tests": [
-      "tests/unit/http-response-map.test.ts"
+      "tests/unit/http-response-map.test.ts",
+      "tests/scenarios/http-result.test.ts"
     ]
   },
   {
@@ -201,7 +220,8 @@
     "find": "if (!Object.hasOwn(current, token)) return undefined;",
     "replace": "if (!(token in current)) return undefined;",
     "tests": [
-      "tests/unit/http-response-map.test.ts"
+      "tests/unit/http-response-map.test.ts",
+      "tests/scenarios/http-result.test.ts"
     ]
   },
   {
@@ -210,7 +230,8 @@
     "find": "collectStrings(body, templates);",
     "replace": "",
     "tests": [
-      "tests/unit/http-request.test.ts"
+      "tests/unit/http-request.test.ts",
+      "tests/scenarios/http-privacy.test.ts"
     ]
   },
   {
@@ -219,7 +240,8 @@
     "find": "templateVariables(value).some((name) => personal.has(name))",
     "replace": "false",
     "tests": [
-      "tests/unit/http-request.test.ts"
+      "tests/unit/http-request.test.ts",
+      "tests/scenarios/http-privacy.test.ts"
     ]
   },
   {
@@ -229,6 +251,70 @@
     "replace": "if (state.retained < 0) {",
     "tests": [
       "tests/unit/http-request.test.ts"
+    ]
+  },
+  {
+    "id": "host-error-leak",
+    "file": "src/nodes/http.ts",
+    "find": "if (result === null) return HOST_ERROR;",
+    "replace": "if (result === null) return fail('http_host_error', JSON.stringify(called.value));",
+    "tests": [
+      "tests/scenarios/http-privacy.test.ts"
+    ]
+  },
+  {
+    "id": "request-reuse",
+    "file": "src/http/request.ts",
+    "find": "return { ...prepared, headers: prepared.headers.map((header) => ({ ...header })), attempt };",
+    "replace": "return Object.assign(prepared, { attempt }) as unknown as HttpRequest;",
+    "tests": [
+      "tests/scenarios/http-request.test.ts"
+    ]
+  },
+  {
+    "id": "capability-per-attempt",
+    "file": "src/nodes/http.ts",
+    "find": "invokeHost(capability.call, ctx.host,",
+    "replace": "invokeHost((readHttpCapability(ctx.host) as { call: Function }).call, ctx.host,",
+    "tests": [
+      "tests/scenarios/http-host.test.ts"
+    ]
+  },
+  {
+    "id": "this-binding",
+    "file": "src/http/capability.ts",
+    "find": "Reflect.apply(call, host, [request])",
+    "replace": "Reflect.apply(call, undefined, [request])",
+    "tests": [
+      "tests/scenarios/http-host.test.ts"
+    ]
+  },
+  {
+    "id": "limit-first-only",
+    "file": "src/nodes/http.ts",
+    "find": "if (!ctx.reserveExternalCall()) {",
+    "replace": "if (attempts === 0 && !ctx.reserveExternalCall()) {",
+    "tests": [
+      "tests/scenarios/http-host.test.ts"
+    ]
+  },
+  {
+    "id": "limit-per-node",
+    "file": "src/nodes/http.ts",
+    "find": "if (!ctx.reserveExternalCall()) {",
+    "replace": "if (attempts >= 10) {",
+    "tests": [
+      "tests/scenarios/http-host.test.ts"
+    ]
+  },
+  {
+    "id": "all-or-nothing",
+    "file": "src/http/response-map.ts",
+    "find": "if (value === undefined) return { ok: false };",
+    "replace": "if (value === undefined) return { ok: true, assignments };",
+    "tests": [
+      "tests/scenarios/http-result.test.ts",
+      "tests/unit/http-response-map.test.ts"
     ]
   }
 ]

@@ -8,6 +8,21 @@ describe('constantes públicas', () => {
     expect(engine.DEFAULT_TYPING_DELAY_MS).toBe(600);
     expect(engine.MAX_PATTERN_SIZE).toBe(1000);
     expect(engine.MAX_RENDERED_LENGTH).toBe(16384);
+    expect(engine.MAX_EXTERNAL_CALLS_PER_ADVANCE).toBe(10);
+    expect(engine.MAX_URL_LENGTH).toBe(8192);
+    expect(engine.MAX_REQUEST_BODY_LENGTH).toBe(65536);
+    expect(engine.MAX_RESPONSE_BODY_LENGTH).toBe(1048576);
+    expect(engine.HTTP_ERROR_REASONS).toEqual([
+      'invalid_url',
+      'invalid_header_value',
+      'body_too_large',
+      'http_status',
+      'timeout',
+      'network_error',
+      'blocked',
+      'response_too_large',
+      'invalid_response',
+    ]);
     expect(engine.MAX_INPUT_LENGTH).toBe(4096);
     expect(engine.INVALID_ANSWER_REASONS).toEqual([
       'too_long',
@@ -25,6 +40,10 @@ describe('constantes públicas', () => {
       'value_too_large',
       'invalid_validation',
       'retries_exhausted',
+      'invalid_http_config',
+      'missing_secret',
+      'http_host_error',
+      'http_limit_exceeded',
     ]);
     expect(engine.REJECTION_CODES).toEqual([
       'invalid_flow',
@@ -42,6 +61,11 @@ describe('API pública', () => {
     expect(Object.keys(engine).sort()).toEqual(
       [
         'DEFAULT_TYPING_DELAY_MS',
+        'HTTP_ERROR_REASONS',
+        'MAX_EXTERNAL_CALLS_PER_ADVANCE',
+        'MAX_REQUEST_BODY_LENGTH',
+        'MAX_RESPONSE_BODY_LENGTH',
+        'MAX_URL_LENGTH',
         'INVALID_ANSWER_REASONS',
         'MAX_INPUT_LENGTH',
         'MAX_NESTING_DEPTH',

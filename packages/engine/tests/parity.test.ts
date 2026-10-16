@@ -1,12 +1,17 @@
 import { schema } from '@franca/spec';
 import type { AdvanceResult, SessionResult } from '../src/index.js';
+import { IDEMPOTENT } from '../src/http/retry.js';
 import { PARSERS } from '../src/input/parsers/index.js';
+import { DEFAULT_HTTP_RETRIES, DEFAULT_HTTP_TIMEOUT_MS } from '../src/constants.js';
+import { HTTP_ERROR_REASONS } from '../src/index.js';
+import { always, respond, scriptedHost, type Step } from './helpers/http-host.js';
+import { httpFlow } from './helpers/http-flow.js';
 import { describe, expect, it } from 'vitest';
 import { INVALID_ANSWER_REASONS, REJECTION_CODES, SESSION_ERROR_CODES, continueSession, startSession } from '../src/index.js';
 import { EXECUTORS } from '../src/nodes/index.js';
 import { OPERATORS } from '../src/predicates.js';
 import { allFlows } from './helpers/files.js';
-import { deepFreeze, end, flowOf, http, input, jump, message, variable } from './helpers/flows.js';
+import { deepFreeze, end, flowOf, http, httpNode, input, jump, message, variable } from './helpers/flows.js';
 
 type Defs = Record<string, { properties?: { type?: { const?: string } } }>;
 const defs = schema.$defs as unknown as Defs;
@@ -51,6 +56,16 @@ describe('códigos emitidos', () => {
     const asking = flowOf([input('p', 'v', 'email', 'fin', { validation: { maxRetries: 0 } }), end('fin')], { variables: [variable('v')] });
     const waiting = (await startSession({ flow: asking })) as SessionResult;
     results.push(await continueSession({ flow: asking, state: waiting.state, input: { text: 'no' } }));
+    // códigos de http: cada uno con un host que los provoca
+    const okHost = always(respond(200)).host;
+    const cycle = flowOf(
+      [httpNode('h', {}, { next: 'c', onError: 'c' }), { id: 'c', type: 'condition', rules: [{ when: { variable: 'a', op: 'eq', value: 'nunca' }, next: 'fin' }], else: 'h' }, end('fin')],
+      { variables: [variable('a')] },
+    );
+    results.push(await startSession({ flow: httpFlow({ headers: { 'X Bad': 'v' } }), }, okHost));
+    results.push(await startSession({ flow: httpFlow() }, always({ kind: 'missing_secret' }).host));
+    results.push(await startSession({ flow: httpFlow() }, always(null).host));
+    results.push(await startSession({ flow: cycle }, okHost));
     for (const result of results) {
       if (result.ok) result.events.forEach((e) => e.type === 'error' && emitted.add(e.code));
     }
@@ -138,3 +153,50 @@ describe('reason emitidos', () => {
     expect([...seen].sort()).toEqual([...INVALID_ANSWER_REASONS].sort());
   });
 });
+
+describe('paridad de http con flow.schema.json', () => {
+  const httpProps = schema.$defs.httpNode.properties as unknown as {
+    request: { properties: { method: { enum: string[] } } };
+    timeoutMs: { default: number };
+    retries: { default: number };
+  };
+
+  it('IDEMPOTENT tiene exactamente los métodos del esquema', () => {
+    expect(Object.keys(IDEMPOTENT).sort()).toEqual([...httpProps.request.properties.method.enum].sort());
+  });
+
+  it('los defaults de timeoutMs y retries del esquema son las constantes del motor', () => {
+    expect(httpProps.timeoutMs.default).toBe(DEFAULT_HTTP_TIMEOUT_MS);
+    expect(httpProps.retries.default).toBe(DEFAULT_HTTP_RETRIES);
+  });
+
+  it('el motor aplica esos defaults: timeoutMs 10000 y 1 reintento', async () => {
+    const host = scriptedHost([respond(503), respond(503)]);
+    await startSession({ flow: httpFlow() }, host.host);
+    expect(host.requests.map((r) => r.timeoutMs)).toEqual([10000, 10000]);
+    expect(host.requests).toHaveLength(2);
+  });
+
+  it('cada motivo de HTTP_ERROR_REASONS se emite y ninguno fuera de la lista', async () => {
+    const big = variable('a', { default: 'a'.repeat(16000) });
+    const cases: [Record<string, unknown>, Record<string, unknown>, Step, Record<string, unknown>[]][] = [
+      [{ url: 'ftp://api.example.com/' }, {}, respond(200), []],
+      [{ headers: { 'X-V': 'Jos\u00e9' } }, {}, respond(200), []],
+      [{ method: 'POST', body: ['{{a}}', '{{a}}', '{{a}}', '{{a}}', '{{a}}'] }, {}, respond(200), [big]],
+      [{}, { retries: 0 }, respond(404), []],
+      [{}, { retries: 0 }, { kind: 'timeout' }, []],
+      [{}, { retries: 0 }, { kind: 'network_error' }, []],
+      [{}, { retries: 0 }, { kind: 'blocked' }, []],
+      [{}, { retries: 0 }, { kind: 'response_too_large' }, []],
+      [{}, { responseMap: [{ variable: 'v', pointer: '/x' }] }, respond(200, 'no json'), []],
+    ];
+    const seen = new Set<string>();
+    for (const [request, extra, step, variables] of cases) {
+      const result = await startSession({ flow: httpFlow(request, extra, { variables: [variable('v'), ...variables] }) }, always(step).host);
+      if (!result.ok) throw new Error(JSON.stringify(result));
+      for (const event of result.events) if (event.type === 'http' && event.error !== null) seen.add(event.error);
+    }
+    expect([...seen].sort()).toEqual([...HTTP_ERROR_REASONS].sort());
+  });
+});
+

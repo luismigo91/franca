@@ -1,17 +1,17 @@
 import { expect } from 'vitest';
-import { continueSession, startSession, type AdvanceResult, type SessionResult } from '../../src/index.js';
+import { continueSession, startSession, type AdvanceResult, type EngineHost, type SessionResult } from '../../src/index.js';
 import { end, flowOf, input, variable, type Obj } from './flows.js';
 
 /**
  * Arranca una sesión y continúa con cada entrada de `steps`. Cada paso parte del último estado
  * **aceptado** (un rechazo no avanza la conversación). Devuelve todos los resultados, incluidos los rechazos.
  */
-export async function converse(flow: unknown, steps: readonly unknown[], contact?: unknown): Promise<AdvanceResult[]> {
-  const results: AdvanceResult[] = [await startSession({ flow, contact })];
+export async function converse(flow: unknown, steps: readonly unknown[], contact?: unknown, host?: EngineHost | null): Promise<AdvanceResult[]> {
+  const results: AdvanceResult[] = [await startSession({ flow, contact }, host)];
   let last: SessionResult | undefined = results[0]!.ok ? (results[0] as SessionResult) : undefined;
   for (const input of steps) {
     if (!last) throw new Error('la conversación no puede continuar: el paso anterior no dejó un estado');
-    const result = await continueSession({ flow, state: last.state, input });
+    const result = await continueSession({ flow, state: last.state, input }, host);
     results.push(result);
     if (result.ok) last = result;
   }

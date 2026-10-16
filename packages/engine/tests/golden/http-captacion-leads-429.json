@@ -1,0 +1,249 @@
+{
+  "requests": [
+    {
+      "nodeId": "enviar-crm",
+      "method": "POST",
+      "url": "https://crm.example.com/api/leads",
+      "headers": [
+        {
+          "name": "Authorization",
+          "secret": "CRM_TOKEN"
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": "{\"name\":\"Ana\",\"email\":\"ana@example.com\",\"companySize\":\"11-50\",\"segment\":\"pyme\"}",
+      "timeoutMs": 8000,
+      "containsPii": true,
+      "attempt": 1
+    },
+    {
+      "nodeId": "enviar-crm",
+      "method": "POST",
+      "url": "https://crm.example.com/api/leads",
+      "headers": [
+        {
+          "name": "Authorization",
+          "secret": "CRM_TOKEN"
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": "{\"name\":\"Ana\",\"email\":\"ana@example.com\",\"companySize\":\"11-50\",\"segment\":\"pyme\"}",
+      "timeoutMs": 8000,
+      "containsPii": true,
+      "attempt": 2
+    },
+    {
+      "nodeId": "enviar-crm",
+      "method": "POST",
+      "url": "https://crm.example.com/api/leads",
+      "headers": [
+        {
+          "name": "Authorization",
+          "secret": "CRM_TOKEN"
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": "{\"name\":\"Ana\",\"email\":\"ana@example.com\",\"companySize\":\"11-50\",\"segment\":\"pyme\"}",
+      "timeoutMs": 8000,
+      "containsPii": true,
+      "attempt": 3
+    }
+  ],
+  "results": [
+    {
+      "ok": true,
+      "status": "waiting",
+      "events": [
+        {
+          "type": "message",
+          "nodeId": "bienvenida",
+          "content": [
+            {
+              "kind": "text",
+              "text": "¡Hola! Te hago tres preguntas y te paso con la persona adecuada."
+            }
+          ],
+          "typingDelayMs": 600
+        },
+        {
+          "type": "message",
+          "nodeId": "pedir-nombre",
+          "content": [
+            {
+              "kind": "text",
+              "text": "¿Cómo te llamas?"
+            }
+          ],
+          "typingDelayMs": 600
+        },
+        {
+          "type": "input",
+          "nodeId": "pedir-nombre",
+          "inputType": "text",
+          "attempt": 1,
+          "reason": null
+        }
+      ],
+      "state": {
+        "stateVersion": 1,
+        "flowId": "captacion-leads",
+        "status": "waiting",
+        "nodeId": "pedir-nombre",
+        "variables": {},
+        "contact": {
+          "email": null
+        },
+        "outcome": null,
+        "error": null,
+        "attempt": 1
+      }
+    },
+    {
+      "ok": true,
+      "status": "waiting",
+      "events": [
+        {
+          "type": "message",
+          "nodeId": "pedir-email",
+          "content": [
+            {
+              "kind": "text",
+              "text": "Encantado, Ana. ¿A qué email te escribimos?"
+            }
+          ],
+          "typingDelayMs": 600
+        },
+        {
+          "type": "input",
+          "nodeId": "pedir-email",
+          "inputType": "email",
+          "attempt": 1,
+          "reason": null
+        }
+      ],
+      "state": {
+        "stateVersion": 1,
+        "flowId": "captacion-leads",
+        "status": "waiting",
+        "nodeId": "pedir-email",
+        "variables": {
+          "nombre": "Ana"
+        },
+        "contact": {
+          "email": null
+        },
+        "outcome": null,
+        "error": null,
+        "attempt": 1
+      }
+    },
+    {
+      "ok": true,
+      "status": "waiting",
+      "events": [
+        {
+          "type": "message",
+          "nodeId": "pedir-tamano",
+          "content": [
+            {
+              "kind": "text",
+              "text": "¿Cuántas personas sois en la empresa?"
+            }
+          ],
+          "typingDelayMs": 600
+        },
+        {
+          "type": "input",
+          "nodeId": "pedir-tamano",
+          "inputType": "choice",
+          "attempt": 1,
+          "reason": null,
+          "multiple": false,
+          "choices": [
+            {
+              "id": "pequena",
+              "label": "1 a 10"
+            },
+            {
+              "id": "mediana",
+              "label": "11 a 50"
+            },
+            {
+              "id": "grande",
+              "label": "Más de 50"
+            }
+          ]
+        }
+      ],
+      "state": {
+        "stateVersion": 1,
+        "flowId": "captacion-leads",
+        "status": "waiting",
+        "nodeId": "pedir-tamano",
+        "variables": {
+          "nombre": "Ana"
+        },
+        "contact": {
+          "email": "ana@example.com"
+        },
+        "outcome": null,
+        "error": null,
+        "attempt": 1
+      }
+    },
+    {
+      "ok": true,
+      "status": "ended",
+      "events": [
+        {
+          "type": "http",
+          "nodeId": "enviar-crm",
+          "attempts": 3,
+          "status": 201,
+          "error": null
+        },
+        {
+          "type": "message",
+          "nodeId": "fin-pyme",
+          "content": [
+            {
+              "kind": "text",
+              "text": "Gracias, Ana. Te enviamos ahora la guía para empezar."
+            }
+          ],
+          "typingDelayMs": 600
+        },
+        {
+          "type": "end",
+          "nodeId": "fin-pyme",
+          "outcome": "lead-pyme"
+        }
+      ],
+      "state": {
+        "stateVersion": 1,
+        "flowId": "captacion-leads",
+        "status": "ended",
+        "nodeId": "fin-pyme",
+        "variables": {
+          "nombre": "Ana",
+          "tamano": "11-50",
+          "segmento": "pyme"
+        },
+        "contact": {
+          "email": "ana@example.com"
+        },
+        "outcome": "lead-pyme",
+        "error": null
+      }
+    }
+  ]
+}
