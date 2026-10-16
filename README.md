@@ -44,3 +44,7 @@ Una sola app: `pnpm --filter @franca/api dev`.
 ## Estado
 
 Borrador v0 (`specVersion: "0.1"`). La spec puede cambiar sin compatibilidad hacia atrás hasta la 1.0.
+
+## Licencia
+
+[MIT](LICENSE)
