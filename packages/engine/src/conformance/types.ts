@@ -1,4 +1,4 @@
-import type { HttpCapability, LlmCapability } from '../types.js';
+import type { HttpCapability, LlmCapability, SessionStatus } from '../types.js';
 
 /** Comportamiento de un servidor que levanta el arnés. */
 export type ServerBehaviour =
@@ -44,7 +44,7 @@ export interface Connection {
 
 /**
  * La API de sesiones del host de producción, tal como la usa un cliente. El host custodia el estado en
- * el servidor: el cliente solo conoce el `id` de la sesión.
+ * el servidor: el cliente solo conoce el `id` de la sesión. `status` es el de la sesión tras aplicar la continuación.
  */
 export interface ConformanceSessions {
   /** Arranca una sesión con `flow` y devuelve su identificador. */
@@ -54,7 +54,7 @@ export interface ConformanceSessions {
    * añadiría a su petición (un estado propio): el host debe ignorarlo. Resuelve `conflict` si el estado
    * ya estaba reclamado o ya se aplicó otra continuación, sin ejecutar el motor.
    */
-  continue(id: string, input: unknown, clientState?: unknown): Promise<{ readonly kind: 'applied' } | { readonly kind: 'conflict' }>;
+  continue(id: string, input: unknown, clientState?: unknown): Promise<{ readonly kind: 'applied'; readonly status: SessionStatus } | { readonly kind: 'conflict' }>;
   /** Hace caducar ahora las reclamaciones que no terminaron (el arnés fuerza el paso del tiempo). */
   expireClaims(): Promise<void>;
 }

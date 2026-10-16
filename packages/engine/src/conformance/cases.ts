@@ -423,6 +423,16 @@ const LLM_EMAIL_FLOW = {
   ],
 };
 
+/**
+ * El mismo flujo con `maxTurns` 10 y `costCapUsd` 0.025: con turnos de 0.01, un host que usa el coste guardado
+ * agota el tope en el tercer turno; uno que acepta el coste que aporta el cliente sigue esperando.
+ */
+const LLM_CAPPED_FLOW = {
+  ...LLM_EMAIL_FLOW,
+  id: 'llm-email-tope',
+  nodes: LLM_EMAIL_FLOW.nodes.map((node) => (node.id === 'a' ? { ...node, maxTurns: 10, costCapUsd: 0.025 } : node)),
+};
+
 /** Un turno que no termina el nodo. */
 const keepTalking = (text: string) => ({ kind: 'turn', text, slots: {}, done: false, costUsd: 0.01 }) as const;
 
@@ -441,32 +451,49 @@ const registrosLlm: HostConformanceCase = {
   scenario: 'Conversación con datos personales',
   async run(harness) {
     const failures: string[] = [];
-    const provider: LlmCapability = async () => ({
+    const turnWithData: LlmCapability = async () => ({
       kind: 'turn',
       text: `Gracias ${MARKER_LLM_TEXT}`,
       slots: { nota: MARKER_LLM_SLOT },
       done: false,
       costUsd: 0.01,
     });
-    const outcome = await callLlm(
-      harness,
-      llmRequest({
-        system: `Eres amable ${MARKER_LLM_SYSTEM}`,
-        goal: `Pedir el email ${MARKER_LLM_GOAL}`,
-        slots: [{ name: 'nota', type: 'string', description: 'Nota', required: false, collected: false }],
-        history: [
-          { role: 'assistant', text: '¿Cómo te llamas?' },
-          { role: 'user', text: `me llamo ${MARKER_LLM_HISTORY}, ${LLM_PII}` },
-        ],
-        turn: 2,
-      }),
-      'conversación con datos personales',
-      harness.llm(provider),
-    );
-    failures.push(...outcome.failures);
+    // El camino con más ganas de depurar es el del fallo: el proveedor falla, se niega, no está configurado o rechaza con un error que cita los datos.
+    const providers: [string, LlmCapability, boolean][] = [
+      ['un turno', turnWithData, true],
+      ['un fallo del proveedor', async () => ({ kind: 'failed', costUsd: 0 }), true],
+      ['un rechazo del modelo', async () => ({ kind: 'refusal', costUsd: 0.004 }), true],
+      ['un proveedor no configurado', async () => ({ kind: 'not_configured' }), true],
+      [
+        'un proveedor que rechaza',
+        async () => {
+          throw new Error(`fallo con ${MARKER_LLM_HISTORY} ${MARKER_LLM_SYSTEM} ${MARKER_LLM_GOAL} ${MARKER_LLM_TEXT} ${MARKER_LLM_SLOT} ${LLM_PII}`);
+        },
+        false,
+      ],
+    ];
+    for (const [label, provider, mustResolve] of providers) {
+      const outcome = await callLlm(
+        harness,
+        llmRequest({
+          system: `Eres amable ${MARKER_LLM_SYSTEM}`,
+          goal: `Pedir el email ${MARKER_LLM_GOAL}`,
+          slots: [{ name: 'nota', type: 'string', description: 'Nota', required: false, collected: false }],
+          history: [
+            { role: 'assistant', text: '¿Cómo te llamas?' },
+            { role: 'user', text: `me llamo ${MARKER_LLM_HISTORY}, ${LLM_PII}` },
+          ],
+          turn: 2,
+        }),
+        `conversación con datos personales (${label})`,
+        harness.llm(provider),
+      );
+      // Un proveedor que rechaza es un defecto del proveedor: lo que se vigila es lo que el host registra.
+      if (mustResolve) failures.push(...outcome.failures);
+    }
     const forbidden = [MARKER_LLM_HISTORY, MARKER_LLM_SYSTEM, MARKER_LLM_GOAL, MARKER_LLM_TEXT, MARKER_LLM_SLOT, LLM_PII, encodeURIComponent(LLM_PII), JSON.stringify(LLM_PII).slice(1, -1)];
     if ((await harness.logs()).some((line) => forbidden.some((value) => line.includes(value)))) {
-      failures.push('los registros contienen datos personales de una petición llm (system, goal, history, texto o slots)');
+      failures.push('los registros contienen datos personales de una petición llm (system, goal, history, texto, slots o el error del proveedor)');
     }
     return failures;
   },
@@ -484,12 +511,12 @@ const custodiaEstado: HostConformanceCase = {
       return keepTalking('sigo');
     };
     const sessions = harness.sessions(provider);
-    const { id } = await sessions.start(LLM_EMAIL_FLOW);
+    const { id } = await sessions.start(LLM_CAPPED_FLOW);
     const second = await sessions.continue(id, { text: 'uno' });
     // El estado propio de un cliente que quiere reiniciar turnos y coste.
     const forged = {
       stateVersion: 1,
-      flowId: 'llm-email',
+      flowId: LLM_CAPPED_FLOW.id,
       status: 'waiting',
       nodeId: 'a',
       variables: {},
@@ -501,6 +528,8 @@ const custodiaEstado: HostConformanceCase = {
     };
     const third = await sessions.continue(id, { text: 'Hola' }, forged);
     if (second.kind !== 'applied' || third.kind !== 'applied') failures.push('las continuaciones secuenciales debían aplicarse');
+    // 0.01 + 0.01 guardados y 0.01 del tercer turno superan el tope de 0.025; con el coste del cliente (0) no.
+    else if (third.status !== 'ended') failures.push('el host usó el coste que aportó el cliente: con el coste guardado la tercera continuación agota costCapUsd y termina la sesión');
     const last = seen[2];
     if (last === undefined) failures.push('el proveedor debía recibir tres peticiones');
     else {
