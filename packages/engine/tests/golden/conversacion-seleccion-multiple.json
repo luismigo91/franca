@@ -1,0 +1,146 @@
+[
+  {
+    "ok": true,
+    "status": "waiting",
+    "events": [
+      {
+        "type": "message",
+        "nodeId": "elegir",
+        "content": [
+          {
+            "kind": "text",
+            "text": "Ana, ¿qué te interesa?"
+          }
+        ],
+        "typingDelayMs": 600
+      },
+      {
+        "type": "input",
+        "nodeId": "elegir",
+        "inputType": "choice",
+        "attempt": 1,
+        "reason": null,
+        "multiple": true,
+        "choices": [
+          {
+            "id": "a",
+            "label": "Precios"
+          },
+          {
+            "id": "b",
+            "label": "Envíos"
+          },
+          {
+            "id": "c",
+            "label": "Soporte",
+            "imageUrl": "https://example.com/Ana.png"
+          }
+        ]
+      }
+    ],
+    "state": {
+      "stateVersion": 1,
+      "flowId": "seleccion-multiple",
+      "status": "waiting",
+      "nodeId": "elegir",
+      "variables": {
+        "nombre": "Ana"
+      },
+      "contact": {},
+      "outcome": null,
+      "error": null,
+      "attempt": 1
+    }
+  },
+  {
+    "ok": true,
+    "status": "waiting",
+    "events": [
+      {
+        "type": "message",
+        "nodeId": "elegir",
+        "content": [
+          {
+            "kind": "text",
+            "text": "Ana, elige entre 1 y 2 opciones."
+          }
+        ],
+        "typingDelayMs": 600
+      },
+      {
+        "type": "input",
+        "nodeId": "elegir",
+        "inputType": "choice",
+        "attempt": 2,
+        "reason": "required",
+        "multiple": true,
+        "choices": [
+          {
+            "id": "a",
+            "label": "Precios"
+          },
+          {
+            "id": "b",
+            "label": "Envíos"
+          },
+          {
+            "id": "c",
+            "label": "Soporte",
+            "imageUrl": "https://example.com/Ana.png"
+          }
+        ]
+      }
+    ],
+    "state": {
+      "stateVersion": 1,
+      "flowId": "seleccion-multiple",
+      "status": "waiting",
+      "nodeId": "elegir",
+      "variables": {
+        "nombre": "Ana"
+      },
+      "contact": {},
+      "outcome": null,
+      "error": null,
+      "attempt": 2
+    }
+  },
+  {
+    "ok": true,
+    "status": "ended",
+    "events": [
+      {
+        "type": "message",
+        "nodeId": "fin",
+        "content": [
+          {
+            "kind": "text",
+            "text": "Elegiste: [\"precios\",3]"
+          }
+        ],
+        "typingDelayMs": 600
+      },
+      {
+        "type": "end",
+        "nodeId": "fin",
+        "outcome": "elegido"
+      }
+    ],
+    "state": {
+      "stateVersion": 1,
+      "flowId": "seleccion-multiple",
+      "status": "ended",
+      "nodeId": "fin",
+      "variables": {
+        "nombre": "Ana",
+        "intereses": [
+          "precios",
+          3
+        ]
+      },
+      "contact": {},
+      "outcome": "elegido",
+      "error": null
+    }
+  }
+]

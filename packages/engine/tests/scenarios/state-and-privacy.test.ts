@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { continueSession, startSession } from '../../src/index.js';
+import { reply, replyOk, simpleFlow, waiting } from '../helpers/conversation.js';
 import {
   condition,
   deepFreeze,
@@ -40,20 +41,37 @@ describe('Estado de sesión serializable', () => {
   it('Ida y vuelta por JSON', async () => {
     for (const flow of [rich(), example('captacion-leads'), example('faq-ia')]) {
       const { state } = await startOk(flow, { email: 'ana@example.com' });
-      expect(JSON.parse(JSON.stringify(state))).toEqual(state);
+      const roundTrip = JSON.parse(JSON.stringify(state));
+      expect(roundTrip).toEqual(state);
+      if (state.status === 'waiting') {
+        // y se puede usar para continuar: da lo mismo que con el objeto original
+        const withObject = await continueSession({ flow, state, input: { text: 'Ana' } });
+        const withJson = await continueSession({ flow, state: roundTrip, input: { text: 'Ana' } });
+        expect(withJson).toEqual(withObject);
+      }
     }
   });
 
   it('Estado tras un fallo', async () => {
-    const { state } = await startOk(example('captacion-leads'));
-    expect(state).toMatchObject({
+    const flow = example('captacion-leads');
+    const { state } = await waiting(flow);
+    const name = await replyOk(flow, state, { text: 'Ana' });
+    const mail = await replyOk(flow, name.state, { text: 'ana@example.com' });
+    const result = await replyOk(flow, mail.state, { choice: 'grande' });
+    expect(result.state).toMatchObject({
       stateVersion: 1,
       flowId: 'captacion-leads',
       status: 'failed',
-      nodeId: 'pedir-nombre',
+      nodeId: 'enviar-crm',
       outcome: null,
-      error: { code: 'unsupported_node', nodeId: 'pedir-nombre' },
+      error: { code: 'unsupported_node', nodeId: 'enviar-crm' },
     });
+    expect(result.state).not.toHaveProperty('attempt');
+  });
+
+  it('Estado en espera', async () => {
+    const { state } = await waiting(example('captacion-leads'));
+    expect(state).toMatchObject({ status: 'waiting', nodeId: 'pedir-nombre', outcome: null, error: null, attempt: 1 });
   });
 
   it('el estado no comparte referencias con el flujo', async () => {
@@ -89,6 +107,11 @@ describe('Ejecución determinista y sin efectos externos', () => {
     await startOk(rich());
     await startOk(flowOf([http('h', 'fin', 'fin'), end('fin')]));
     await startOk(flowOf([condition('c', [[rule('v', 'matches', '('), 'fin']], 'fin'), end('fin')], { variables: [variable('v', { default: 'x' })] }));
+    const asking = simpleFlow('email');
+    const waitingState = (await waiting(asking)).state;
+    await reply(asking, waitingState, { text: 'no' }); // reintenta
+    await reply(asking, waitingState, { text: 5 }); // rechaza
+    await reply(asking, waitingState, { text: 'ana@example.com' }); // termina
     await start({});
     await startSession({ flow: rich(), contact: { email: NaN } });
     await continueSession({ flow: rich(), state: {}, input: 'hola' });
@@ -116,6 +139,27 @@ describe('Ejecución determinista y sin efectos externos', () => {
   });
 });
 
+describe('Continuación determinista y sin efectos', () => {
+  it('Dos continuaciones iguales', async () => {
+    const flow = example('captacion-leads');
+    const { state } = await waiting(flow);
+    const a = await continueSession({ flow, state, input: { text: ' Ana ' } });
+    const b = await continueSession({ flow, state, input: { text: ' Ana ' } });
+    expect(a).toEqual(b);
+  });
+
+  it('Continuación con entradas congeladas', async () => {
+    const flow = deepFreeze(structuredClone(example('captacion-leads')));
+    const { state } = await waiting(flow);
+    const frozenState = deepFreeze(structuredClone(state));
+    const frozenInput = deepFreeze({ text: 'Ana' });
+    const before = [structuredClone(flow), structuredClone(frozenState), structuredClone(frozenInput)];
+    const result = await continueSession({ flow, state: frozenState, input: frozenInput });
+    expect(result.ok).toBe(true);
+    expect([flow, frozenState, frozenInput]).toEqual(before);
+  });
+});
+
 describe('Los errores no revelan valores de variables', () => {
   it('Regla inválida sobre una variable pii', async () => {
     const flow = flowOf(
@@ -126,6 +170,15 @@ describe('Los errores no revelan valores de variables', () => {
     expect(result.state.error?.code).toBe('invalid_rule');
     expect(JSON.stringify(result.events)).not.toContain('ana@example.com');
     expect(JSON.stringify(result.state.error)).not.toContain('ana@example.com');
+  });
+
+  it('Reintentos agotados con una respuesta pii', async () => {
+    const flow = simpleFlow('email', { validation: { maxRetries: 0 } }, { variableExtra: { pii: true, scope: 'contact' } });
+    const { state } = await waiting(flow);
+    const result = await replyOk(flow, state, { text: 'ana@ejemplo' });
+    expect(result.events).toEqual([{ type: 'error', nodeId: 'p', code: 'retries_exhausted', message: expect.any(String) }]);
+    expect(JSON.stringify(result.events)).not.toContain('ana@ejemplo');
+    expect(JSON.stringify(result.state.error)).not.toContain('ana@ejemplo');
   });
 
   it('Rechazo de contacto inválido', async () => {

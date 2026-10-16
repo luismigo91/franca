@@ -96,22 +96,22 @@ describe('Espacios y controles en una url', () => {
     'example.com/\u0000',
     'example.com/\u007f',
     'example.com/\u001f',
-    'example.com/a b',
-    'example.com/a b',
+    'example.com/a\u00a0b',
+    'example.com/a\u2003b',
     'exa\rmple.com',
   ])('%j es inválida', (text) => {
     expect(url(text, 'es')).toBeUndefined();
   });
 
   it.each([
-    ['soft hyphen', 'ex­ample.com'],
-    ['zero width space', 'ex​ample.com'],
-    ['BOM', 'example.com/﻿'],
-    ['ZWJ', 'example.com/‍'],
-    ['selector de variación', 'example.com/a️'],
+    ['soft hyphen', 'ex\u00adample.com'],
+    ['zero width space', 'ex\u200bample.com'],
+    ['BOM', 'example.com/\ufeff'],
+    ['ZWJ', 'example.com/\u200d'],
+    ['selector de variación', 'example.com/a\ufe0f'],
     ['selector suplementario', 'example.com/\u{e0100}'],
-    ['word joiner', 'ex⁠ample.com'],
-    ['mongol', 'ex᠋ample.com'],
+    ['word joiner', 'ex\u2060ample.com'],
+    ['mongol', 'ex\u180bample.com'],
     ['sustituto alto suelto', 'example.com/\ud800'],
     ['sustituto bajo suelto', 'example.com/\udc00'],
   ])('%s es inválida', (_name, text) => {

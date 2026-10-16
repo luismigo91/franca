@@ -1,12 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { MAX_STEPS_PER_ADVANCE } from '../../src/index.js';
+import { replyOk, waiting } from '../helpers/conversation.js';
 import {
   chainFlow,
   condition,
   end,
   flowOf,
   http,
+  input,
   jump,
   message,
   rule,
@@ -20,17 +22,17 @@ const example = (name: string): unknown =>
 
 describe('Nodos aún no soportados', () => {
   it('Ejemplo de captación de leads', async () => {
-    const result = await startOk(example('captacion-leads'));
+    const flow = example('captacion-leads');
+    const { state } = await waiting(flow);
+    const name = await replyOk(flow, state, { text: 'Ana' });
+    const mail = await replyOk(flow, name.state, { text: 'ana@example.com' });
+    expect(mail.state.nodeId).toBe('pedir-tamano');
+    const result = await replyOk(flow, mail.state, { choice: 'pequena' });
     expect(result.status).toBe('failed');
     expect(result.events).toEqual([
-      {
-        type: 'message',
-        nodeId: 'bienvenida',
-        content: [{ kind: 'text', text: '¡Hola! Te hago tres preguntas y te paso con la persona adecuada.' }],
-        typingDelayMs: 600,
-      },
-      { type: 'error', nodeId: 'pedir-nombre', code: 'unsupported_node', message: expect.stringContaining('input') },
+      { type: 'error', nodeId: 'enviar-crm', code: 'unsupported_node', message: expect.stringContaining('http') },
     ]);
+    expect(result.state.variables.segmento).toBe('pyme');
   });
 
   it('Ejemplo de FAQ con IA', async () => {
@@ -108,5 +110,33 @@ describe('Límite de pasos por avance', () => {
     const flow = chainFlow(MAX_STEPS_PER_ADVANCE - 1, 'jump', end('fin'));
     expect((await startOk(flow)).status).toBe('ended');
     expect((await startOk(flow)).status).toBe('ended');
+  });
+});
+
+describe('Límite de pasos con input', () => {
+  it.each(['set', 'jump'] as const)('El límite gana a un input (%s)', async (kind) => {
+    const last = input('pregunta', 'x', 'text', 'fin');
+    const result = await startOk(chainFlow(MAX_STEPS_PER_ADVANCE, kind, last, [end('fin')]));
+    expect(result.events).toEqual([
+      { type: 'error', nodeId: 'pregunta', code: 'step_limit_exceeded', message: expect.any(String) },
+    ]);
+    expect(result.status).toBe('failed');
+  });
+
+  it('Al continuar cuenta el input', async () => {
+    const build = (n: number) => {
+      const nodes = [input('p', 'x', 'text', n ? 'n0' : 'fin')];
+      for (let i = 0; i < n; i++) nodes.push(i % 2 ? jump(`n${i}`, i + 1 < n ? `n${i + 1}` : 'fin') : setNode(`n${i}`, [['x', i]], i + 1 < n ? `n${i + 1}` : 'fin'));
+      return flowOf([...nodes, end('fin')], { variables: [variable('x')] });
+    };
+    const ok = build(198);
+    const over = build(199);
+    const okResult = await replyOk(ok, (await waiting(ok)).state, { text: 'hola' });
+    expect(okResult.status).toBe('ended');
+    const overResult = await replyOk(over, (await waiting(over)).state, { text: 'hola' });
+    expect(overResult.status).toBe('failed');
+    expect(overResult.events).toEqual([
+      { type: 'error', nodeId: 'fin', code: 'step_limit_exceeded', message: expect.any(String) },
+    ]);
   });
 });
