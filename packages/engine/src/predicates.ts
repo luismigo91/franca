@@ -1,5 +1,8 @@
 import type { Predicate, Rule } from '@franca/spec';
 import { deepEqual } from './json.js';
+import { compilePattern, type Program } from './regex/compile.js';
+import { runProgram } from './regex/match.js';
+import { PatternError } from './regex/parse.js';
 import { textOf } from './template.js';
 import type { JsonValue, VariableValue } from './types.js';
 
@@ -87,6 +90,17 @@ function textual(test: (text: string, needle: string) => boolean, allowArray: bo
   };
 }
 
+function compileRulePattern(variable: string, pattern: string): Program {
+  try {
+    return compilePattern(pattern);
+  } catch (error) {
+    if (error instanceof PatternError) {
+      throw new InvalidRuleError(`la regla sobre '${variable}' con el operador 'matches' no es evaluable: ${error.message}`);
+    }
+    throw error;
+  }
+}
+
 /** Un evaluador por cada `rule.op`; el tipo obliga a cubrirlos todos. */
 export const OPERATORS: { [K in Rule['op']]: (variable: VariableValue | undefined, rule: Rule) => boolean } = {
   eq: (variable, rule) => valuesEqual(variable, rule.value as JsonValue),
@@ -97,8 +111,14 @@ export const OPERATORS: { [K in Rule['op']]: (variable: VariableValue | undefine
   lte: order((sign) => sign <= 0),
   contains: textual((text, needle) => text.includes(needle), true),
   startsWith: textual((text, needle) => text.startsWith(needle), false),
-  matches: () => {
-    throw new InvalidRuleError('matches aún no está disponible');
+  matches: (variable, rule) => {
+    if (typeof rule.value !== 'string') {
+      throw new InvalidRuleError(`la regla sobre '${rule.variable}' con el operador 'matches' necesita un value de tipo string`);
+    }
+    // El patrón se valida siempre, tenga o no valor la variable: un patrón roto no depende de los datos.
+    const program = compileRulePattern(rule.variable, rule.value);
+    if (variable === undefined || typeof variable === 'object') return false;
+    return runProgram(program, textOf(variable));
   },
   isSet: (variable) => variable !== undefined,
   isEmpty: (variable) => {
