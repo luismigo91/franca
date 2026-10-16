@@ -1,0 +1,202 @@
+{
+  "specVersion": "0.1",
+  "id": "captacion-leads",
+  "name": "Captación de leads",
+  "description": "Cualifica a un visitante por tamaño de empresa y envía el lead al CRM.",
+  "locale": "es",
+  "variables": [
+    {
+      "name": "nombre",
+      "type": "string",
+      "pii": true
+    },
+    {
+      "name": "email",
+      "type": "email",
+      "scope": "contact",
+      "pii": true
+    },
+    {
+      "name": "tamano",
+      "type": "string"
+    },
+    {
+      "name": "segmento",
+      "type": "string"
+    }
+  ],
+  "start": "bienvenida",
+  "nodes": [
+    {
+      "id": "bienvenida",
+      "type": "message",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "content": [
+        {
+          "kind": "text",
+          "text": "¡Hola! Te hago tres preguntas y te paso con la persona adecuada. {{ciudad}}"
+        }
+      ],
+      "next": "pedir-nombre"
+    },
+    {
+      "id": "pedir-nombre",
+      "type": "input",
+      "inputType": "text",
+      "variable": "nombre",
+      "prompt": [
+        {
+          "kind": "text",
+          "text": "¿Cómo te llamas?"
+        }
+      ],
+      "next": "no-existe"
+    },
+    {
+      "id": "pedir-email",
+      "type": "input",
+      "inputType": "email",
+      "variable": "email",
+      "prompt": [
+        {
+          "kind": "text",
+          "text": "Encantado, {{nombre}}. ¿A qué email te escribimos?"
+        }
+      ],
+      "validation": {
+        "retryMessage": "Ese email no parece válido, ¿lo revisas?",
+        "maxRetries": 2
+      },
+      "next": "pedir-tamano"
+    },
+    {
+      "id": "pedir-tamano",
+      "type": "input",
+      "inputType": "choice",
+      "variable": "tamano",
+      "prompt": [
+        {
+          "kind": "text",
+          "text": "¿Cuántas personas sois en la empresa?"
+        }
+      ],
+      "choices": [
+        {
+          "id": "pequena",
+          "label": "1 a 10",
+          "value": "1-10",
+          "next": "marcar-pyme"
+        },
+        {
+          "id": "mediana",
+          "label": "11 a 50",
+          "value": "11-50",
+          "next": "marcar-pyme"
+        },
+        {
+          "id": "grande",
+          "label": "Más de 50",
+          "value": "51+",
+          "next": "marcar-empresa"
+        }
+      ]
+    },
+    {
+      "id": "marcar-pyme",
+      "type": "set",
+      "assignments": [
+        {
+          "variable": "segmento",
+          "value": "pyme"
+        }
+      ],
+      "next": "enviar-crm"
+    },
+    {
+      "id": "marcar-empresa",
+      "type": "set",
+      "assignments": [
+        {
+          "variable": "segmento",
+          "value": "empresa"
+        }
+      ],
+      "next": "enviar-crm"
+    },
+    {
+      "id": "enviar-crm",
+      "type": "http",
+      "request": {
+        "method": "POST",
+        "url": "https://crm.example.com/api/leads",
+        "headers": {
+          "Authorization": {
+            "secret": "CRM_TOKEN"
+          },
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "name": "{{nombre}}",
+          "email": "{{email}}",
+          "companySize": "{{tamano}}",
+          "segment": "{{segmento}}"
+        }
+      },
+      "timeoutMs": 8000,
+      "retries": 2,
+      "next": "ruta-segmento",
+      "onError": "aviso-error"
+    },
+    {
+      "id": "ruta-segmento",
+      "type": "condition",
+      "rules": [
+        {
+          "when": {
+            "variable": "segmento",
+            "op": "eq",
+            "value": "empresa"
+          },
+          "next": "fin-empresa"
+        }
+      ],
+      "else": "fin-pyme"
+    },
+    {
+      "id": "fin-empresa",
+      "type": "end",
+      "outcome": "lead-empresa",
+      "content": [
+        {
+          "kind": "text",
+          "text": "Gracias, {{nombre}}. Alguien del equipo comercial te escribe hoy mismo."
+        }
+      ]
+    },
+    {
+      "id": "fin-pyme",
+      "type": "end",
+      "outcome": "lead-pyme",
+      "content": [
+        {
+          "kind": "text",
+          "text": "Gracias, {{nombre}}. Te enviamos ahora la guía para empezar."
+        }
+      ]
+    },
+    {
+      "id": "aviso-error",
+      "type": "end",
+      "outcome": "lead-sin-enviar",
+      "content": [
+        {
+          "kind": "text",
+          "text": "Hemos guardado tus datos y te escribimos en breve."
+        }
+      ]
+    }
+  ]
+}

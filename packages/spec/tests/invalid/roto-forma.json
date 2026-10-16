@@ -1,0 +1,143 @@
+{
+  "specVersion": "0.1",
+  "id": "faq-ia",
+  "name": "FAQ con IA y escalado a humano",
+  "description": "Responde dudas con un paso LLM acotado; si no resuelve, recoge el email y avisa al equipo.",
+  "locale": "es",
+  "settings": {
+    "typingDelayMs": 400
+  },
+  "variables": [
+    {
+      "name": "resuelto",
+      "type": "boolean",
+      "default": false
+    },
+    {
+      "name": "motivo",
+      "type": "string"
+    },
+    {
+      "name": "email",
+      "type": "email",
+      "scope": "contact",
+      "pii": true
+    },
+    {
+      "name": "ticket",
+      "type": "string"
+    }
+  ],
+  "start": "saludo",
+  "nodes": [
+    {
+      "id": "saludo",
+      "type": "message",
+      "content": [
+        {
+          "kind": "text",
+          "text": "Hola, soy el asistente. Pregúntame lo que necesites sobre el servicio."
+        }
+      ],
+      "next": "asistente",
+      "color": "rojo"
+    },
+    {
+      "id": "asistente",
+      "type": "llm",
+      "provider": "principal",
+      "system": "Respondes solo sobre precios, horarios y envíos del servicio. Si no sabes algo, dilo y no inventes.",
+      "goal": "Resolver la duda del usuario. Cuando quede resuelta o pida hablar con una persona, termina.",
+      "slots": [
+        {
+          "variable": "resuelto",
+          "description": "true si el usuario confirma que su duda está resuelta"
+        },
+        {
+          "variable": "motivo",
+          "description": "Resumen en una frase de lo que necesita",
+          "required": false
+        }
+      ],
+      "maxTurns": 10,
+      "costCapUsd": 0.05,
+      "temperature": 0.2,
+      "next": "comprobar"
+    },
+    {
+      "id": "comprobar",
+      "type": "condition",
+      "rules": [
+        {
+          "when": {
+            "variable": "resuelto",
+            "op": "eq",
+            "value": true
+          },
+          "next": "fin-resuelto"
+        }
+      ],
+      "else": "pedir-email"
+    },
+    {
+      "id": "pedir-email",
+      "type": "input",
+      "inputType": "email",
+      "variable": "email",
+      "prompt": [
+        {
+          "kind": "text",
+          "text": "Te paso con una persona. ¿A qué email te contestamos?"
+        }
+      ],
+      "next": "crear-ticket"
+    },
+    {
+      "id": "crear-ticket",
+      "type": "http",
+      "request": {
+        "method": "POST",
+        "url": "https://soporte.example.com/api/tickets",
+        "headers": {
+          "Authorization": {
+            "secret": "SOPORTE_TOKEN"
+          }
+        },
+        "body": {
+          "email": "{{email}}",
+          "subject": "{{motivo}}"
+        }
+      },
+      "responseMap": [
+        {
+          "variable": "ticket",
+          "pointer": "/id"
+        }
+      ],
+      "next": "fin-escalado",
+      "onError": "fin-escalado"
+    },
+    {
+      "id": "fin-resuelto",
+      "type": "end",
+      "outcome": "resuelto",
+      "content": [
+        {
+          "kind": "text",
+          "text": "¡Perfecto! Aquí estoy si necesitas algo más."
+        }
+      ]
+    },
+    {
+      "id": "fin-escalado",
+      "type": "end",
+      "outcome": "escalado",
+      "content": [
+        {
+          "kind": "text",
+          "text": "Hecho. Te escribiremos a {{email}} lo antes posible."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Entorno
+.env
+.env.*
+!.env.example
+
+# Sistema / editores
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Turborepo / Next
+.turbo/
+.next/
+out/
+coverage/
+next-env.d.ts
