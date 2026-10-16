@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Esquema, tipos y validador de los flujos de Franca (RFC-0001, borrador)",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "exports": {
     ".": {
@@ -15,7 +15,11 @@
   "bin": {
     "franca-validate": "./dist/cli.mjs"
   },
-  "files": ["dist", "flow.schema.json", "examples"],
+  "files": [
+    "dist",
+    "flow.schema.json",
+    "examples"
+  ],
   "scripts": {
     "build": "tsdown",
     "dev": "tsdown --watch --no-clean",
