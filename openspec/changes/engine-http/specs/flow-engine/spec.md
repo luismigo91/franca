@@ -213,6 +213,11 @@ La URL renderizada SHALL empezar por `http://` o `https://` (sin distinguir may�
 - **WHEN** se ejecutan por separado `http` `GET` con `url` `"https://api.example.com/u/..a"`, `"https://api.example.com/u/..."` y `"https://api.example.com/u/%252e%252e"`
 - **THEN** el host recibe las tres URL sin cambios en la ruta
 
+#### Scenario: Consulta pegada al host
+- **GIVEN** un host que ofrece `http`
+- **WHEN** se ejecutan por separado `http` `GET` con `url` `"https://api.example.com?x=/../y"` y `"https://api.example.com?x=/./y"`
+- **THEN** el host recibe `"https://api.example.com/?x=/../y"` y `"https://api.example.com/?x=/./y"` (la ruta está vacía: una `/` de la consulta no abre una ruta, y su `..` no es un segmento)
+
 ### Requirement: Destino y longitud de la URL
 La URL renderizada SHALL ser una URL absoluta WHATWG sin usuario ni contraseña cuyo host serializado cumpla la regla de «Host de una url» y no sea `localhost` ni termine en `.localhost`, y tener 8192 unidades como mucho tanto antes como después de serializarla. El host recibe la serialización. Si no, la petición no se puede construir (`invalid_url`).
 
