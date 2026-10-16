@@ -78,10 +78,8 @@ describe('scripts/mutate.mjs: procesos que lanza Vitest', { timeout: 30_000 }, (
     return worker;
   }
 
-  // BUG (Medio): packages/engine/scripts/mutate.mjs (runTests, el `child.kill('SIGKILL')` del temporizador)
-  // mata solo al proceso de Vitest, no a su árbol: los workers quedan huérfanos y girando. Arreglo posible:
-  // `spawn(..., { detached: true })` y `process.kill(-child.pid, 'SIGKILL')` (y lo mismo en `onSignal`).
-  it.fails('tras agotar el tiempo de un mutante no queda vivo ningún proceso lanzado por Vitest', async () => {
+  // Arreglado: mutate.mjs lanza Vitest con `detached` y mata el grupo entero (`process.kill(-pid, 'SIGKILL')`).
+  it('tras agotar el tiempo de un mutante no queda vivo ningún proceso lanzado por Vitest', async () => {
     const pid = await runWithTimeout();
     expect(isAlive(pid), `el worker ${pid} sigue vivo`).toBe(false);
   });
