@@ -1,7 +1,6 @@
 import { MAX_URL_LENGTH } from '../constants.js';
 import { hasUnstorable } from '../input/parsers/chars.js';
-import { isDomainName } from '../input/parsers/domain.js';
-import { hasHiddenChars, hasPercentInHost } from '../input/parsers/url.js';
+import { checkParsedUrl, hasHiddenChars, hasPercentInHost } from '../input/parsers/url.js';
 import { renderTemplate, ValueTooLargeError } from '../template.js';
 import type { VariableValue } from '../types.js';
 
@@ -49,13 +48,17 @@ function decodeDots(segment: string): string {
   return out;
 }
 
-/** @returns `true` si algún segmento de la ruta es `.` o `..`, también escrito con `%2e`. */
+/**
+ * @returns `true` si algún segmento de la ruta es `.` o `..`, también escrito con `%2e`. La ruta va
+ * desde la primera `/` tras la autoridad hasta el primer `?` (el `#` ya se rechazó antes): una `/`
+ * que está dentro de la consulta, como en `https://host?x=/../y`, no abre una ruta.
+ */
 function hasDotSegment(text: string, authorityStart: number): boolean {
+  const query = text.indexOf('?', authorityStart);
+  const end = query === -1 ? text.length : query;
   const slash = text.indexOf('/', authorityStart);
-  if (slash === -1) return false;
-  const query = text.indexOf('?', slash);
-  const path = text.slice(slash, query === -1 ? text.length : query);
-  for (const segment of path.split('/')) {
+  if (slash === -1 || slash > end) return false;
+  for (const segment of text.slice(slash, end).split('/')) {
     const decoded = decodeDots(segment);
     if (decoded === '.' || decoded === '..') return true;
   }
@@ -82,11 +85,10 @@ export function validateUrlText(text: string): string | undefined {
   } catch {
     return undefined;
   }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') return undefined;
-  if (url.username !== '' || url.password !== '') return undefined;
+  const href = checkParsedUrl(url, MAX_URL_LENGTH);
+  if (href === undefined) return undefined;
   const host = url.hostname;
-  if (!isDomainName(host) || host === 'localhost' || host.endsWith('.localhost')) return undefined;
-  return url.href.length <= MAX_URL_LENGTH ? url.href : undefined;
+  return host === 'localhost' || host.endsWith('.localhost') ? undefined : href;
 }
 
 export type BuiltUrl = { ok: true; url: string } | { ok: false };

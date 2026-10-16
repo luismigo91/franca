@@ -44,7 +44,7 @@ describe('tabla método × resultado', () => {
       it(`${label} con ${method}`, () => {
         const verdict = judgeAttempt(result as Exclude<AttemptResult, { kind: 'missing_secret' }>, method);
         if (reason === null) {
-          expect(verdict).toEqual({ ok: true, status });
+          expect(verdict).toEqual({ ok: true, status, body: (result as { body: string }).body });
           return;
         }
         expect(verdict).toEqual({ ok: false, reason, status, retryable: IDEMPOTENT[method] ? idempotentRetry : anyMethodRetry });

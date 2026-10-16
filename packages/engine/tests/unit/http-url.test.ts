@@ -171,6 +171,28 @@ describe('Segmentos de punto', () => {
   });
 });
 
+describe('La ruta termina en el primer ?', () => {
+  it.each([
+    ['https://api.example.com?x=/../y', 'https://api.example.com/?x=/../y'],
+    ['https://api.example.com?x=/./y', 'https://api.example.com/?x=/./y'],
+    ['https://api.example.com?/..', 'https://api.example.com/?/..'],
+    ['https://api.example.com/a?x=/../y', 'https://api.example.com/a?x=/../y'],
+    ['https://api.example.com?x=%2e%2e/y', 'https://api.example.com/?x=%2e%2e/y'],
+  ])('%j es válida: un «..» de la consulta no es un segmento de ruta', (url, href) => {
+    expect(valid(url)).toBe(href);
+  });
+
+  it.each(['https://api.example.com/../a?x=1', 'https://api.example.com/a/%2e%2E?x=/b', 'https://api.example.com/x/./y?z'])(
+    '%j sigue rechazándose: el segmento de punto está en la ruta',
+    (url) => expect(valid(url)).toBeUndefined(),
+  );
+
+  it('el # no corta la ruta: se rechaza en cualquier posición antes de mirar los segmentos', () => {
+    expect(valid('https://api.example.com/a#/../b')).toBeUndefined();
+    expect(valid('https://api.example.com?x=1#/../b')).toBeUndefined();
+  });
+});
+
 describe('URLs válidas y su serialización', () => {
   it.each([
     ['HTTPS://API.Example.com:8443/v1/leads?x=1', 'https://api.example.com:8443/v1/leads?x=1'],

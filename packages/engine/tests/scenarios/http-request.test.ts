@@ -287,6 +287,16 @@ describe('Destino y longitud de la URL', () => {
     }
   });
 
+  it('Consulta pegada al host', async () => {
+    for (const [url, href] of [
+      ['https://api.example.com?x=/../y', 'https://api.example.com/?x=/../y'],
+      ['https://api.example.com?x=/./y', 'https://api.example.com/?x=/./y'],
+    ]) {
+      const { host } = await execute({ url });
+      expect(host.requests[0]!.url, url).toBe(href);
+    }
+  });
+
   it('Destinos internos', async () => {
     const urls = [
       'http://127.0.0.1/',

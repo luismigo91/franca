@@ -67,8 +67,12 @@ export interface HostConformanceHarness {
   now(): number;
   /** Tolerancia de los casos de tiempo: la fija el entorno. */
   readonly timeToleranceMs: number;
-  /** Espera real de `ms` (la pone el arnés: el motor no tiene temporizadores). La usa `call` para su espera límite. */
-  sleep(ms: number): Promise<void>;
+  /**
+   * Espera real de `ms` (la pone el arnés: el motor no tiene temporizadores). La usa `call` para su
+   * espera límite y la cancela con `signal` en cuanto responde el host: el arnés debe liberar su
+   * temporizador (y puede resolver o rechazar la promesa) al abortarse.
+   */
+  sleep(ms: number, signal?: AbortSignal): Promise<void>;
   reset(): Promise<void>;
 }
 

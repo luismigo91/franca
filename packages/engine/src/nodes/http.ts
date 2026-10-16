@@ -66,16 +66,15 @@ export const executeHttp: NodeExecutor<'http'> = async (node, ctx) => {
       return fail('missing_secret', 'el host no tiene un secreto que pide el nodo o no puede enviarlo a ese destino');
     }
     const verdict = judgeAttempt(result, node.request.method);
-    if (verdict.ok && result.kind === 'response') {
+    if (verdict.ok) {
       const entries = node.responseMap ?? [];
       if (entries.length === 0) return finish(attempts, verdict.status, null);
-      const mapped = mapResponse(result.body, entries);
+      const mapped = mapResponse(verdict.body, entries);
       // Todo o nada: solo se asigna si todas las entradas se pueden guardar.
       if (!mapped.ok) return finish(attempts, verdict.status, 'invalid_response');
       for (const [variable, value] of mapped.assignments) ctx.vars.set(variable, value);
       return finish(attempts, verdict.status, null);
     }
-    if (verdict.ok) return HOST_ERROR;
     last = verdict;
     if (!verdict.retryable) break;
   }

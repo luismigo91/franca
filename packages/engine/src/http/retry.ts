@@ -12,7 +12,7 @@ export const IDEMPOTENT: { readonly [M in HttpMethod]: boolean } = {
 };
 
 export type Verdict =
-  | { ok: true; status: number }
+  | { ok: true; status: number; body: string }
   | { ok: false; reason: HttpErrorReason; status: number | null; retryable: boolean };
 
 const RETRY_ANY_METHOD = new Set([408, 429]);
@@ -34,7 +34,7 @@ export function judgeAttempt(result: Exclude<AttemptResult, { kind: 'missing_sec
     case 'response': {
       const { status, body } = result;
       if (body.length > MAX_RESPONSE_BODY_LENGTH) return { ok: false, reason: 'response_too_large', status, retryable: false };
-      if (status >= 200 && status <= 299) return { ok: true, status };
+      if (status >= 200 && status <= 299) return { ok: true, status, body };
       const retryable = RETRY_ANY_METHOD.has(status) || (idempotent && RETRY_IF_IDEMPOTENT.has(status));
       return { ok: false, reason: 'http_status', status, retryable };
     }

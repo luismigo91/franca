@@ -43,6 +43,21 @@ export function hasPercentInHost(text: string, start: number): boolean {
 }
 
 /**
+ * Lo que debe cumplir una URL ya parseada, común a la respuesta de un `input` y a la `url` de un
+ * `http`: protocolo http o https, sin usuario ni contraseña, un nombre de dominio como host
+ * serializado (no una IP) y una serialización de `maxLength` unidades como mucho.
+ *
+ * @param url URL parseada por WHATWG.
+ * @param maxLength Longitud máxima de `href`.
+ * @returns `href`, o `undefined` si no cumple.
+ */
+export function checkParsedUrl(url: URL, maxLength: number): string | undefined {
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return undefined;
+  if (url.username !== '' || url.password !== '' || !isDomainName(url.hostname)) return undefined;
+  return url.href.length <= maxLength ? url.href : undefined;
+}
+
+/**
  * `url`: URL absoluta WHATWG (`URL` del runtime) http o https, sin usuario ni contraseña, con un
  * dominio como host (no IP) y una serialización de 4096 unidades como mucho. Se guarda `href`, que
  * canonicaliza sin cambiar el recurso (host en minúsculas e IDNA, `\` → `/`, segmentos `.`/`..`,
@@ -59,7 +74,5 @@ export const parseUrl: TextParser = (text) => {
   } catch {
     return undefined;
   }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') return undefined;
-  if (url.username !== '' || url.password !== '' || !isDomainName(url.hostname)) return undefined;
-  return url.href.length <= MAX_INPUT_LENGTH ? url.href : undefined;
+  return checkParsedUrl(url, MAX_INPUT_LENGTH);
 };

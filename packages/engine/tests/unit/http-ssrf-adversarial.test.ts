@@ -209,15 +209,13 @@ describe('Longitud de la URL: antes y después de serializar', () => {
   });
 });
 
-describe('Falso positivo conocido: una consulta pegada al host que contiene /../', () => {
-  // BUG (Low): src/http/url.ts, hasDotSegment. Busca la ruta desde la primera «/» posterior a la autoridad; con
-  // `https://host?x=/../y` esa «/» está dentro de la consulta, así que se toma como ruta y se rechaza una URL que
-  // la spec declara válida («un `..` en la consulta no es un segmento de ruta»).
-  it.fails('https://api.example.com?x=/../y es válida (la ruta está vacía)', () => {
+describe('Una consulta pegada al host que contiene /../ no es una ruta', () => {
+  // Corregido: hasDotSegment termina la ruta en el primer «?» desde la autoridad (una «/» de la consulta no abre una ruta).
+  it('https://api.example.com?x=/../y es válida (la ruta está vacía)', () => {
     expect(validateUrlText('https://api.example.com?x=/../y')).toBe('https://api.example.com/?x=/../y');
   });
 
-  it.fails('https://api.example.com?x=/./y es válida', () => {
+  it('https://api.example.com?x=/./y es válida', () => {
     expect(validateUrlText('https://api.example.com?x=/./y')).toBe('https://api.example.com/?x=/./y');
   });
 

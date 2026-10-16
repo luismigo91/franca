@@ -43,8 +43,14 @@ export async function call(
       return { kind: 'rejected' };
     }
   })();
-  const deadline = harness.sleep(limit).then((): Settled => ({ kind: 'deadline' }));
+  // La espera límite se cancela en cuanto el host responde: no queda un temporizador por llamada.
+  const stopWaiting = new AbortController();
+  const deadline = harness.sleep(limit, stopWaiting.signal).then(
+    (): Settled => ({ kind: 'deadline' }),
+    (): Settled => ({ kind: 'deadline' }),
+  );
   const settled = await Promise.race([attempt, deadline]);
+  stopWaiting.abort();
   const elapsedMs = harness.now() - started;
   if (settled.kind === 'rejected') {
     return { result: null, elapsedMs, failures: [`${label}: la promesa del host se rechazó (debe resolver siempre)`] };

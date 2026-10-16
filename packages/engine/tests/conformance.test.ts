@@ -135,6 +135,39 @@ describe('call', () => {
     expect(outcome.result).toEqual({ kind: 'blocked' });
   });
 
+  it('cancela la espera límite en cuanto el host responde, o cuando vence', async () => {
+    const signals: AbortSignal[] = [];
+    const recording = {
+      ...harness(),
+      sleep: (_ms: number, signal?: AbortSignal) => {
+        signals.push(signal!);
+        return new Promise<void>((resolve) => {
+          const timer = setTimeout(resolve, 0);
+          signal?.addEventListener('abort', () => (clearTimeout(timer), resolve()));
+        });
+      },
+    } as unknown as HostConformanceHarness;
+    await call(recording, request, 'prueba', async () => ({ kind: 'blocked' }));
+    await call(recording, request, 'prueba', () => new Promise(() => {}));
+    expect(signals).toHaveLength(2);
+    expect(signals.every((signal) => signal.aborted)).toBe(true);
+  });
+
+  it('una espera que rechaza al abortarse no deja un rechazo sin atender', async () => {
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => unhandled.push(reason);
+    process.on('unhandledRejection', onUnhandled);
+    const rejecting = {
+      ...harness(),
+      sleep: (_ms: number, signal?: AbortSignal) => new Promise<void>((_resolve, reject) => signal?.addEventListener('abort', () => reject(new Error('abortada')))),
+    } as unknown as HostConformanceHarness;
+    const outcome = await call(rejecting, request, 'prueba', async () => ({ kind: 'blocked' }));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    process.off('unhandledRejection', onUnhandled);
+    expect(outcome.failures).toEqual([]);
+    expect(unhandled).toEqual([]);
+  });
+
   it('CALL_DEADLINE_MARGIN_MS vale 1000', () => {
     expect(CALL_DEADLINE_MARGIN_MS).toBe(1000);
   });
