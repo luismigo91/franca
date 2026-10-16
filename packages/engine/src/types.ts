@@ -1,5 +1,5 @@
-import type { FlowIssue, HttpNode, InputNode } from '@franca/spec';
-import type { HttpErrorReason, InvalidAnswerReason, RejectionCode, SessionErrorCode, STATE_VERSION } from './constants.js';
+import type { FlowIssue, HttpNode, InputNode, Variable } from '@franca/spec';
+import type { HttpErrorReason, InvalidAnswerReason, LlmExitReason, RejectionCode, SessionErrorCode, STATE_VERSION } from './constants.js';
 
 /** Valor JSON. */
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
@@ -77,13 +77,50 @@ export interface EngineHttpEvent {
   error: HttpErrorReason | null;
 }
 
-export type EngineEvent = EngineMessageEvent | EngineInputEvent | EngineHttpEvent | EngineEndEvent | EngineErrorEvent;
+/** Salida de un nodo `llm`: turnos hechos, coste acumulado y motivo (`null` si sale por `next`). Sin textos ni slots. */
+export interface EngineLlmEvent {
+  type: 'llm';
+  nodeId: string;
+  turns: number;
+  costUsd: number;
+  reason: LlmExitReason | null;
+}
+
+export type EngineEvent =
+  | EngineMessageEvent
+  | EngineInputEvent
+  | EngineHttpEvent
+  | EngineLlmEvent
+  | EngineEndEvent
+  | EngineErrorEvent;
 
 export type SessionStatus = 'ended' | 'failed' | 'waiting';
 
 export interface SessionError {
   code: SessionErrorCode;
   nodeId: string;
+}
+
+/** Tipo de una variable del flujo; derivado de `@franca/spec`, nunca redefinido. */
+export type VariableType = Variable['type'];
+
+/** Mensaje de la conversación de un `llm`. */
+export interface LlmMessage {
+  role: 'assistant' | 'user';
+  text: string;
+}
+
+/**
+ * Conversación de un `llm` en espera. Contiene lo que escribió el usuario: es un dato personal que el
+ * host de producción persiste con retención y borrado.
+ */
+export interface LlmConversation {
+  /** Alternan, empiezan y terminan en el asistente; de 1 a 99. */
+  messages: LlmMessage[];
+  /** Coste acumulado: number finito ≥ 0. */
+  costUsd: number;
+  /** Slots recogidos y válidos (nunca `null`). */
+  collected: Record<string, VariableValue>;
 }
 
 export interface SessionState {
@@ -102,6 +139,8 @@ export interface SessionState {
   error: SessionError | null;
   /** Solo si `status === 'waiting'`: número de intento de la pregunta pendiente (entero ≥ 1). */
   attempt?: number;
+  /** Solo si `status === 'waiting'` en un nodo `llm`: su conversación. Su presencia dice «espera en un llm». */
+  conversation?: LlmConversation;
 }
 
 export interface SessionResult {
@@ -164,8 +203,52 @@ export type HttpAttemptResult =
 /** Capacidad `http` del host: ejecuta un intento. Debe resolver siempre; rechazar es un defecto del host. */
 export type HttpCapability = (request: HttpRequest) => Promise<HttpAttemptResult>;
 
+/** Slot de un turno: una variable del nodo, con su tipo declarado. */
+export interface LlmSlotRequest {
+  name: string;
+  type: VariableType;
+  description: string;
+  required: boolean;
+  /** La conversación ya tiene un valor válido para este slot. */
+  collected: boolean;
+}
+
+/** Lo que recibe el host en cada turno. Objeto nuevo por turno; el host puede quedárselo o mutarlo. */
+export interface LlmTurnRequest {
+  nodeId: string;
+  provider: string;
+  model: string | null;
+  /** Renderizado como plantilla. */
+  system: string | null;
+  /** Renderizado como plantilla. */
+  goal: string;
+  /** Una por variable distinta de los slots del nodo, en su orden. */
+  slots: LlmSlotRequest[];
+  /** `[]` en el turno 1; después termina en el mensaje del usuario que motiva el turno. */
+  history: LlmMessage[];
+  temperature: number | null;
+  /** Del flujo o `"es"`. */
+  locale: string;
+  /** 1 el primero. */
+  turn: number;
+  /** Del nodo o 8. */
+  maxTurns: number;
+}
+
+/** Resultado de un turno. Las propiedades adicionales se ignoran. */
+export type LlmTurnResult =
+  | { kind: 'turn'; text: string; slots: Readonly<Record<string, JsonValue>>; done: boolean; costUsd: number }
+  | { kind: 'refusal'; costUsd: number }
+  | { kind: 'failed'; costUsd: number }
+  | { kind: 'not_configured' };
+
+/** Capacidad `llm` del host: hace **un** turno. Debe resolver siempre; rechazar es un defecto del host. */
+export type LlmCapability = (request: LlmTurnRequest) => Promise<LlmTurnResult>;
+
 /** Capacidades que inyecta el host. */
 export interface EngineHost {
   /** Sin ella, un nodo `http` falla con `unsupported_node`. */
   http?: HttpCapability;
+  /** Sin ella, un nodo `llm` falla con `unsupported_node`. */
+  llm?: LlmCapability;
 }

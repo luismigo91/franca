@@ -11,14 +11,15 @@
 // aborta y nunca cuenta como «muerta». SIGINT y SIGTERM restauran el fichero de forma síncrona.
 //
 // Uso: node scripts/mutate.mjs [--only id,id]   (código 1 si sobrevive alguna o algo falla; 130 si se interrumpe)
-// Variables de entorno (para probar el script): MUTATE_VITEST (ejecutable de Vitest),
+// Variables de entorno: MUTATE_ROOT (paquete que se muta; por defecto el del script, así lo reutiliza
+// @franca/llm-anthropic), y, para probar el script, MUTATE_VITEST (ejecutable de Vitest),
 // MUTATE_TIMEOUT_MS (por defecto 300000) y MUTATE_MUTATIONS (ruta del JSON de mutaciones).
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const root = process.env.MUTATE_ROOT ? resolve(process.env.MUTATE_ROOT) : resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const backupDir = join(root, '.mutate-backup');
 const vitest = process.env.MUTATE_VITEST ?? join(root, 'node_modules/.bin/vitest');
 const timeoutMs = Number(process.env.MUTATE_TIMEOUT_MS ?? 300_000);

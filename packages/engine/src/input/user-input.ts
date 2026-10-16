@@ -57,3 +57,17 @@ export function readUserInput(node: InputNode, input: unknown): ParsedInput | nu
   const option = typeof value === 'string' ? optionIndexes(node).get(value) : undefined;
   return option === undefined ? null : { kind: 'choice', option };
 }
+
+/**
+ * Lee el mensaje del usuario a un nodo `llm`: un objeto plano con la única propiedad `text` (string).
+ * Mismas formas rechazadas que el `{text}` de `readUserInput`; no hace falta un nodo.
+ *
+ * @param input Entrada sin tipar.
+ * @returns El texto sin recortar, o `null` si no tiene la forma (→ `invalid_input`).
+ */
+export function readTextInput(input: unknown): string | null {
+  const found = singleProperty(input);
+  if (!found || found.key !== 'text') return null;
+  const value = found.owner.text;
+  return typeof value === 'string' ? value : null;
+}

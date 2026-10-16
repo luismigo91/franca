@@ -2,6 +2,7 @@ export {
   DEFAULT_TYPING_DELAY_MS,
   HTTP_ERROR_REASONS,
   INVALID_ANSWER_REASONS,
+  LLM_EXIT_REASONS,
   MAX_EXTERNAL_CALLS_PER_ADVANCE,
   MAX_INPUT_LENGTH,
   MAX_NESTING_DEPTH,
@@ -17,9 +18,11 @@ export {
   STATE_VERSION,
   type HttpErrorReason,
   type InvalidAnswerReason,
+  type LlmExitReason,
   type RejectionCode,
   type SessionErrorCode,
 } from './constants.js';
+export { createLlmCapability } from './llm/providers.js';
 export { continueSession, startSession } from './session.js';
 export type {
   AdvanceResult,
@@ -32,6 +35,7 @@ export type {
   EngineHost,
   EngineHttpEvent,
   EngineInputEvent,
+  EngineLlmEvent,
   EngineMessageEvent,
   EngineTextInputEvent,
   HttpAttemptResult,
@@ -41,6 +45,12 @@ export type {
   HttpRequestHeader,
   InputType,
   JsonValue,
+  LlmCapability,
+  LlmConversation,
+  LlmMessage,
+  LlmSlotRequest,
+  LlmTurnRequest,
+  LlmTurnResult,
   RenderedContentItem,
   Rejection,
   SessionError,
@@ -49,5 +59,6 @@ export type {
   SessionStatus,
   StartSessionRequest,
   UserInput,
+  VariableType,
   VariableValue,
 } from './types.js';
