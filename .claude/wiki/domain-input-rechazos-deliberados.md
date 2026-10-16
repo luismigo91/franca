@@ -14,7 +14,8 @@ Decisiones de producto aprobadas en `engine-input`; parecen bugs y no lo son:
 - **Más de 15 cifras significativas, o un subnormal (< 2^-1022), son inválidos en `number`.** Con ≤ 15 cifras un double reproduce el decimal (DBL_DIG), así que lo guardado es lo escrito; con más, `Number()` redondea en silencio (`1234567890123456789` → `…800`) y por debajo del rango normal pierde precisión o da `0`.
 - **Agotar `maxRetries` falla la sesión (`retries_exhausted`)** en vez de seguir por una salida: el esquema no tiene `onExhausted` en `input` (solo `llm`). Es un FOLLOW-UP aditivo (6.1 de `engine-input`); hasta entonces el host decide qué hacer con una sesión `failed`.
 - **No hay E.164 ni prefijo de país en `phone`.** Se acepta 7-15 dígitos y se guarda `+`? + dígitos tal cual; deducir el país exigiría tablas de numeración (`libphonenumber`) que se excluyeron como dependencia.
-- **Un teléfono de 16 dígitos, una URL con IP o un texto de más de 4096 unidades se rechazan** y el usuario reintenta: nunca se guarda un valor distinto de lo escrito.
+- **Un teléfono de 16 dígitos, una URL con IP o un texto de más de 4096 unidades se rechazan** y el usuario reintenta: el motor no guarda un valor que cambie el recurso o el número que escribió. La única diferencia admitida en `url` es la canonicalización WHATWG que no cambia el recurso (ver [[gotcha-url-whatwg-normaliza]]).
+- **`text` con `min` mayor que 4096 falla con `invalid_validation`**: la respuesta tiene como mucho 4096 unidades, así que ninguna puede cumplirlo.
 - **El `trim` de la respuesta es el de `String.prototype.trim`**, que también quita NBSP, U+2003, U+202F y U+FEFF. Por eso `example.com/` + U+FEFF final es una URL válida (el BOM se recorta antes del conversor) aunque en medio del texto se rechace.
 
 Relacionado: [[gotcha-url-whatwg-normaliza]], [[decision-matches-regex-lineal]].
