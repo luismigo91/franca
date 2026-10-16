@@ -28,10 +28,13 @@ function explicitScheme(text: string): string | undefined {
 
 /**
  * `%` en el host: el parser lo decodificaría y después quitaría en silencio los invisibles
- * codificados (`exa%C2%ADmple.com`). El host llega hasta el primer `/`, `?`, `#` o `\`.
+ * codificados (`exa%C2%ADmple.com`). Empieza tras las `/` o `\` iniciales, que WHATWG ignora en
+ * http y https, y llega hasta el primer `/`, `?`, `#` o `\`.
  */
-function hasPercentInHost(text: string, schemeLength: number): boolean {
-  for (let i = schemeLength; i < text.length; i++) {
+function hasPercentInHost(text: string, start: number): boolean {
+  let i = start;
+  while (i < text.length && (text[i] === '/' || text[i] === '\\')) i++;
+  for (; i < text.length; i++) {
     const c = text[i];
     if (c === '/' || c === '?' || c === '#' || c === '\\') return false;
     if (c === '%') return true;
