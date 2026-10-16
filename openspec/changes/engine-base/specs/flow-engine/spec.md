@@ -522,12 +522,27 @@ Como el patrón lo escribe el autor y el texto lo aporta el usuario, el motor MU
 - **THEN** las tres son verdaderas
 
 ### Requirement: Tamaño máximo del patrón de matches
-El tamaño de un patrón de `matches` SHALL ser su número de átomos y aserciones tras expandir las repeticiones: `{n}` y `{n,m}` cuentan su contenido `n` o `m` veces, `{n,}` lo cuenta `max(n, 1)` veces, y `*`, `+` y `?` una vez. El tamaño no puede superar 1000.
+El tamaño de un patrón de `matches` SHALL contar lo que el motor emite al compilarlo, sin expandirlo: átomo o aserción, 1; secuencia, la suma; alternativa de k ramas, la suma más k-1; repetición, 0 si su contenido vale 0 y si no contenido × copias + pasos opcionales (`{n}`: n y 0; `{n,m}`: m y m-n; `{n,}`: max(n, 1) y 1; `*`, `+`, `?` como `{0,}`, `{1,}`, `{0,1}`). No puede superar 1000, lo que acota el programa a 2001 instrucciones.
 
 #### Scenario: Patrón por encima del tamaño máximo
 - **GIVEN** `texto` = `"a"`
 - **WHEN** se evalúan por separado `texto matches "a{1000}"`, `texto matches "a{1001}"` y `texto matches "(a{40}){40}"`
 - **THEN** la primera es falsa sin error, y la segunda y la tercera hacen fallar la sesión con código `invalid_rule`
+
+#### Scenario: Alternativas vacías repetidas
+- **GIVEN** `texto` = `"a"`
+- **WHEN** se evalúan por separado `(?:(?:|){1000}){1000}`, `(?:(?:|){1000}){1000}a` y `(?:(?:(?:|){1000}){1000}){1000}a`
+- **THEN** las tres hacen fallar la sesión con código `invalid_rule` en milisegundos, sin agotar la memoria
+
+#### Scenario: Cuantificadores apilados
+- **GIVEN** `texto` = `"a"` y un patrón que anida 98 veces `(?:a)*` (cada uno dentro del anterior) y lo repite `{999}` seguido de `b`
+- **WHEN** se evalúa
+- **THEN** la sesión falla con código `invalid_rule`
+
+#### Scenario: Contadores desmesurados
+- **GIVEN** `texto` = `""`
+- **WHEN** se evalúan por separado `^(?:){` seguido de 400 nueves y `}$`, y `a{1,` seguido de 400 nueves y `}`
+- **THEN** la primera es verdadera (repetir lo que no consume nada no cuesta) y la segunda hace fallar la sesión con código `invalid_rule`
 
 ### Requirement: Profundidad máxima de anidamiento del patrón de matches
 El anidamiento de grupos de un patrón de `matches` (de cualquier tipo: `(...)`, `(?:...)`, `(?<nombre>...)`) SHALL ser como mucho 100. Se comprueba recorriendo el patrón de forma iterativa, antes de compilarlo con el motor nativo y de analizarlo, de modo que el resultado no dependa de la pila disponible. Un patrón que lo supera hace fallar la sesión con `invalid_rule`.
