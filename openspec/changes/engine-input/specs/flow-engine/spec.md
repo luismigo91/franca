@@ -218,12 +218,17 @@ Con `number`, la respuesta SHALL ser inválida (`invalid_format`) si tiene más 
 - **THEN** `n` vale 0 en los tres casos
 
 ### Requirement: Tipo url
-Con `url`, si el texto empieza por `http://` o `https://` (sin distinguir mayúsculas), se toma tal cual; si no contiene `://`, se le antepone `https://`, y si contiene `://` con otro esquema, es inválido. La respuesta SHALL ser válida si el resultado es una URL absoluta según el estándar URL de WHATWG, sin usuario ni contraseña y con un nombre de dominio como host (ver «Host de una url»). Se guarda su serialización WHATWG.
+Con `url`, si el texto empieza por un esquema (una letra y después letras, dígitos, `+`, `-` o `.`, seguidos de `://`), solo se admite `http` o `https`, sin distinguir mayúsculas, y se toma tal cual; si no, aunque contenga `://` más adelante, se le antepone `https://`. La respuesta SHALL ser válida si el resultado es una URL absoluta WHATWG sin usuario ni contraseña y con un nombre de dominio como host (ver «Host de una url»). Se guarda su serialización.
 
 #### Scenario: URLs válidas
 - **GIVEN** una sesión esperando en un input de tipo `url` sobre `web`
 - **WHEN** el host continúa por separado con `"example.com"`, `"HTTP://Example.com/a?b=1"` y `"www.example.com/precios"`
 - **THEN** `web` vale respectivamente `"https://example.com/"`, `"http://example.com/a?b=1"` y `"https://www.example.com/precios"`
+
+#### Scenario: `://` dentro de la consulta
+- **GIVEN** una sesión esperando en un input de tipo `url` sobre `web`
+- **WHEN** el host continúa por separado con `"example.com/?u=http://y.com"`, `"example.com#a://b"`, `"example.com:8080/a://b"` y `"git+ssh://example.com"`
+- **THEN** `web` vale respectivamente `"https://example.com/?u=http://y.com"`, `"https://example.com/#a://b"` y `"https://example.com:8080/a://b"`, y la cuarta es inválida con `reason` `invalid_format` (es un esquema distinto de http y https)
 
 #### Scenario: URLs inválidas
 - **GIVEN** una sesión esperando en un input de tipo `url`
@@ -244,7 +249,7 @@ Con `url`, el host serializado por WHATWG SHALL cumplir la regla del dominio de 
 - **THEN** `web` vale `"https://xn--exmple-qta.com/"`
 
 ### Requirement: Espacios y controles en una url
-Con `url`, un texto (ya recortado) que contiene espacios en blanco, caracteres de control (U+0000 a U+001F y U+007F), caracteres ignorables por defecto de Unicode (`Default_Ignorable_Code_Point`, como U+00AD o U+200B) o sustitutos UTF-16 sueltos SHALL ser inválido con `reason` `invalid_format`, antes de aplicar el parser de WHATWG.
+Con `url`, un texto (ya recortado) que contiene espacios en blanco, caracteres de control (U+0000 a U+001F y U+007F), caracteres ignorables por defecto de Unicode (`Default_Ignorable_Code_Point`, como U+00AD o U+200B) o sustitutos UTF-16 sueltos SHALL ser inválido con `reason` `invalid_format`, antes de aplicar el parser de WHATWG. También lo es si el host (hasta el primer `/`, `?`, `#` o `\`) contiene `%`.
 
 #### Scenario: Espacios y caracteres de control
 - **GIVEN** una sesión esperando en un input de tipo `url`
@@ -255,6 +260,16 @@ Con `url`, un texto (ya recortado) que contiene espacios en blanco, caracteres d
 - **GIVEN** una sesión esperando en un input de tipo `url`
 - **WHEN** el host continúa por separado con `"ex\u00adample.com"`, `"ex\u200bample.com"`, `"example.com/\ufeffa"` (BOM interior: uno final lo quita el recorte de espacios antes de convertir) y `"example.com/\ud800"`
 - **THEN** cada respuesta es inválida con `reason` `invalid_format` (el parser quitaría en silencio los tres primeros caracteres del host o de la ruta, o cambiaría el sustituto por U+FFFD)
+
+#### Scenario: Invisibles codificados en el host
+- **GIVEN** una sesión esperando en un input de tipo `url`
+- **WHEN** el host continúa por separado con `"exa%C2%ADmple.com"`, `"exa%E2%80%8Bmple.com"`, `"exa%EF%BB%BFmple.com"`, `"https://exa%C2%ADmple.com/"` y `"exa%41mple.com"`
+- **THEN** cada respuesta es inválida con `reason` `invalid_format` (el parser decodificaría el porcentaje y luego quitaría el carácter invisible del host)
+
+#### Scenario: Porcentaje fuera del host
+- **GIVEN** una sesión esperando en un input de tipo `url` sobre `web`
+- **WHEN** el host continúa con `"example.com/a%20b?q=%C3%B1"`
+- **THEN** `web` vale `"https://example.com/a%20b?q=%C3%B1"`
 
 ### Requirement: Tamaño máximo del valor guardado
 La forma textual (ver «Forma textual de los valores») de un valor que guarda un input de tipo distinto de `choice` SHALL tener como mucho 4096 unidades de código UTF-16, aunque la conversión lo haga crecer. Si la conversión produciría un valor más largo, la respuesta es inválida con `reason` `invalid_format`.
@@ -307,7 +322,7 @@ Con `boolean`, la respuesta SHALL ser válida si, normalizada a NFC y sin distin
 
 #### Scenario: Acento combinado
 - **GIVEN** un flujo con `locale` `"es"` y una sesión esperando en un input de tipo `boolean`
-- **WHEN** el host continúa con `{text: "sí"}` (una `i` seguida de un acento combinante)
+- **WHEN** el host continúa con `{text: "sí"}` (la letra `si` con una `i` seguida de U+0301, el acento combinante)
 - **THEN** la respuesta se acepta como true
 
 ### Requirement: Selección única
@@ -383,7 +398,7 @@ En un input `choice` con `multiple: true`, la respuesta `{choices: [id, …]}` S
 - **THEN** la respuesta es inválida con `reason` `pattern_mismatch` y la operación termina
 
 ### Requirement: Validación que no se puede aplicar
-Si el `validation.pattern` de un input que no es `choice` no se puede evaluar (no es una regex válida, usa una construcción no admitida o supera el tamaño o la profundidad máximos de `matches`), o si los límites no se pueden cumplir en un tipo donde se aplican (`min` mayor que `max`; `max` menor que 1 en `text` o en `choice` múltiple; `min` mayor que el número de opciones en `choice` múltiple), la sesión MUST fallar con `invalid_validation` y el `nodeId` del input.
+Si el `validation.pattern` de un input que no es `choice` no se puede evaluar (regex inválida, construcción no admitida, tamaño o profundidad por encima de los de `matches`), o si los límites no se pueden cumplir en un tipo donde se aplican (`min` mayor que `max`; en `text`, `max` menor que 1 o `min` mayor que 4096; en `choice` múltiple, `max` menor que 1 o `min` mayor que el número de opciones), la sesión MUST fallar con `invalid_validation` y el `nodeId` del input.
 
 #### Scenario: Patrón inválido al preguntar
 - **GIVEN** un flujo `message` → `input` de tipo `text` con `pattern` `"("`
@@ -396,9 +411,9 @@ Si el `validation.pattern` de un input que no es `choice` no se puede evaluar (n
 - **THEN** ambas fallan con `invalid_validation`
 
 #### Scenario: Límites que ninguna respuesta puede cumplir
-- **GIVEN** por separado un input de tipo `text` con `max` 0, un input `choice` múltiple con `max` 0 y un input `choice` múltiple de tres opciones con `min` 4
+- **GIVEN** por separado un input de tipo `text` con `max` 0, un input de tipo `text` con `min` 5000, un input `choice` múltiple con `max` 0 y un input `choice` múltiple de tres opciones con `min` 4
 - **WHEN** el host arranca una sesión con cada uno
-- **THEN** las tres fallan con `invalid_validation`, sin `message` del prompt ni evento `input`
+- **THEN** las cuatro fallan con `invalid_validation`, sin `message` del prompt ni evento `input`
 
 #### Scenario: Configuración ignorada no falla
 - **GIVEN** un input de tipo `email` con `min` 5 y `max` 2 y un input `choice` con `pattern` `"("`
