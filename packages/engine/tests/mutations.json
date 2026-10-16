@@ -316,5 +316,15 @@
       "tests/scenarios/http-result.test.ts",
       "tests/unit/http-response-map.test.ts"
     ]
+  },
+  {
+    "id": "console-write",
+    "file": "src/nodes/http.ts",
+    "find": "export const executeHttp: NodeExecutor<'http'> = async (node, ctx) => {",
+    "replace": "export const executeHttp: NodeExecutor<'http'> = async (node, ctx) => {\n  console.log('http');",
+    "tests": [
+      "tests/scenarios/http-privacy.test.ts",
+      "tests/properties.test.ts"
+    ]
   }
 ]

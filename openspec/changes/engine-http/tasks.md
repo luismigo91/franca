@@ -43,10 +43,10 @@ Fases secuenciales; cada una empieza cuando la anterior pasa su gate. Comportami
 
 ## 5. Verificación — dueño: `popi:qa-tester` (modo verificación de spec)
 
-- [ ] 5.1 Matriz escenario → test: cada `#### Scenario` del delta tiene un `it` con su título (los «Host de producción: …», un caso de conformidad); listar los que falten y devolverlos a la fase 3 o 4
-- [ ] 5.2 `pnpm --filter @franca/engine mutate` completo sin superviviente; revisar que cada entrada de `tests/mutations.json` apunta al test que nombra D17 y añadir las que falten para los tests negativos nuevos (no fuga, no mutación de entradas, no consola); dejar constancia del resultado en el informe
-- [ ] 5.3 Revisar el alcance del diff (`git diff --stat main...`): solo `packages/engine/**`, `openspec/changes/engine-http/**`, `.claude/wiki/**` y `.claude/rules/always/knowledge-wiki.md`; ningún fichero de `apps/`, `packages/spec/`, `turbo.json`, la CI ni `pnpm-lock.yaml` (no hay dependencias nuevas)
-- [ ] 5.4 Gate: ejecutar en local la secuencia de la CI (`pnpm install --frozen-lockfile && pnpm lint && pnpm typecheck && pnpm build && pnpm test && pnpm test:e2e && pnpm validate`) y `openspec validate engine-http --strict`; informar solo de lo ejecutado
+- [x] 5.1 Matriz escenario → test: cada `#### Scenario` del delta tiene un `it` con su título (los «Host de producción: …», un caso de conformidad); listar los que falten y devolverlos a la fase 3 o 4
+- [x] 5.2 `pnpm --filter @franca/engine mutate` completo sin superviviente; revisar que cada entrada de `tests/mutations.json` apunta al test que nombra D17 y añadir las que falten para los tests negativos nuevos (no fuga, no mutación de entradas, no consola); dejar constancia del resultado en el informe
+- [x] 5.3 Revisar el alcance del diff (`git diff --stat main...`): solo `packages/engine/**`, `openspec/changes/engine-http/**`, `.claude/wiki/**` y `.claude/rules/always/knowledge-wiki.md`; ningún fichero de `apps/`, `packages/spec/`, `turbo.json`, la CI ni `pnpm-lock.yaml` (no hay dependencias nuevas)
+- [x] 5.4 Gate: ejecutar en local la secuencia de la CI (`pnpm install --frozen-lockfile && pnpm lint && pnpm typecheck && pnpm build && pnpm test && pnpm test:e2e && pnpm validate`) y `openspec validate engine-http --strict`; informar solo de lo ejecutado
 
 ## 6. Seguimiento (no bloquea verify/archive)
 
