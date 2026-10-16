@@ -326,5 +326,41 @@
       "tests/scenarios/http-privacy.test.ts",
       "tests/properties.test.ts"
     ]
+  },
+  {
+    "id": "qa3-url-password",
+    "file": "src/http/url.ts",
+    "find": "if (url.username !== '' || url.password !== '') return undefined;",
+    "replace": "if (url.username !== '') return undefined;",
+    "tests": [
+      "tests/unit/http-ssrf-adversarial.test.ts"
+    ]
+  },
+  {
+    "id": "qa3-retry-425",
+    "file": "src/http/retry.ts",
+    "find": "const RETRY_ANY_METHOD = new Set([408, 429]);",
+    "replace": "const RETRY_ANY_METHOD = new Set([408, 429, 425]);",
+    "tests": [
+      "tests/scenarios/http-adversarial.test.ts"
+    ]
+  },
+  {
+    "id": "qa3-success-upper",
+    "file": "src/http/retry.ts",
+    "find": "if (status >= 200 && status <= 299) return { ok: true, status };",
+    "replace": "if (status >= 200 && status <= 300) return { ok: true, status };",
+    "tests": [
+      "tests/scenarios/http-adversarial.test.ts"
+    ]
+  },
+  {
+    "id": "qa3-budget-first-only",
+    "file": "src/nodes/http.ts",
+    "find": "if (attempts === 0) return fail('http_limit_exceeded'",
+    "replace": "if (attempts >= 0) return fail('http_limit_exceeded'",
+    "tests": [
+      "tests/scenarios/http-adversarial.test.ts"
+    ]
   }
 ]
