@@ -33,6 +33,10 @@ function readChoices(node: InputNode, value: unknown): ParsedInput | null {
 const optionIndexes = (node: InputNode): Map<string, number> =>
   new Map((node.choices ?? []).map((choice, index) => [choice.id, index]));
 
+/** @returns La propiedad que debe llevar la entrada para este nodo: `text`, `choice` o `choices`. */
+export const expectedKey = (node: InputNode): 'text' | 'choice' | 'choices' =>
+  node.inputType !== 'choice' ? 'text' : node.multiple === true ? 'choices' : 'choice';
+
 /**
  * Lee la entrada del usuario con la forma que pide el nodo: un objeto plano con una sola propiedad
  * (`text`, `choice` o `choices`). No recorre ni copia estructuras del host: cada propiedad se lee una
@@ -45,7 +49,7 @@ const optionIndexes = (node: InputNode): Map<string, number> =>
 export function readUserInput(node: InputNode, input: unknown): ParsedInput | null {
   const found = singleProperty(input);
   if (!found) return null;
-  const expected = node.inputType !== 'choice' ? 'text' : node.multiple === true ? 'choices' : 'choice';
+  const expected = expectedKey(node);
   if (found.key !== expected) return null;
   const value = found.owner[found.key];
   if (expected === 'text') return typeof value === 'string' ? { kind: 'text', text: value } : null;

@@ -2,7 +2,7 @@ import { validateFlow } from '@franca/spec';
 import type { Flow, FlowIssue, InputNode } from '@franca/spec';
 import { MAX_NESTING_DEPTH } from './constants.js';
 import { cloneJsonWithinDepth, exceedsDepth, toJsonForm } from './json.js';
-import { readUserInput } from './input/user-input.js';
+import { expectedKey, readUserInput } from './input/user-input.js';
 import { resumeInput } from './nodes/input.js';
 import { run } from './run.js';
 import { parseState } from './state.js';
@@ -87,9 +87,6 @@ const EXPECTED_SHAPE = {
   choice: 'la entrada debe ser {"choice": id} con el id de una opción del nodo',
   choices: 'la entrada debe ser {"choices": [id, …]} con ids de opciones del nodo, sin repetir',
 } as const;
-
-const expectedKey = (node: InputNode): keyof typeof EXPECTED_SHAPE =>
-  node.inputType !== 'choice' ? 'text' : node.multiple === true ? 'choices' : 'choice';
 
 /**
  * Continúa una sesión en espera. Comprueba, en este orden: flujo válido, estado bien formado y de

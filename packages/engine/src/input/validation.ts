@@ -1,4 +1,5 @@
 import type { InputNode } from '@franca/spec';
+import { MAX_INPUT_LENGTH } from '../constants.js';
 import type { Program } from '../regex/compile.js';
 import { compilePattern } from '../regex/compile.js';
 import { PatternError } from '../regex/parse.js';
@@ -44,6 +45,7 @@ export function prepareRules(node: InputNode): RulesCheck {
   const { min, max } = validation ?? {};
   if (min !== undefined && max !== undefined && min > max) return fail('min es mayor que max');
   if (max !== undefined && max < 1 && node.inputType !== 'number') return fail('max no permite ninguna respuesta');
+  if (node.inputType === 'text' && min !== undefined && min > MAX_INPUT_LENGTH) return fail('min supera la longitud máxima de una respuesta');
   if (multiple && min !== undefined && min > (node.choices?.length ?? 0)) return fail('min supera el número de opciones');
   return { ok: true, rules: { min, max, program } };
 }

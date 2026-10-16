@@ -3,6 +3,9 @@
 /** @returns `true` si `c` es un dígito ASCII. */
 export const isAsciiDigit = (c: string): boolean => c >= '0' && c <= '9' && c.length === 1;
 
+/** @returns `true` si `c` es una letra ASCII. */
+export const isAsciiAlpha = (c: string): boolean => c.length === 1 && ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'));
+
 /** @returns `true` si `c` es una letra o un dígito ASCII. */
 export const isAsciiAlnum = (c: string): boolean =>
   c.length === 1 && ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9'));
