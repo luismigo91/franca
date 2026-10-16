@@ -20,11 +20,11 @@ function rng(seed: number): () => number {
 }
 
 const FRAGMENTS: Record<Exclude<VariableType, 'json'>, readonly string[]> = {
-  string: ['a', ' ', 'ñ', 'é', 'é', ' ', ' ', '﻿', '​', '‮', '😀', '{{x}}', '1.500', 'null', '\t', '\r\n', '\u0085', '\u007f', '￾', '￿'],
-  email: ['ana', 'A', '+tag', '.', '..', '_', "'", '-', '@', 'example', 'EXAMPLE', '.com', '.co.uk', '.c', 'xn--bcher-kva', 'bücher', 'ñ', '"', ' ', '[1.2.3.4]', 'localhost', '​', 'é', ' '],
-  phone: ['+', '34', '600', '12', '34', '56', ' ', '-', '.', '(', ')', '0', '00', ' ', '٣', '１', 'x', '123456789012345', '1234567890123456'],
+  string: ['a', ' ', 'ñ', 'é', 'e\u0301', '\u00A0', '\u2028', '\uFEFF', '\u200B', '\u202E', '😀', '{{x}}', '1.500', 'null', '\t', '\r\n', '\u0085', '\u007f', '￾', '￿'],
+  email: ['ana', 'A', '+tag', '.', '..', '_', "'", '-', '@', 'example', 'EXAMPLE', '.com', '.co.uk', '.c', 'xn--bcher-kva', 'bücher', 'ñ', '"', ' ', '[1.2.3.4]', 'localhost', '\u200B', 'e\u0301', '\u00A0'],
+  phone: ['+', '34', '600', '12', '34', '56', ' ', '-', '.', '(', ')', '0', '00', '\u00A0', '٣', '１', 'x', '123456789012345', '1234567890123456'],
   number: ['0', '1', '9', '.', ',', '-', '+', '00', '0.', '.5', 'e5', 'E-3', '1e21', '123456789012345', '1234567890123456', '0.1', ' ', '١', '−', 'Infinity', 'NaN', '0x1f', '_'],
-  url: ['http://', 'https://', 'HTTP://', 'example', '.com', 'EXAMPLE', ':80', ':443', ':0', ':65536', '/', '/a', '?q=1', '#f', '%20', '%2F', '%zz', ' ', '@', 'user:pw@', '.', '..', 'xn--bcher-kva', 'bücher', 'ñ', '127.0.0.1', '[::1]', 'localhost', '\\', '。', '．', '​', 'ftp://', '//'],
+  url: ['http://', 'https://', 'HTTP://', 'example', '.com', 'EXAMPLE', ':80', ':443', ':0', ':65536', '/', '/a', '?q=1', '#f', '%20', '%2F', '%zz', ' ', '@', 'user:pw@', '.', '..', 'xn--bcher-kva', 'bücher', 'ñ', '127.0.0.1', '[::1]', 'localhost', '\\', '。', '．', '\u200B', 'ftp://', '//'],
   date: ['2026', '2024', '0001', '9999', '0000', '10000', '-', '/', '02', '29', '30', '31', '13', '00', '01', 'T', ':', ' ', '١', '２'],
   boolean: ['sí', 'si', 'SÍ', 'no', 'No', 'true', 'TRUE', 'false', 'yes', 'y', 'n', '1', '0', ' ', '.', '!', 'quizá'],
 };
@@ -49,23 +49,21 @@ function generate(random: () => number, type: Exclude<VariableType, 'json'>): st
 describe.each(TYPES)('Idempotencia del conversor de slots: %s', (type) => {
   it('lo aceptado se acepta igual otra vez, también tras pasar por JSON (30 000 cadenas al azar)', () => {
     const random = rng(7 + TYPES.indexOf(type));
-    let accepted = 0;
-    for (let i = 0; i < 30000; i++) {
-      const input = generate(random, type);
-      const once = convertSlotValue(type, input, 'es');
-      if (once === undefined) continue;
-      accepted++;
-      const again = convertSlotValue(type, once, 'es');
-      expect(again, `${type} ${JSON.stringify(input)} -> ${JSON.stringify(once)}`).toEqual(once);
+    const results = Array.from({ length: 30000 }, () => generate(random, type))
+      .map((input) => ({ input, once: convertSlotValue(type, input, 'es') }))
+      .filter(({ once }) => once !== undefined);
+    // El corpus tiene que ejercitar el camino de aceptación.
+    expect(results.length, `${type}: cadenas aceptadas`).toBeGreaterThan(200);
+    for (const { input, once } of results) {
+      expect(convertSlotValue(type, once, 'es'), `${type} ${JSON.stringify(input)} -> ${JSON.stringify(once)}`).toEqual(once);
       const wire = JSON.parse(JSON.stringify(once)) as unknown;
       expect(convertSlotValue(type, wire, 'es'), `${type} ${JSON.stringify(input)} por JSON`).toEqual(once);
-      if (typeof once === 'number') expect(Object.is(once, -0), `${type} ${JSON.stringify(input)}`).toBe(false);
-      if (typeof once === 'string') {
-        expect(once.length, `${type} ${JSON.stringify(input)}`).toBeLessThanOrEqual(4096);
-        expect(once, 'sin U+0000').not.toContain('\u0000');
-      }
     }
-    // El corpus tiene que ejercitar el camino de aceptación.
-    expect(accepted, `${type}: cadenas aceptadas`).toBeGreaterThan(200);
+    // Por tipo de valor, sin condicionales dentro de las aserciones.
+    for (const { input, once } of results.filter(({ once }) => typeof once === 'number')) expect(Object.is(once, -0), `${type} ${JSON.stringify(input)}`).toBe(false);
+    for (const { input, once } of results.filter(({ once }) => typeof once === 'string')) {
+      expect((once as string).length, `${type} ${JSON.stringify(input)}`).toBeLessThanOrEqual(4096);
+      expect(once, 'sin U+0000').not.toContain('\u0000');
+    }
   });
 });

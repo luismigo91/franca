@@ -20,10 +20,9 @@ describe('SLOT_INPUT_TYPES', () => {
   });
 
   it('todo conversor que no es json existe en PARSERS', () => {
-    for (const type of TYPES) {
-      const parser = SLOT_INPUT_TYPES[type];
-      if (parser !== 'json') expect(PARSERS).toHaveProperty(parser);
-    }
+    const parsers = TYPES.map((type) => SLOT_INPUT_TYPES[type]).filter((parser) => parser !== 'json');
+    expect(parsers).toHaveLength(TYPES.length - 1);
+    for (const parser of parsers) expect(PARSERS).toHaveProperty(parser);
   });
 });
 
@@ -105,7 +104,8 @@ describe('convertSlotValue: conversiones válidas', () => {
   ])('%s: %j → %j', (type, value, expected) => {
     const converted = convertSlotValue(type, value, 'es');
     expect(converted).toEqual(expected);
-    if (expected === 0) expect(Object.is(converted, 0)).toBe(true);
+    // Object.is distingue -0 de 0: lo convertido nunca es -0.
+    expect(Object.is(converted, expected)).toBe(true);
   });
 
   it('el idioma del flujo decide las palabras de boolean', () => {
@@ -175,10 +175,9 @@ describe('convertSlotValue: cada tipo contra cada forma JSON', () => {
   for (const type of TYPES.filter((t) => t !== 'json')) {
     for (const [shape, example] of SHAPES) {
       const valid = VALID[type][shape];
-      it(`${type} con ${shape}: ${valid === undefined ? 'no se recoge' : 'se recoge'}`, () => {
-        if (valid === undefined) expect(convertSlotValue(type, example, 'es')).toBeUndefined();
-        else expect(convertSlotValue(type, valid, 'es')).not.toBeUndefined();
-      });
+      // Un `it` por rama: ninguna aserción depende de un `if`.
+      if (valid === undefined) it(`${type} con ${shape}: no se recoge`, () => expect(convertSlotValue(type, example, 'es')).toBeUndefined());
+      else it(`${type} con ${shape}: se recoge`, () => expect(convertSlotValue(type, valid, 'es')).not.toBeUndefined());
     }
   }
 

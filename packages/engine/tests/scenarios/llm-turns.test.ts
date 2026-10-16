@@ -78,6 +78,18 @@ describe('Mensaje del usuario en un llm', () => {
     expect(llm.requests).toHaveLength(1);
   });
 
+  it('Mensaje inválido con slots que el nodo ya no declara', async () => {
+    const first = await begin(llmFlow(), alwaysLlm(turn('uno', { email: 'ana@example.com' })).host);
+    expect(first.state.conversation?.collected).toEqual({ email: 'ana@example.com' });
+    const changed = llmFlow({ slots: undefined });
+    const llm = alwaysLlm(turn('no debería llamarse'));
+    const result = await proceed(changed, first.state, '   ', llm.host);
+    expect(llm.requests).toHaveLength(0);
+    expect(result.events).toEqual([waitingInput('a', 2, 'required')]);
+    // La conversación vuelve tal como llegó: no se revalidan los recogidos hasta el siguiente mensaje válido.
+    expect(result.state.conversation).toEqual(first.state.conversation);
+  });
+
   it('Un mensaje válido tras uno inválido', async () => {
     const { flow, llm, state } = await waitingSession();
     const invalid = await proceed(flow, state, '  ', llm.host);

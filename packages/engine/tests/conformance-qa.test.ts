@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { HOST_CONFORMANCE_CASES } from '../src/conformance/index.js';
 import type { ConformanceSessions, HostConformanceHarness } from '../src/conformance/types.js';
-import { continueSession, createLlmCapability, startSession, type EngineHost, type LlmCapability, type LlmTurnRequest, type SessionState } from '../src/index.js';
+import { continueSession, createLlmCapability, startSession, type EngineHost, type LlmCapability, type LlmTurnRequest, type SessionState, type SessionStatus } from '../src/index.js';
 
 /**
  * QA independiente de los casos de conformidad de llm: un host de producción mínimo, escrito aparte
  * del que usa el catálogo, con defectos distintos y parciales. El conforme pasa los cuatro casos; cada
  * defecto que la suite debe vigilar falla el suyo. Los que la suite NO vigila hoy quedan como
- * `it.fails` (pasarán a fallar, y habrá que quitar la marca, el día que el caso los cubra).
+ * `it.fails`; cuando el caso los cubrió, pasaron a `it`.
  */
 
 type Defect =
@@ -91,7 +91,7 @@ class MiniHost {
           const result = await continueSession({ flow: entry.flow, state: before, input }, host);
           if (entry.state !== before) return { kind: 'conflict' } as const;
           if (result.ok) entry.state = result.state;
-          return { kind: 'applied' } as const;
+          return { kind: 'applied', status: result.ok ? result.status : 'failed' } as const;
         }
         if (entry.claimed) return { kind: 'conflict' } as const;
         entry.claimed = true;
@@ -108,7 +108,7 @@ class MiniHost {
     };
   }
 
-  private async apply(entry: Entry, host: EngineHost, input: unknown, clientState: unknown): Promise<{ kind: 'applied' }> {
+  private async apply(entry: Entry, host: EngineHost, input: unknown, clientState: unknown): Promise<{ kind: 'applied'; status: SessionStatus }> {
     let state: SessionState = entry.state;
     if (this.defect === 'client-cost-only' && clientState !== undefined) {
       // Se queda con los mensajes guardados pero acepta el coste que traiga el cliente.
@@ -118,7 +118,7 @@ class MiniHost {
     const result = await continueSession({ flow: entry.flow, state, input }, host);
     if (result.ok) entry.state = result.state;
     entry.claimed = false;
-    return { kind: 'applied' };
+    return { kind: 'applied', status: result.ok ? result.status : 'failed' };
   }
 
   harness(): HostConformanceHarness {
@@ -180,7 +180,7 @@ describe('Conformidad de llm: cada defecto parcial hace fallar el caso que lo vi
   });
 });
 
-describe('Conformidad de llm: los defectos de los it.fails existen de verdad', () => {
+describe('Conformidad de llm: los defectos existen de verdad (el host conforme no los tiene)', () => {
   const flow = {
     specVersion: '0.1',
     id: 'tope',
@@ -225,19 +225,14 @@ describe('Conformidad de llm: los defectos de los it.fails existen de verdad', (
   });
 });
 
-describe('Conformidad de llm: lo que los casos no vigilan hoy', () => {
-  // GAP (Medio): `custodia-estado` solo mira el turno y el historial de la petición. Un host que
-  // acepta el coste del cliente (y así reinicia `costCapUsd`) conserva ambos y pasa el caso, aunque
-  // la spec dice que el cliente podría «reiniciar turnos y coste». Falta un flujo con costCapUsd en
-  // el caso para que el coste sea observable. Ver src/conformance/cases.ts (custodiaEstado).
-  it.fails('custodia-estado detecta un host que acepta el coste que aporta el cliente', async () => {
+describe('Conformidad de llm: lo que antes no vigilaban los casos', () => {
+  // Antes GAP (Medio): el caso solo miraba el turno y el historial. Ahora usa un flujo con costCapUsd.
+  it('custodia-estado detecta un host que acepta el coste que aporta el cliente', async () => {
     expect((await failuresOf('custodia-estado', 'client-cost-only')).length).toBeGreaterThan(0);
   });
 
-  // GAP (Bajo): `registros-llm` solo prueba el camino en que el proveedor resuelve. La spec pide no
-  // registrar la petición ni su resultado en ningún caso; un host que vuelca el historial cuando el
-  // proveedor falla (el camino con más ganas de depurar) pasa el caso.
-  it.fails('registros-llm detecta un host que registra el historial cuando el proveedor falla', async () => {
+  // Antes GAP (Bajo): el caso solo probaba el camino en que el proveedor resuelve. Ahora prueba también los fallos.
+  it('registros-llm detecta un host que registra el historial cuando el proveedor falla', async () => {
     expect((await failuresOf('registros-llm', 'log-only-when-the-provider-fails')).length).toBeGreaterThan(0);
   });
 });

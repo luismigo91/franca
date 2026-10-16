@@ -166,16 +166,14 @@ describe('Hipótesis: revalidar al reanudar no pierde valores (convertir es idem
 
   for (const type of Object.keys(VALID) as VariableType[]) {
     it(`${type}: convert(convert(v)) es convert(v) para cada valor aceptado`, () => {
-      let accepted = 0;
-      for (const value of VALID[type]) {
-        const once = convertSlotValue(type, value, 'es');
-        if (once === undefined) continue;
-        accepted++;
+      const results = VALID[type].map((value) => ({ value, once: convertSlotValue(type, value, 'es') })).filter(({ once }) => once !== undefined);
+      expect(results.length).toBeGreaterThan(0);
+      for (const { value, once } of results) {
         const twice = convertSlotValue(type, once, 'es');
         expect(twice, `${type}: ${JSON.stringify(value)}`).toEqual(once);
-        if (typeof once === 'number') expect(Object.is(twice, once)).toBe(true);
       }
-      expect(accepted).toBeGreaterThan(0);
+      // Los numbers se comparan además con Object.is (que distingue -0 de 0).
+      for (const { once } of results.filter(({ once }) => typeof once === 'number')) expect(Object.is(convertSlotValue(type, once, 'es'), once)).toBe(true);
     });
   }
 

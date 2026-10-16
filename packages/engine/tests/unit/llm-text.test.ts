@@ -7,7 +7,7 @@ describe('readAssistantText', () => {
     expect(readAssistantText('  ¿Me das tu email?\n')).toBe('¿Me das tu email?');
   });
 
-  it.each(['', '   ', '\n\t ', ' ', ' '])('el texto %j, recortado, queda vacío → null', (raw) => {
+  it.each(['', '   ', '\n\t ', '\u00A0', '\u2028'])('el texto %j, recortado, queda vacío → null', (raw) => {
     expect(readAssistantText(raw)).toBeNull();
   });
 

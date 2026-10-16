@@ -134,3 +134,18 @@ describe('createLlmCapability', () => {
     await expect(llm(request('principal'))).rejects.toThrow('x');
   });
 });
+
+describe('createLlmCapability: el resultado compartido', () => {
+  it('not_configured es el mismo objeto en cada petición y está congelado: un proveedor no puede mutarlo para las siguientes', async () => {
+    const llm = createLlmCapability({});
+    const first = await llm(request('otro'));
+    const second = await llm(request('otro'));
+    expect(first).toBe(second);
+    expect(Object.isFrozen(first)).toBe(true);
+    expect(() => {
+      (first as { kind: string }).kind = 'turn';
+    }).toThrow(TypeError);
+    expect(await llm(request('otro'))).toEqual({ kind: 'not_configured' });
+  });
+});
+

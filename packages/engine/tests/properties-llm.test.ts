@@ -132,8 +132,9 @@ describe('propiedades sobre conversaciones llm con hosts y usuarios al azar', ()
         expect(JSON.parse(JSON.stringify(done.state))).toEqual(done.state);
         const terminal = done.events.filter((e) => e.type === 'input' || e.type === 'end' || e.type === 'error');
         expect(terminal.length).toBeLessThanOrEqual(1);
-        if (terminal.length === 1) expect(done.events.at(-1)).toBe(terminal[0]);
-        if (done.status === 'waiting') expect(done.events.at(-1)?.type).toBe('input');
+        // Sin `if`: la condición forma parte de la aserción.
+        expect(terminal.length === 0 || done.events.at(-1) === terminal[0], 'el terminal es el último evento').toBe(true);
+        expect(done.status !== 'waiting' || done.events.at(-1)?.type === 'input', 'una espera termina en un input').toBe(true);
         // Nada del host ni de los descartes llega a eventos ni a errores.
         const visible = text([done.events.filter((e) => e.type !== 'message'), done.state.error, done.state.nodeId]);
         for (const marker of [HOST_ERROR, DNI, INVALID, TURN_TEXT, FOREIGN, CONVERSATION]) expect(visible, marker).not.toContain(marker);

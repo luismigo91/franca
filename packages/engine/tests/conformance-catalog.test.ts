@@ -160,7 +160,7 @@ class FakeNetwork {
         if (!result.ok) throw new Error('la continuación de la suite debe aceptarse');
         entry.state = result.state;
         entry.claimed = false;
-        return { kind: 'applied' };
+        return { kind: 'applied', status: result.status };
       },
       expireClaims: async () => {
         if (this.defect === 'claim-never-expires') return;

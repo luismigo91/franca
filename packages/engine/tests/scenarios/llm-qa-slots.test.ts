@@ -97,7 +97,7 @@ const ROWS: Row[] = [
   ['u', 'sin esquema', 'example.com', 'https://example.com/'],
   ['u', 'puerto fuera de rango', 'http://example.com:65536/', NOT],
   ['u', 'url que desborda al serializar', `https://example.com/${A(4096)}`, NOT],
-  ['u', 'url con U+200B en el host', 'http://​example.com/', NOT],
+  ['u', 'url con U+200B en el host', 'http://\u200Bexample.com/', NOT],
   ['d', '30 de febrero', '2026-02-30', NOT],
   ['d', 'año 0', '0000-01-01', NOT],
   ['d', 'año 10000', '10000-01-01', NOT],
@@ -145,8 +145,7 @@ describe('Slots hostiles de cada tipo (el motor convierte y rechaza igual que un
     expect(performance.now() - started, 'la lectura está acotada').toBeLessThan(1500);
     expect(first.status).toBe('waiting');
     const stored = first.state.conversation!.collected;
-    if (collected === NOT) expect(stored).toEqual({});
-    else expect(stored).toEqual({ [name]: collected });
+    expect(stored).toEqual(collected === NOT ? {} : { [name]: collected });
     // Pasa por JSON y se reanuda: lo recogido sobrevive a la revalidación y lo rechazado no reaparece.
     const wire = JSON.parse(JSON.stringify(first.state)) as typeof first.state;
     const second = await proceed(typedFlow(), wire, 'Hola', scriptedLlm([turn('Vale', {}, false, 0)]).host);
