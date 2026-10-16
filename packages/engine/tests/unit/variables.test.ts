@@ -1,6 +1,6 @@
 import type { Variable } from '@franca/spec';
 import { describe, expect, it } from 'vitest';
-import { createVariableStore, VariableStore } from '../../src/variables.js';
+import { createVariableStore, restoreVariableStore, VariableStore } from '../../src/variables.js';
 import type { JsonValue } from '../../src/types.js';
 
 const contactOf = (values: Record<string, JsonValue>) => new Map(Object.entries(values));
@@ -104,5 +104,60 @@ describe('VariableStore', () => {
     expect(s.contactVariables()).toEqual({ c1: null });
     s.set('c1', 'z');
     expect(s.contactVariables()).toEqual({ c1: 'z' });
+  });
+});
+
+describe('restoreVariableStore', () => {
+  const declared: Variable[] = [
+    { name: 'a', type: 'string', default: 'por-defecto' },
+    { name: 'c', type: 'string', scope: 'contact', default: 'contacto-por-defecto' },
+    { name: 'vacia', type: 'string', default: 'x' },
+  ];
+  const state = (variables: Record<string, JsonValue>, contact: Record<string, JsonValue | null>) => ({
+    variables: variables as Record<string, never>,
+    contact: contact as Record<string, never>,
+  });
+
+  it('cada variable toma el valor de la parte de su ámbito', () => {
+    const store = restoreVariableStore(declared, state({ a: 'sesión' }, { c: 'contacto' }));
+    expect(store.get('a')).toBe('sesión');
+    expect(store.get('c')).toBe('contacto');
+  });
+
+  it('una variable de sesión no lee contact ni al revés', () => {
+    const store = restoreVariableStore(declared, state({ c: 'cruzado' }, { a: 'cruzado' }));
+    expect(store.get('a')).toBeUndefined();
+    expect(store.get('c')).toBeUndefined();
+  });
+
+  it('no aplica default: sin valor en el estado queda sin valor', () => {
+    const store = restoreVariableStore(declared, state({}, {}));
+    expect(store.get('vacia')).toBeUndefined();
+    expect(store.get('a')).toBeUndefined();
+  });
+
+  it('un null de contacto es sin valor', () => {
+    expect(restoreVariableStore(declared, state({}, { c: null })).get('c')).toBeUndefined();
+  });
+
+  it('descarta claves no declaradas', () => {
+    const store = restoreVariableStore(declared, state({ a: '1', ajena: 'x' }, { c: '2', otra: 'y' }));
+    expect(store.sessionVariables()).toEqual({ a: '1' });
+    expect(store.contactVariables()).toEqual({ c: '2' });
+  });
+
+  it('nombres __proto__ y constructor son normales', () => {
+    const decl: Variable[] = [
+      { name: '__proto__', type: 'string' },
+      { name: 'constructor', type: 'string', scope: 'contact' },
+    ];
+    const store = restoreVariableStore(decl, state(JSON.parse('{"__proto__":"p"}'), JSON.parse('{"constructor":"k"}')));
+    expect(store.get('__proto__')).toBe('p');
+    expect(store.get('constructor')).toBe('k');
+    expect(Object.hasOwn(store.sessionVariables(), '__proto__')).toBe(true);
+    // sin entrada propia: no se hereda de Object.prototype
+    const vacio = restoreVariableStore(decl, state({}, {}));
+    expect(vacio.get('__proto__')).toBeUndefined();
+    expect(vacio.get('constructor')).toBeUndefined();
   });
 });

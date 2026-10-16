@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { buildState, parseState } from '../../src/state.js';
 import { VariableStore } from '../../src/variables.js';
@@ -92,6 +93,34 @@ describe('parseState', () => {
   });
 });
 
+const waiting = () => ({ ...ended(), status: 'waiting', outcome: null, error: null, attempt: 2 });
+
+describe('parseState: estado en espera', () => {
+  it('acepta un estado en espera y conserva attempt', () => {
+    expect(parseState(waiting())).toEqual(waiting());
+    expect(parseState({ ...waiting(), attempt: 11 })).toHaveProperty('attempt', 11);
+  });
+
+  it.each([0, -1, 1.5, '2', null, undefined, NaN, true, [1]])('attempt %j → null', (attempt) => {
+    expect(parseState({ ...waiting(), attempt })).toBeNull();
+  });
+
+  it('waiting con error u outcome → null', () => {
+    expect(parseState({ ...waiting(), error: { code: 'invalid_rule', nodeId: 'fin' } })).toBeNull();
+    expect(parseState({ ...waiting(), outcome: 'listo' })).toBeNull();
+  });
+
+  it('ended y failed ignoran attempt y no lo devuelven', () => {
+    expect(parseState({ ...ended(), attempt: 3 })).not.toHaveProperty('attempt');
+    expect(parseState({ ...failed(), attempt: 'x' })).not.toHaveProperty('attempt');
+  });
+
+  it('el estado de la versión anterior se acepta tal cual', () => {
+    const legacy = JSON.parse(readFileSync(new URL('../legacy/estado-v1-captacion-leads.json', import.meta.url), 'utf8'));
+    expect(parseState(legacy)).toEqual(legacy);
+  });
+});
+
 describe('buildState', () => {
   it('construye en orden de claves del contrato y sin referencias compartidas', () => {
     const flow = { id: 'f' } as Flow;
@@ -106,5 +135,18 @@ describe('buildState', () => {
     expect(state.variables.a).toEqual(datos);
     expect(state.variables.a).not.toBe(datos);
     expect(state.contact).toEqual({ e: null });
+  });
+});
+
+describe('buildState: attempt', () => {
+  const flow = { id: 'f' } as Flow;
+  const store = new VariableStore([]);
+
+  it('escribe attempt al final solo si se pide', () => {
+    const w = buildState(flow, store, { status: 'waiting', nodeId: 'p', outcome: null, error: null, attempt: 2 });
+    expect(Object.keys(w).at(-1)).toBe('attempt');
+    expect(w.attempt).toBe(2);
+    const e = buildState(flow, store, { status: 'ended', nodeId: 'p', outcome: null, error: null });
+    expect(e).not.toHaveProperty('attempt');
   });
 });

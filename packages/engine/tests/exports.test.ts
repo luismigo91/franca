@@ -8,6 +8,14 @@ describe('constantes públicas', () => {
     expect(engine.DEFAULT_TYPING_DELAY_MS).toBe(600);
     expect(engine.MAX_PATTERN_SIZE).toBe(1000);
     expect(engine.MAX_RENDERED_LENGTH).toBe(16384);
+    expect(engine.MAX_INPUT_LENGTH).toBe(4096);
+    expect(engine.INVALID_ANSWER_REASONS).toEqual([
+      'too_long',
+      'required',
+      'invalid_format',
+      'out_of_range',
+      'pattern_mismatch',
+    ]);
     expect(engine.MAX_NESTING_DEPTH).toBe(1000);
     expect(engine.MAX_PATTERN_DEPTH).toBe(100);
     expect(engine.SESSION_ERROR_CODES).toEqual([
@@ -31,6 +39,8 @@ describe('API pública', () => {
     expect(Object.keys(engine).sort()).toEqual(
       [
         'DEFAULT_TYPING_DELAY_MS',
+        'INVALID_ANSWER_REASONS',
+        'MAX_INPUT_LENGTH',
         'MAX_NESTING_DEPTH',
         'MAX_PATTERN_DEPTH',
         'MAX_PATTERN_SIZE',
