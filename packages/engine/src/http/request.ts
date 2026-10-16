@@ -51,10 +51,11 @@ interface BodyRender {
  * acotado por `MAX_REQUEST_BODY_LENGTH` + `MAX_RENDERED_LENGTH`. La recursión es segura: el
  * flujo tiene como mucho `MAX_NESTING_DEPTH` niveles.
  */
-function renderBody(body: unknown, lookup: Lookup, stats?: RequestStats): BodyRender {
+function renderBody(body: unknown, lookup: Lookup, templates: string[], stats?: RequestStats): BodyRender {
   const state: BodyRender = { overflow: false, retained: 0, built: undefined };
   const walk = (value: unknown): unknown => {
     if (typeof value === 'string') {
+      templates.push(value); // las plantillas de `containsPii`, recogidas en el mismo recorrido
       if (state.overflow) {
         measureTemplate(value, lookup);
         return '';
@@ -110,10 +111,7 @@ export function prepareRequest(
   const body: unknown = request.body;
   const hasBody = body !== undefined && body !== null;
   let rendered: BodyRender | undefined;
-  if (hasBody) {
-    collectStrings(body, templates);
-    rendered = renderBody(body, lookup, stats);
-  }
+  if (hasBody) rendered = renderBody(body, lookup, templates, stats);
 
   const url = buildRequestUrl(request.url, lookup);
   if (!url.ok) return { ok: false, reason: 'invalid_url' };
@@ -144,13 +142,6 @@ export function prepareRequest(
   };
 }
 
-/** Recoge las plantillas (strings, no claves) de un body. */
-function collectStrings(value: unknown, into: string[]): void {
-  if (typeof value === 'string') into.push(value);
-  else if (Array.isArray(value)) for (const child of value) collectStrings(child, into);
-  else if (typeof value === 'object' && value !== null) for (const child of Object.values(value)) collectStrings(child, into);
-}
-
 /**
  * Petición de un intento: objeto y lista de cabeceras nuevos, para que lo que haga el host con
  * ellos no afecte a los intentos siguientes.
@@ -165,20 +156,32 @@ export function requestFor(prepared: PreparedRequest, attempt: number): HttpRequ
  * plantilla nombra una personal. Es estático (todos los `set`, se ejecuten o no): el indicador
  * describe la petición, no un camino concreto. No se propaga por `input`, `condition` ni `responseMap`.
  *
+ * Lineal en el tamaño del flujo: cada plantilla se analiza una sola vez para construir el grafo
+ * «variable citada → variables que la copian», y una lista de trabajo lo recorre desde las `pii`.
+ *
  * @param flow Flujo (forma JSON).
  * @returns Los nombres personales.
  */
 export function personalVariables(flow: Flow): Set<string> {
   const personal = new Set((flow.variables ?? []).filter((variable) => variable.pii === true).map((variable) => variable.name));
-  const assignments = flow.nodes.flatMap((node) => (node.type === 'set' ? node.assignments : []));
-  for (let changed = true; changed; ) {
-    changed = false;
-    for (const { variable, value } of assignments) {
-      if (typeof value !== 'string' || personal.has(variable)) continue;
-      if (templateVariables(value).some((name) => personal.has(name))) {
-        personal.add(variable);
-        changed = true;
+  const copiedBy = new Map<string, string[]>();
+  for (const node of flow.nodes) {
+    if (node.type !== 'set') continue;
+    for (const { variable, value } of node.assignments) {
+      if (typeof value !== 'string') continue;
+      for (const source of new Set(templateVariables(value))) {
+        const targets = copiedBy.get(source) ?? [];
+        targets.push(variable);
+        copiedBy.set(source, targets);
       }
+    }
+  }
+  const pending = [...personal];
+  while (pending.length > 0) {
+    for (const target of copiedBy.get(pending.pop()!) ?? []) {
+      if (personal.has(target)) continue;
+      personal.add(target);
+      pending.push(target);
     }
   }
   return personal;

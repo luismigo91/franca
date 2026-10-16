@@ -28,11 +28,20 @@ export async function run(
   const events: EngineEvent[] = [];
   // El contador vive en la operación, no en un módulo: se reinicia en cada startSession/continueSession.
   let externalCalls = 0;
+  // Perezoso y con memo por operación: solo un nodo que construye una petición necesita las variables personales.
+  let personal: Set<string> | undefined;
   const ctx: StepContext = {
     vars,
     host,
-    piiVariables: personalVariables(flow),
-    reserveExternalCall: () => externalCalls < MAX_EXTERNAL_CALLS_PER_ADVANCE && ++externalCalls > 0,
+    get piiVariables() {
+      personal ??= personalVariables(flow);
+      return personal;
+    },
+    reserveExternalCall: () => {
+      if (externalCalls >= MAX_EXTERNAL_CALLS_PER_ADVANCE) return false;
+      externalCalls++;
+      return true;
+    },
     typingDelayMs: flow.settings?.typingDelayMs ?? DEFAULT_TYPING_DELAY_MS,
     emit: (event) => void events.push(event),
   };
