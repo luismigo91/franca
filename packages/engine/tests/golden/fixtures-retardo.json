@@ -1,0 +1,54 @@
+{
+  "ok": true,
+  "status": "ended",
+  "events": [
+    {
+      "type": "message",
+      "nodeId": "uno",
+      "content": [
+        {
+          "kind": "text",
+          "text": "Uno"
+        }
+      ],
+      "typingDelayMs": 0
+    },
+    {
+      "type": "message",
+      "nodeId": "dos",
+      "content": [
+        {
+          "kind": "text",
+          "text": "Dos"
+        }
+      ],
+      "typingDelayMs": 0
+    },
+    {
+      "type": "message",
+      "nodeId": "fin",
+      "content": [
+        {
+          "kind": "text",
+          "text": "Fin"
+        }
+      ],
+      "typingDelayMs": 0
+    },
+    {
+      "type": "end",
+      "nodeId": "fin",
+      "outcome": null
+    }
+  ],
+  "state": {
+    "stateVersion": 1,
+    "flowId": "retardo",
+    "status": "ended",
+    "nodeId": "fin",
+    "variables": {},
+    "contact": {},
+    "outcome": null,
+    "error": null
+  }
+}

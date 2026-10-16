@@ -17,6 +17,7 @@ Monorepo pnpm workspaces + Turborepo, Node 22+.
 | `@franca/api` | `apps/api` | NestJS 12 (ESM), Vitest, oxlint — skill `popi:stack-nestjs` | 3001 |
 | `@franca/web` | `apps/web` | Next.js 16 App Router, React 19, Tailwind 4, ESLint — skill `popi:stack-nextjs` | 3000 |
 | `@franca/spec` | `packages/spec` | JSON Schema 2020-12 + tipos generados + validador (ajv), tsdown, Vitest | — |
+| `@franca/engine` | `packages/engine` | TypeScript puro sin IO (motor de ejecución de flujos), tsdown, Vitest | — |
 
 Las apps importan `@franca/spec` compilado (`dist/`); turbo lo construye antes (`^build`). Decisiones de diseño en `docs/rfcs/`.
 

@@ -23,9 +23,11 @@
 - [tsdown --watch borra dist/ de la spec](../../wiki/gotcha-spec-watch-borra-dist.md) — por qué el dev de @franca/spec lleva --no-clean
 - [ajv y los errores de oneOf](../../wiki/gotcha-ajv-errores-oneof.md) — por qué validate.ts revalida cada nodo contra la definición de su tipo
 - [json-schema-to-typescript y las tuplas](../../wiki/gotcha-json-schema-to-typescript-tuplas.md) — ignoreMinAndMaxItems, no maxItems -1
+- [Variables llamadas __proto__ o constructor](../../wiki/gotcha-variables-nombre-proto.md) — por qué el motor usa Map y Object.fromEntries
 
 ### Decisiones
 - [JSON Schema como fuente de verdad](../../wiki/decision-esquema-json-fuente-de-verdad.md) — por qué no Zod ni tipos TS a mano en packages/spec
+- [matches con regex lineal propia](../../wiki/decision-matches-regex-lineal.md) — por qué no RegExp nativo, timeout ni RE2 en packages/engine
 
 ### Dominio
 - [Solo el nodo llm puede saltar a sí mismo](../../wiki/domain-llm-puede-saltar-a-si-mismo.md) — no es un descuido; maxTurns y onExhausted lo acotan

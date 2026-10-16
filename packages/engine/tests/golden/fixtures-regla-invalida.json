@@ -1,0 +1,38 @@
+{
+  "ok": true,
+  "status": "failed",
+  "events": [
+    {
+      "type": "message",
+      "nodeId": "aviso",
+      "content": [
+        {
+          "kind": "text",
+          "text": "Comprobando…"
+        }
+      ],
+      "typingDelayMs": 600
+    },
+    {
+      "type": "error",
+      "nodeId": "revisar",
+      "code": "invalid_rule",
+      "message": "la regla sobre 'cp' con el operador 'matches' no es evaluable: construcción no admitida en matches: referencias hacia atrás"
+    }
+  ],
+  "state": {
+    "stateVersion": 1,
+    "flowId": "regla-invalida",
+    "status": "failed",
+    "nodeId": "revisar",
+    "variables": {
+      "cp": "28001"
+    },
+    "contact": {},
+    "outcome": null,
+    "error": {
+      "code": "invalid_rule",
+      "nodeId": "revisar"
+    }
+  }
+}

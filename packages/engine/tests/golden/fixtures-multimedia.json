@@ -1,0 +1,51 @@
+{
+  "ok": true,
+  "status": "ended",
+  "events": [
+    {
+      "type": "message",
+      "nodeId": "galeria",
+      "content": [
+        {
+          "kind": "text",
+          "text": "Mira esto, Ana"
+        },
+        {
+          "kind": "image",
+          "url": "https://example.com/Ana.png",
+          "alt": "Foto de Ana"
+        },
+        {
+          "kind": "video",
+          "url": "https://example.com/v.mp4"
+        },
+        {
+          "kind": "audio",
+          "url": "https://example.com/a.mp3"
+        },
+        {
+          "kind": "embed",
+          "url": "https://example.com/e"
+        }
+      ],
+      "typingDelayMs": 600
+    },
+    {
+      "type": "end",
+      "nodeId": "fin",
+      "outcome": null
+    }
+  ],
+  "state": {
+    "stateVersion": 1,
+    "flowId": "multimedia",
+    "status": "ended",
+    "nodeId": "fin",
+    "variables": {
+      "nombre": "Ana"
+    },
+    "contact": {},
+    "outcome": null,
+    "error": null
+  }
+}

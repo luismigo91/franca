@@ -1,0 +1,72 @@
+{
+  "specVersion": "0.1",
+  "id": "contacto",
+  "name": "contacto",
+  "variables": [
+    {
+      "name": "email",
+      "type": "email",
+      "scope": "contact",
+      "pii": true,
+      "default": "sin-email"
+    },
+    {
+      "name": "visitas",
+      "type": "number",
+      "scope": "contact"
+    },
+    {
+      "name": "segmento",
+      "type": "string"
+    }
+  ],
+  "start": "revisar",
+  "nodes": [
+    {
+      "id": "revisar",
+      "type": "condition",
+      "rules": [
+        {
+          "when": {
+            "variable": "email",
+            "op": "matches",
+            "value": "^[^@\\s]+@[^@\\s]+$"
+          },
+          "next": "actualizar"
+        }
+      ],
+      "else": "fin-sin-email"
+    },
+    {
+      "id": "actualizar",
+      "type": "set",
+      "assignments": [
+        {
+          "variable": "visitas",
+          "value": 1
+        },
+        {
+          "variable": "segmento",
+          "value": "conocido"
+        }
+      ],
+      "next": "fin-conocido"
+    },
+    {
+      "id": "fin-conocido",
+      "type": "end",
+      "outcome": "conocido",
+      "content": [
+        {
+          "kind": "text",
+          "text": "Te escribimos a {{email}}."
+        }
+      ]
+    },
+    {
+      "id": "fin-sin-email",
+      "type": "end",
+      "outcome": "anonimo"
+    }
+  ]
+}

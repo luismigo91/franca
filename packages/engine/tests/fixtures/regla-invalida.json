@@ -1,0 +1,45 @@
+{
+  "specVersion": "0.1",
+  "id": "regla-invalida",
+  "name": "regla-invalida",
+  "variables": [
+    {
+      "name": "cp",
+      "type": "string",
+      "default": "28001"
+    }
+  ],
+  "start": "aviso",
+  "nodes": [
+    {
+      "id": "aviso",
+      "type": "message",
+      "content": [
+        {
+          "kind": "text",
+          "text": "Comprobando…"
+        }
+      ],
+      "next": "revisar"
+    },
+    {
+      "id": "revisar",
+      "type": "condition",
+      "rules": [
+        {
+          "when": {
+            "variable": "cp",
+            "op": "matches",
+            "value": "(a)\\1"
+          },
+          "next": "fin"
+        }
+      ],
+      "else": "fin"
+    },
+    {
+      "id": "fin",
+      "type": "end"
+    }
+  ]
+}

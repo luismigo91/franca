@@ -1,0 +1,32 @@
+{
+  "name": "@franca/engine",
+  "version": "0.1.0",
+  "description": "Motor de ejecución de flujos de Franca: puro, determinista y sin IO",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch --no-clean",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@franca/spec": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsdown": "^0.23.1",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.2"
+  }
+}

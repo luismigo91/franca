@@ -1,0 +1,47 @@
+{
+  "ok": true,
+  "status": "ended",
+  "events": [
+    {
+      "type": "message",
+      "nodeId": "saludo",
+      "content": [
+        {
+          "kind": "text",
+          "text": "Hola visitante, vamos a empezar."
+        }
+      ],
+      "typingDelayMs": 600
+    },
+    {
+      "type": "message",
+      "nodeId": "fin-grande",
+      "content": [
+        {
+          "kind": "text",
+          "text": "Gracias, Ana!"
+        }
+      ],
+      "typingDelayMs": 600
+    },
+    {
+      "type": "end",
+      "nodeId": "fin-grande",
+      "outcome": "grande"
+    }
+  ],
+  "state": {
+    "stateVersion": 1,
+    "flowId": "cadena-completa",
+    "status": "ended",
+    "nodeId": "fin-grande",
+    "variables": {
+      "nombre": "Ana",
+      "empleados": 51,
+      "saludo": "Ana!"
+    },
+    "contact": {},
+    "outcome": "grande",
+    "error": null
+  }
+}

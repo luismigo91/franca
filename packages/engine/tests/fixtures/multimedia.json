@@ -1,0 +1,47 @@
+{
+  "specVersion": "0.1",
+  "id": "multimedia",
+  "name": "multimedia",
+  "variables": [
+    {
+      "name": "nombre",
+      "type": "string",
+      "default": "Ana"
+    }
+  ],
+  "start": "galeria",
+  "nodes": [
+    {
+      "id": "galeria",
+      "type": "message",
+      "content": [
+        {
+          "kind": "text",
+          "text": "Mira esto, {{nombre}}"
+        },
+        {
+          "kind": "image",
+          "url": "https://example.com/{{nombre}}.png",
+          "alt": "Foto de {{nombre}}"
+        },
+        {
+          "kind": "video",
+          "url": "https://example.com/v.mp4"
+        },
+        {
+          "kind": "audio",
+          "url": "https://example.com/a.mp3"
+        },
+        {
+          "kind": "embed",
+          "url": "https://example.com/e"
+        }
+      ],
+      "next": "fin"
+    },
+    {
+      "id": "fin",
+      "type": "end"
+    }
+  ]
+}

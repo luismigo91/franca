@@ -1,0 +1,24 @@
+{
+  "ok": true,
+  "status": "ended",
+  "events": [
+    {
+      "type": "end",
+      "nodeId": "fin-sin-email",
+      "outcome": "anonimo"
+    }
+  ],
+  "state": {
+    "stateVersion": 1,
+    "flowId": "contacto",
+    "status": "ended",
+    "nodeId": "fin-sin-email",
+    "variables": {},
+    "contact": {
+      "email": "sin-email",
+      "visitas": null
+    },
+    "outcome": "anonimo",
+    "error": null
+  }
+}
