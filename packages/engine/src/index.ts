@@ -9,3 +9,22 @@ export {
   type RejectionCode,
   type SessionErrorCode,
 } from './constants.js';
+export { continueSession, startSession } from './session.js';
+export type {
+  AdvanceResult,
+  ContinueSessionRequest,
+  EngineEndEvent,
+  EngineErrorEvent,
+  EngineEvent,
+  EngineHost,
+  EngineMessageEvent,
+  JsonValue,
+  RenderedContentItem,
+  Rejection,
+  SessionError,
+  SessionResult,
+  SessionState,
+  SessionStatus,
+  StartSessionRequest,
+  VariableValue,
+} from './types.js';
