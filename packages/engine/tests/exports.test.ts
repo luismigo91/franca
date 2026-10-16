@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as engine from '../src/index.js';
+import * as conformance from '../src/conformance/index.js';
 
 describe('constantes públicas', () => {
   it('tienen los valores del contrato', () => {
@@ -85,5 +86,15 @@ describe('API pública', () => {
   it('startSession y continueSession son asíncronas', () => {
     expect(engine.startSession({ flow: {} })).toBeInstanceOf(Promise);
     expect(engine.continueSession({ flow: {}, state: {}, input: null })).toBeInstanceOf(Promise);
+  });
+});
+
+describe('subruta @franca/engine/conformance', () => {
+  it('exporta en runtime exactamente el catálogo, las direcciones internas y el margen', () => {
+    expect(Object.keys(conformance).sort()).toEqual(['CALL_DEADLINE_MARGIN_MS', 'CONFORMANCE_INTERNAL_ADDRESSES', 'HOST_CONFORMANCE_CASES']);
+  });
+
+  it('la entrada principal no los reexporta', () => {
+    for (const name of Object.keys(conformance)) expect(Object.keys(engine)).not.toContain(name);
   });
 });

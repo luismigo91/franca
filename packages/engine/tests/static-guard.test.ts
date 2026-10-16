@@ -106,6 +106,15 @@ describe('guarda estática de src/', () => {
     }
   });
 
+  it('src/conformance/ está cubierto por la guarda: sin reloj ni IO (usa harness.now y harness.sleep)', () => {
+    const conformanceFiles = files.filter((f) => f.path.startsWith('conformance/'));
+    expect(conformanceFiles.map((f) => f.path).sort()).toEqual(['conformance/call.ts', 'conformance/cases.ts', 'conformance/index.ts', 'conformance/types.ts']);
+    for (const f of conformanceFiles) {
+      expect(f.code, `${f.path}: reloj o temporizador`).not.toMatch(/\b(Date|performance|setTimeout|setInterval|setImmediate)\b/);
+      expect(f.code, `${f.path}: IO`).not.toMatch(/\b(fetch|XMLHttpRequest|require)\b|['"`]node:/);
+    }
+  });
+
   it('el catch de src/http/capability.ts no tiene variable: lo que lanza el host no se mira', () => {
     const capability = files.find((f) => f.path === 'http/capability.ts');
     expect(capability, 'existe http/capability.ts').toBeDefined();

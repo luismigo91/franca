@@ -126,7 +126,7 @@ describe('Ejecución determinista con host', () => {
     expect(hosts[0]!.requests).toHaveLength(2);
   });
 
-  it('Sin escritura en consola con http', async () => {
+  it('Sin escritura en consola', async () => {
     const spies = (Object.keys(console) as (keyof Console)[])
       .filter((key) => typeof console[key] === 'function')
       .map((key) => vi.spyOn(console, key as 'log').mockImplementation(() => {}));
