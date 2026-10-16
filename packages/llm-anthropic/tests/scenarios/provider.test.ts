@@ -58,6 +58,22 @@ describe('Proveedor de Claude', () => {
   });
 });
 
+describe('Resultados compartidos', () => {
+  it('failed y not_configured están congelados: mutar el de un turno no cambia los siguientes', async () => {
+    const failing = createAnthropicProvider({ client: fakeApi([apiError(500)]).client(), maxRetries: 0 });
+    const missing = createAnthropicProvider({ client: fakeApi([apiError(401)]).client(), maxRetries: 0 });
+    for (const provider of [failing, missing]) {
+      const first = await provider(turnRequest());
+      expect(Object.isFrozen(first)).toBe(true);
+      expect(() => {
+        (first as { kind: string }).kind = 'turn';
+      }).toThrow(TypeError);
+    }
+    expect(await failing(turnRequest())).toEqual({ kind: 'failed', costUsd: 0 });
+    expect(await missing(turnRequest())).toEqual({ kind: 'not_configured' });
+  });
+});
+
 describe('Cliente y credenciales', () => {
   it('Cliente inyectado', async () => {
     const stable = vi.fn(() => Promise.resolve(okMessage({ text: 'Hola' })));

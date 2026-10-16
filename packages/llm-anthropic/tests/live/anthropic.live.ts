@@ -98,6 +98,33 @@ describe.skipIf(!enabled)('API real de Anthropic', () => {
     expect(bodies[1]!.usage.cache_read_input_tokens, 'la caché del historial no se lee en el segundo turno').toBeGreaterThan(0);
   });
 
+  it('un nodo con 17 slots (más de los 16 parámetros con tipo unión que admite la API) da un turn', async () => {
+    const types = ['string', 'email', 'phone', 'number', 'url', 'date', 'boolean', 'json'] as const;
+    const slots = Array.from({ length: 17 }, (_, i) => ({
+      name: `dato${i}`,
+      type: types[i % types.length]!,
+      description: `Valor opcional número ${i} (déjalo sin valor si el usuario no lo ha dado)`,
+      required: false,
+      collected: false,
+    }));
+    const provider = createAnthropicProvider({ client: createAnthropicClient() });
+    const result = await provider(request({ model: 'claude-haiku-5-5', system: null, slots }));
+    // Con `[T, "null"]` por slot, 17 slots daban un 400 ("Schema is too complex") en cada turno.
+    expect(result.kind).toBe('turn');
+  });
+
+  it('un turno largo cabe en max_tokens y en el tiempo del turno: se mide y se registra su duración', async () => {
+    const provider = createAnthropicProvider({ client: createAnthropicClient() });
+    const started = performance.now();
+    const result = await provider(
+      request({ model: 'claude-haiku-5-5', system: null, goal: 'Explica con detalle, en unos 3500 caracteres, cómo elegir una bicicleta. No termines hasta llegar a esa longitud.', slots: [] }),
+    );
+    const elapsedMs = Math.round(performance.now() - started);
+    console.info(`[live] turno largo de Haiku 5.5: ${elapsedMs} ms, ${result.kind === 'turn' ? result.text.length : 0} caracteres, costUsd ${'costUsd' in result ? result.costUsd : 'n/a'}`);
+    expect(result.kind).toBe('turn');
+    expect(elapsedMs, 'un turno no debe rozar turnTimeoutMs (60000)').toBeLessThan(60000 / 2);
+  });
+
   it('una sesión completa de faq-ia con el motor real y el proveedor de Claude', async () => {
     const provider: LlmCapability = createAnthropicProvider({ client: createAnthropicClient() });
     const flow = {

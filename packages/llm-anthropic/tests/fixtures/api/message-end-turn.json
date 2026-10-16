@@ -6,7 +6,7 @@
   "content": [
     {
       "type": "text",
-      "text": "{\"text\":\"¿En qué puedo ayudarte?\",\"done\":false,\"slots\":{\"s0\":null,\"s1\":null}}"
+      "text": "{\"text\":\"¿En qué puedo ayudarte?\",\"done\":false,\"slots\":{\"s0\":{\"found\":false,\"value\":false},\"s1\":{\"found\":false,\"value\":\"\"}}}"
     }
   ],
   "stop_reason": "end_turn",

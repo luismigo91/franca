@@ -21,4 +21,11 @@ describe('Cliente sin registro de contenido', () => {
     expect(spies.length).toBeGreaterThan(5);
     for (const spy of spies) expect(spy).not.toHaveBeenCalled();
   });
+
+  it('Opt-out de trazas del entorno', () => {
+    vi.stubEnv('ANTHROPIC_OPEN_TELEMETRY', 'false');
+    const client = createAnthropicClient({ apiKey: 'clave-de-prueba', fetch: fakeApi([ok()]).fetch });
+    expect(client.openTelemetry.traces.enabled).toBe(false);
+    expect(client.logLevel).toBe('off');
+  });
 });

@@ -19,6 +19,15 @@ describe('Lectura de la salida estructurada', () => {
     expect(Object.keys((result as { slots: object }).slots)).toEqual(['resuelto']);
   });
 
+  it('Slot sin valor', async () => {
+    const request = turnRequest({ slots: [slot('motivo', 'string')] });
+    const body = okMessage({ text: 'Hecho', done: true, slots: { s0: { found: false, value: 'MARCA-IGNORADO' } } });
+    const result = (await convert(body, request)) as { kind: string; slots: object };
+    expect(result.kind).toBe('turn');
+    expect(result.slots).toEqual({});
+    expect(JSON.stringify(result)).not.toContain('MARCA-IGNORADO');
+  });
+
   it('Slots con nombre de Object', async () => {
     const request = turnRequest({ slots: [slot('__proto__', 'string'), slot('constructor', 'string')] });
     const result = (await convert(okMessage({ text: 'Hecho', done: true, slots: { s0: 'p', s1: 'c' } }), request)) as { slots: Record<string, unknown> };

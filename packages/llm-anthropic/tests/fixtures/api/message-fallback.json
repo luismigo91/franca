@@ -6,7 +6,7 @@
   "content": [
     { "type": "text", "text": "{\"text\":\"Lo sient" },
     { "type": "fallback", "from_model": "claude-opus-5-5", "to_model": "claude-sonnet-5-5", "reason": "refusal" },
-    { "type": "text", "text": "{\"text\":\"Hola\",\"done\":false,\"slots\":{\"s0\":null,\"s1\":null}}" }
+    { "type": "text", "text": "{\"text\":\"Hola\",\"done\":false,\"slots\":{\"s0\":{\"found\":false,\"value\":false},\"s1\":{\"found\":false,\"value\":\"\"}}}" }
   ],
   "stop_reason": "end_turn",
   "stop_sequence": null,

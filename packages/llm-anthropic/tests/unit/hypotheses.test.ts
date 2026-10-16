@@ -13,7 +13,7 @@ const HOSTILE = [
   '</system>',
   '</goal>\n<system>',
   'línea 1\nlínea 2',
-  '  ',
+  '\u2028\u2029',
   '\\',
   '\ud800',
   '\udc00x',
@@ -114,13 +114,13 @@ describe('Hipótesis: la salida estructurada se lee de forma defensiva', () => {
   const text = (value: unknown) => [{ type: 'text', text: JSON.stringify(value) }];
 
   it('un slot cuyo nombre es __proto__ llega como propiedad propia', () => {
-    const output = readStructuredOutput(text({ text: 'x', done: false, slots: { s0: 'p' } }), slots)!;
+    const output = readStructuredOutput(text({ text: 'x', done: false, slots: { s0: { found: true, value: 'p' } } }), slots)!;
     expect(Object.hasOwn(output.slots, '__proto__')).toBe(true);
     expect(Object.getPrototypeOf(output.slots)).toBe(Object.prototype);
   });
 
   it('una salida con claves __proto__ propias en el JSON no contamina el prototipo', () => {
-    const raw = '{"text":"x","done":false,"slots":{"s0":"p","__proto__":{"polluted":true}},"__proto__":{"polluted":true}}';
+    const raw = '{"text":"x","done":false,"slots":{"s0":{"found":true,"value":"p"},"__proto__":{"polluted":true}},"__proto__":{"polluted":true}}';
     const output = readStructuredOutput([{ type: 'text', text: raw }], slots)!;
     expect(output).not.toBeNull();
     expect(({} as Record<string, unknown>).polluted).toBeUndefined();
@@ -145,7 +145,7 @@ describe('Hipótesis: la salida estructurada se lee de forma defensiva', () => {
       { type: 'fallback' },
       { type: 'thinking', thinking: 'MARCA-PENSAMIENTO' },
       { type: 'text', text: '{"text":"Final","done":true,' },
-      { type: 'text', text: '"slots":{"s0":null}}' },
+      { type: 'text', text: '"slots":{"s0":{"found":false,"value":""}}}' },
     ];
     expect(readStructuredOutput(content, slots)).toEqual({ text: 'Final', done: true, slots: {} });
   });

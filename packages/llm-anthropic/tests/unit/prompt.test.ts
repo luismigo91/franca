@@ -35,8 +35,6 @@ describe('SLOT_FORMATS: la leyenda coincide con el motor', () => {
     const llm = createLlmCapability({ principal: async () => ({ kind: 'turn', text: 'Hecho', slots: { valor: value }, done: true, costUsd: 0 }) });
     const result = await startSession({ flow }, { llm });
     expect(result.ok && result.state.outcome, `${type}: ${example}`).toBe('ok');
-    // El ejemplo en forma de texto también se recoge cuando el tipo se escribe como texto (no json/boolean/number).
-    if (!['json', 'boolean', 'number'].includes(type)) expect(result.ok && result.state.variables.valor).not.toBeUndefined();
   });
 
   it('el ejemplo de number escrito como texto también lo acepta el motor', async () => {

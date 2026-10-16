@@ -1,7 +1,7 @@
 import { createLlmCapability, startSession, type SessionResult } from '@franca/engine';
 import { describe, expect, it } from 'vitest';
 import { createAnthropicProvider } from '../../src/index.js';
-import { fakeApi, okMessage, slot, turnRequest, type ApiStep } from '../helpers/fake-api.js';
+import { encodeSlots, fakeApi, okMessage, slot, turnRequest, type ApiStep } from '../helpers/fake-api.js';
 
 /**
  * QA independiente: la salida del modelo es hostil. Se lee con el SDK real y un `fetch` falso, y
@@ -12,7 +12,13 @@ import { fakeApi, okMessage, slot, turnRequest, type ApiStep } from '../helpers/
 const COST = 0.006;
 const message = (content: unknown, overrides: Record<string, unknown> = {}) => ({ ...okMessage({}), content, ...overrides });
 const textBlock = (text: string) => ({ type: 'text', text });
-const outputText = (output: unknown): string => JSON.stringify(output);
+type SlotTypes = Parameters<typeof encodeSlots>[1];
+/** La salida del modelo como texto: los `slots` abreviados (`sN: valor | null`) se codifican como `{ found, value }`. */
+const outputText = (output: unknown, types?: SlotTypes): string => {
+  const raw = output as { slots?: unknown };
+  const slots = typeof raw?.slots === 'object' && raw.slots !== null && !Array.isArray(raw.slots) ? encodeSlots(raw.slots as Record<string, unknown>, types) : raw?.slots;
+  return JSON.stringify({ ...raw, ...('slots' in raw ? { slots } : {}) });
+};
 const convert = async (body: unknown, request = turnRequest()) => {
   const api = fakeApi([{ body } as ApiStep]);
   return createAnthropicProvider({ client: api.client() })(request);
@@ -24,7 +30,7 @@ describe('Salida estructurada hostil: el proveedor resuelve failed con coste, nu
   const broken: [string, string][] = [
     ['vacía', ''],
     ['solo espacios', '   '],
-    ['con BOM', `﻿${outputText(VALID)}`],
+    ['con BOM', `\uFEFF${outputText(VALID)}`],
     ['con valla de markdown', `\`\`\`json\n${outputText(VALID)}\n\`\`\``],
     ['con texto antes', `Claro: ${outputText(VALID)}`],
     ['con texto después', `${outputText(VALID)} gracias`],
@@ -88,7 +94,7 @@ describe('Salida estructurada hostil: el proveedor resuelve failed con coste, nu
   });
 
   it('un JSON profundísimo en un campo que no se lee no revienta ni cambia el resultado', async () => {
-    const deep = `{"text":"Hola","done":false,"slots":{"s0":null,"s1":null},"x":${'['.repeat(50000)}${']'.repeat(50000)}}`;
+    const deep = `{"text":"Hola","done":false,"slots":{"s0":{"found":false,"value":false},"s1":{"found":false,"value":""}},"x":${'['.repeat(50000)}${']'.repeat(50000)}}`;
     const result = await convert(message([textBlock(deep)]));
     // O es un turno (se ignora lo que sobra) o failed (V8 no lo parsea): nunca una excepción ni datos del campo.
     expect(['turn', 'failed']).toContain(result.kind);
@@ -98,7 +104,7 @@ describe('Salida estructurada hostil: el proveedor resuelve failed con coste, nu
 
 describe('Tipos de los slots numéricos y booleanos: sin coerción', () => {
   const request = () => turnRequest({ slots: [slot('n', 'number'), slot('ok', 'boolean'), slot('t', 'string')] });
-  const out = (s0: unknown, s1: unknown = null, s2: unknown = null) => message([textBlock(outputText({ text: 'Hola', done: false, slots: { s0, s1, s2 } }))]);
+  const out = (s0: unknown, s1: unknown = null, s2: unknown = null) => message([textBlock(outputText({ text: 'Hola', done: false, slots: { s0, s1, s2 } }, ['number', 'boolean', 'string']))]);
 
   it.each([
     ['number como string', out('12')],
@@ -122,7 +128,8 @@ describe('Tipos de los slots numéricos y booleanos: sin coerción', () => {
 
 describe('Claves de más en una salida válida: se descartan y no llegan al resultado', () => {
   it('claves de más en la raíz y en slots, incluidas __proto__ y constructor', async () => {
-    const raw = '{"text":"Hola","done":true,"admin":true,"__proto__":{"polluted":1},"slots":{"s0":true,"s1":"m","s2":"EXTRA","__proto__":{"x":1},"constructor":"y","resuelto":false,"motivo":"OTRO"},"constructor":{"prototype":{"p":1}}}';
+    const raw =
+      '{"text":"Hola","done":true,"admin":true,"__proto__":{"polluted":1},"slots":{"s0":{"found":true,"value":true,"extra":"EXTRA"},"s1":{"found":true,"value":"m"},"s2":{"found":true,"value":"EXTRA"},"__proto__":{"x":1},"constructor":"y","resuelto":false,"motivo":"OTRO"},"constructor":{"prototype":{"p":1}}}';
     const result = await convert(message([textBlock(raw)]));
     expect(result).toEqual({ kind: 'turn', text: 'Hola', done: true, slots: { resuelto: true, motivo: 'm' }, costUsd: expect.closeTo(COST, 10) });
     expect(JSON.stringify(result)).not.toMatch(/EXTRA|OTRO|admin|polluted/);
@@ -130,7 +137,7 @@ describe('Claves de más en una salida válida: se descartan y no llegan al resu
   });
 
   it('claves duplicadas: gana la última, como JSON.parse', async () => {
-    const raw = '{"text":"uno","text":"dos","done":false,"slots":{"s0":false,"s0":true,"s1":null}}';
+    const raw = '{"text":"uno","text":"dos","done":false,"slots":{"s0":{"found":false,"value":false},"s0":{"found":true,"value":true},"s1":{"found":false,"value":""}}}';
     expect(await convert(message([textBlock(raw)]))).toMatchObject({ kind: 'turn', text: 'dos', slots: { resuelto: true } });
   });
 
@@ -140,13 +147,14 @@ describe('Claves de más en una salida válida: se descartan y no llegan al resu
     const [a, b] = [await provider(turnRequest()), await provider(turnRequest())];
     expect(a).toEqual(b);
     expect(a).not.toBe(b);
-    if (a.kind === 'turn' && b.kind === 'turn') expect(a.slots).not.toBe(b.slots);
+    expect([a.kind, b.kind]).toEqual(['turn', 'turn']);
+    expect((a as { slots: object }).slots).not.toBe((b as { slots: object }).slots);
   });
 });
 
 describe('Slots de la salida: lo que el proveedor entrega y lo que el motor recoge', () => {
   const jsonRequest = () => turnRequest({ slots: [slot('datos', 'json'), slot('n', 'number'), slot('ok', 'boolean')] });
-  const out = (s0: unknown, s1: unknown = null, s2: unknown = null) => message([textBlock(outputText({ text: 'Hola', done: false, slots: { s0, s1, s2 } }))]);
+  const out = (s0: unknown, s1: unknown = null, s2: unknown = null) => message([textBlock(outputText({ text: 'Hola', done: false, slots: { s0, s1, s2 } }, ['string', 'number', 'boolean']))]);
 
   it.each([
     ['objeto', '{"a":[1,{"b":null}]}', { a: [1, { b: null }] }],
@@ -222,7 +230,7 @@ describe('A través del motor: un modelo hostil no puede saltarse nada', () => {
     ],
   };
   const run = async (output: unknown, usage?: Record<string, unknown>): Promise<SessionResult> => {
-    const body = message([textBlock(typeof output === 'string' ? output : outputText(output))], usage ? { usage } : {});
+    const body = message([textBlock(typeof output === 'string' ? output : outputText(output, STRINGS))], usage ? { usage } : {});
     const api = fakeApi([{ body }]);
     const llm = createLlmCapability({ principal: createAnthropicProvider({ client: api.client() }) });
     const result = await startSession({ flow }, { llm });
@@ -230,6 +238,7 @@ describe('A través del motor: un modelo hostil no puede saltarse nada', () => {
     return result as SessionResult;
   };
   const slots = (s0: unknown, s1: unknown = null, s2: unknown = null) => ({ s0, s1, s2 });
+  const STRINGS: SlotTypes = ['string', 'string', 'string'];
 
   it('done sin el obligatorio no termina el nodo', async () => {
     const result = await run({ text: 'Listo', done: true, slots: slots(null, 'una nota') });
@@ -293,7 +302,7 @@ describe('A través del motor: un modelo hostil no puede saltarse nada', () => {
 
   it('un uso enorme llega al motor como un coste finito y el tope de coste lo corta', async () => {
     const hugeFlow = { ...flow, nodes: flow.nodes.map((n) => (n.id === 'a' ? { ...n, costCapUsd: 1 } : n)) };
-    const body = message([textBlock(outputText({ text: 'Hola', done: false, slots: slots(null) }))], { usage: { input_tokens: 9_007_199_254_740_991, output_tokens: 9_007_199_254_740_991 } });
+    const body = message([textBlock(outputText({ text: 'Hola', done: false, slots: slots(null) }, STRINGS))], { usage: { input_tokens: 9_007_199_254_740_991, output_tokens: 9_007_199_254_740_991 } });
     const api = fakeApi([{ body }]);
     const llm = createLlmCapability({ principal: createAnthropicProvider({ client: api.client() }) });
     const result = (await startSession({ flow: hugeFlow }, { llm })) as SessionResult;

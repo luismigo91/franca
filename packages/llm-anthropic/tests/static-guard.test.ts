@@ -21,7 +21,7 @@ const offenders = (token: RegExp): string[] => files.filter((file) => token.test
 
 describe('guarda estática de src/', () => {
   it('hay código que revisar', () => {
-    expect(files.map((f) => f.path).sort()).toEqual(['client.ts', 'cost.ts', 'errors.ts', 'index.ts', 'models.ts', 'options.ts', 'output.ts', 'prompt.ts', 'provider.ts']);
+    expect(files.map((f) => f.path).sort()).toEqual(['client.ts', 'cost.ts', 'errors.ts', 'index.ts', 'models.ts', 'options.ts', 'output.ts', 'prompt.ts', 'provider.ts', 'read.ts']);
   });
 
   it('Sin claves en el paquete', () => {

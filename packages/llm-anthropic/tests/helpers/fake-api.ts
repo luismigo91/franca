@@ -81,13 +81,36 @@ export function fakeApi(steps: readonly ApiStep[]): FakeApi {
   };
 }
 
-/** Una respuesta 200 con la forma de `message-end-turn.json` y los cambios dados. Sin `slots`, los dos de `turnRequest()` vacíos. */
+const PLACEHOLDERS: Record<string, unknown> = { string: '', number: 0, boolean: false };
+
+/**
+ * Codifica los slots de una salida con la forma del esquema: por cada `sN`, `{ found, value }`. Un valor
+ * `null` o ausente es `found` `false` con un `value` neutro del tipo del slot; un valor que ya es un objeto
+ * `{ found, … }` pasa tal cual. `types` son los tipos de `value` por posición (por defecto los dos slots de
+ * `turnRequest()`: boolean y string; el resto, string).
+ */
+export function encodeSlots(slots: Record<string, unknown>, types: readonly ('string' | 'number' | 'boolean')[] = ['boolean', 'string']): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(slots).map(([key, value]) => {
+      if (typeof value === 'object' && value !== null && !Array.isArray(value) && 'found' in value) return [key, value];
+      const type = types[Number(key.slice(1))] ?? 'string';
+      return [key, value === null || value === undefined ? { found: false, value: PLACEHOLDERS[type] } : { found: true, value }];
+    }),
+  );
+}
+
+/** El tipo de `value` en el esquema de salida para cada slot de una petición. */
+export const valueTypesOf = (slots: readonly LlmSlotRequest[]): ('string' | 'number' | 'boolean')[] =>
+  slots.map((slot) => (slot.type === 'number' ? 'number' : slot.type === 'boolean' ? 'boolean' : 'string'));
+
+/** Una respuesta 200 con la forma de `message-end-turn.json` y los cambios dados. Sin `slots`, los dos de `turnRequest()` sin valor. */
 export function okMessage(
-  output: { text?: string; done?: boolean; slots?: Record<string, unknown> } = {},
+  output: { text?: string; done?: boolean; slots?: Record<string, unknown>; types?: readonly ('string' | 'number' | 'boolean')[] } = {},
   overrides: Record<string, unknown> = {},
 ): Record<string, unknown> {
   const message = fixture('message-end-turn');
-  message.content = [{ type: 'text', text: JSON.stringify({ text: output.text ?? '¿En qué puedo ayudarte?', done: output.done ?? false, slots: output.slots ?? { s0: null, s1: null } }) }];
+  const slots = encodeSlots(output.slots ?? { s0: null, s1: null }, output.types);
+  message.content = [{ type: 'text', text: JSON.stringify({ text: output.text ?? '¿En qué puedo ayudarte?', done: output.done ?? false, slots }) }];
   return { ...message, ...overrides };
 }
 

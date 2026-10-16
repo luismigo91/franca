@@ -19,7 +19,7 @@ const result = await startSession({ flow }, { llm });
 | `client` | `createAnthropicClient()` | Cliente del SDK. Sin él, las credenciales las resuelve el SDK desde el entorno. |
 | `defaultModel` | `claude-opus-5-5` | Modelo de los nodos sin `model`. Si no está en la tabla, sus turnos dan `not_configured`. |
 | `models` | `DEFAULT_ANTHROPIC_MODELS` | Tabla de modelos permitidos, con precios, `effort` y fallback. **Sustituye** a la de por defecto: para ampliarla, `{ ...DEFAULT_ANTHROPIC_MODELS, 'claude-propio': { prices: … } }`. |
-| `maxOutputTokens` | 8192 | `max_tokens` de cada petición. |
+| `maxOutputTokens` | 4096 | `max_tokens` de cada petición. Los 4096 caracteres que admite el texto y el JSON caben de sobra, y un turno no debe rozar `turnTimeoutMs`. |
 | `maxRetries` | 2 | Reintentos del SDK ante errores transitorios (408, 409, 429, 5xx, `retry-after`). El motor nunca repite un turno. |
 | `turnTimeoutMs` | 60000 | Tiempo total de un turno, reintentos incluidos. Al vencer aborta la petición y resuelve `failed`, también si el cliente ignora la señal de aborto. |
 | `serverFallback` | `true` | `false` desactiva el fallback de rechazo en el servidor en todos los modelos. |
@@ -53,6 +53,7 @@ Precios de `DEFAULT_ANTHROPIC_MODELS`, en dólares por millón de tokens, de la 
 
 Haiku 5.5, con un prompt (entrada + lectura + escritura de caché) de **más de 100000 tokens**, factura todo el turno a 0,50 / 2,50 / 0,05 / 0,625.
 
+- **Salida estructurada sin uniones ni opcionales**: cada slot es un objeto requerido `{ found, value }` con `value` de un tipo fijo (string, number o boolean; un slot `json` va como string con texto JSON), y `value` se ignora si `found` es `false`. La API limita a 16 parámetros con tipo unión (`anyOf` o `["string","null"]`) y a 24 opcionales por petición, sumando todos los esquemas estrictos; con un `[T, "null"]` por slot, un nodo de 17 slots daba un 400 en cada turno.
 - **`effort`** (`output_config.effort`) se envía solo si la configuración del modelo lo define (`low`, `medium`, `high`, `xhigh` o `max`). La tabla por defecto lo fija en `low`: un paso conversacional no necesita razonamiento profundo. La instalación puede cambiarlo por modelo.
 - **Fallback de rechazo en el servidor**: con `serverFallback: true` en el modelo y en las opciones, el turno va por la API beta (`client.beta.messages`, `betas: ['server-side-fallback-2026-07-01']`, `fallbacks: 'default'`); si no, por la estable. Un modelo de la instalación no lo admite salvo que lo diga.
 - **Temperatura**: ningún modelo actual admite valores distintos del de por defecto, así que `temperature` se ignora (con aviso `temperature_ignored`). Tampoco se envían `thinking`, `tool_choice`, herramientas, `top_p` ni `top_k`.
@@ -60,6 +61,11 @@ Haiku 5.5, con un prompt (entrada + lectura + escritura de caché) de **más de 
 ## Coste y tope de parada
 
 `costUsd` se calcula con el `usage` de la respuesta y los precios del modelo que indica **la respuesta**; un modelo que no está en la tabla paga el precio más alto de cada concepto. Con fallback del servidor es el **mayor** de dos importes: el `usage` de la cabecera y la suma de `usage.iterations` (cada salto con su modelo), para no quedar nunca por debajo. Un contador ausente, `null` o que no es un entero seguro ≥ 0 cuenta 0.
+
+**Precio fuera de la tabla.** El máximo de la tabla no cubre todo:
+- Con `fallbacks: 'default'` el servidor decide a qué modelo salta un rechazo. Si ese destino no está en la tabla de la instalación (o es más caro que todos los de la tabla), su coste se calcula con el precio más alto de la tabla y puede quedarse corto.
+- El recargo por residencia de datos (`inference_geo`) de la cuenta tampoco se refleja en los precios de la tabla.
+- Quien despliega debe poner en `models` los modelos a los que puede saltar el fallback y sus precios reales, y conciliar con la facturación. Una opción `unknownModelPrices` y los recargos de residencia quedan como FOLLOW-UP de la feature 6.
 
 `costCapUsd` del flujo es un **tope de parada** que aplica el motor: puede superarse como mucho en el coste de un turno. **No es un límite de gasto.** Lo facturado puede superar lo contabilizado: si la API procesa una petición que el adaptador da por fallida (tiempo agotado, corte de conexión tras enviar), se factura pero cuenta 0, y cada reintento del SDK puede repetirlo (hasta `maxRetries` + 1 veces por turno). Concilia con la facturación real y pon un presupuesto por sesión o tenant en el host.
 

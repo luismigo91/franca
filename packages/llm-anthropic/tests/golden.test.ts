@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createAnthropicProvider, DEFAULT_ANTHROPIC_MODELS } from '../src/index.js';
-import { fakeApi, ok, slot, turnRequest } from './helpers/fake-api.js';
+import { fakeApi, ok, slot, turnRequest, valueTypesOf } from './helpers/fake-api.js';
 
 /**
  * Golden del cuerpo que llega a la API: congelan `system`, los mensajes, las dos marcas de caché,
@@ -68,7 +68,7 @@ const cases: [string, Parameters<typeof turnRequest>[0], Parameters<typeof creat
 describe('golden del cuerpo enviado', () => {
   it.each(cases)('%s', async (name, request, options) => {
     const output = Object.fromEntries((request?.slots ?? turnRequest().slots).map((_, index) => [`s${index}`, null]));
-    const api = fakeApi([ok({ text: 'Hola', slots: output })]);
+    const api = fakeApi([ok({ text: 'Hola', slots: output, types: valueTypesOf(request?.slots ?? turnRequest().slots) })]);
     await createAnthropicProvider({ client: api.client(), ...options })(turnRequest(request));
     expect(api.calls).toHaveLength(1);
     const call = api.calls[0]!;
