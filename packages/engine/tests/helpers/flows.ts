@@ -110,3 +110,18 @@ export function deepFreeze<T>(value: T): T {
   }
   return value;
 }
+
+/** Nodo `input`; `extra` aporta `validation`, `choices`, `multiple`, `placeholder`, etc. */
+export const input = (id: string, variable: string, inputType: string, next: string | undefined, extra: Obj = {}): Obj => ({
+  id,
+  type: 'input',
+  inputType,
+  variable,
+  prompt: [{ kind: 'text', text: `¿${id}?` }],
+  ...(next === undefined ? {} : { next }),
+  ...extra,
+});
+
+/** Opciones `a`, `b`, `c`… con `next` por opción (selección única). */
+export const choicesOf = (ids: string[], next?: string): Obj[] =>
+  ids.map((id) => ({ id, label: id.toUpperCase(), ...(next === undefined ? {} : { next }) }));

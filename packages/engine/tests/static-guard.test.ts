@@ -33,6 +33,9 @@ const FORBIDDEN: [string, RegExp][] = [
   ['import node:', /['"`]node:/],
   ['require', /\brequire\s*\(/],
   ['import()', /\bimport\s*\(/],
+  ['Intl', /\bIntl\b/],
+  ['toLocale…', /\btoLocale\w*/],
+  ['localeCompare', /\blocaleCompare\b/],
 ];
 
 describe('guarda estática de src/', () => {
@@ -61,6 +64,18 @@ describe('guarda estática de src/', () => {
       'regex/match.ts: c',
       'regex/match.ts: codePoint',
     ]);
+  });
+
+  it('src/input/ no ejecuta expresiones regulares sobre el texto del usuario', () => {
+    const inputFiles = files.filter((f) => f.path.startsWith('input/'));
+    expect(inputFiles.length).toBeGreaterThanOrEqual(12);
+    for (const f of inputFiles) {
+      expect(f.code, `${f.path}: RegExp`).not.toMatch(/\bRegExp\b/);
+      expect(f.code, `${f.path}: exec/match/search`).not.toMatch(/\.(exec|match|matchAll|search)\(/);
+      expect(f.code, `${f.path}: regex literal en replace/split`).not.toMatch(/\.(replace|replaceAll|split)\(\s*\//);
+    }
+    const tests = inputFiles.flatMap((f) => [...f.code.matchAll(/\.test\(([^)]*)\)/g)].map((m) => `${f.path}: ${m[1]}`));
+    expect(tests).toEqual(['input/parsers/chars.ts: codePoint']);
   });
 
   it('new RegExp solo se construye para validar la sintaxis y para los átomos', () => {
