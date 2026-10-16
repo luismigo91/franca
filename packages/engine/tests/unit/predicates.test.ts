@@ -151,6 +151,92 @@ describe('Operadores contains y startsWith', () => {
   });
 });
 
+describe('Operador matches', () => {
+  it('Coincidencia anclada', () => {
+    expect(ev('28001', 'matches', '^\\d{5}$')).toBe(true);
+    expect(ev('28001', 'matches', '^\\d{4}$')).toBe(false);
+  });
+
+  it('Coincidencia parcial y mayúsculas', () => {
+    expect(ev('xxABCxx', 'matches', 'ABC')).toBe(true);
+    expect(ev('xxABCxx', 'matches', 'abc')).toBe(false);
+  });
+
+  it('Modo Unicode', () => {
+    expect(ev('😀', 'matches', '^.$')).toBe(true);
+  });
+
+  it('Number como texto', () => {
+    expect(ev(28001, 'matches', '^28')).toBe(true);
+    expect(ev(true, 'matches', '^tr')).toBe(true);
+  });
+
+  it('Variable sin valor', () => {
+    expect(ev(NONE, 'matches', '.*')).toBe(false);
+  });
+
+  it('Array y objeto dan falso', () => {
+    expect(ev(['a'], 'matches', '.*')).toBe(false);
+    expect(ev({ a: 1 }, 'matches', '.*')).toBe(false);
+  });
+});
+
+describe('Evaluación de matches en tiempo lineal', () => {
+  it('Retroceso catastrófico en tiempo lineal', () => {
+    const texto = 'a'.repeat(5000) + '!';
+    expect(ev(texto, 'matches', '^(a+)+$')).toBe(false);
+    expect(ev(texto, 'matches', '(a|aa)*!$')).toBe(true);
+  });
+});
+
+describe('Construcciones admitidas en matches', () => {
+  it('Construcciones admitidas', () => {
+    expect(ev('28001', 'matches', '^(?<prov>\\d{2})\\d+?$')).toBe(true);
+    expect(ev('Ana', 'matches', '^\\p{L}+$')).toBe(true);
+    expect(ev('Ana', 'matches', '\\bAna\\b')).toBe(true);
+  });
+});
+
+describe('Tamaño máximo del patrón de matches', () => {
+  it('Patrón por encima del tamaño máximo', () => {
+    expect(ev('a', 'matches', 'a{1000}')).toBe(false);
+    expect(() => ev('a', 'matches', 'a{1001}')).toThrow(InvalidRuleError);
+    expect(() => ev('a', 'matches', '(a{40}){40}')).toThrow(InvalidRuleError);
+  });
+});
+
+describe('Reglas matches que no se pueden evaluar', () => {
+  it('Regex inválida', () => {
+    expect(() => ev('28001', 'matches', '(')).toThrow(InvalidRuleError);
+  });
+
+  it('Value no string en matches', () => {
+    for (const bad of [5, true, null, ['a'], { a: 1 }]) {
+      expect(() => ev('28001', 'matches', bad)).toThrow(InvalidRuleError);
+    }
+  });
+
+  it('Construcción no admitida en matches', () => {
+    for (const pattern of ['(a)\\1', 'a(?=a)', '(?<=a)a', '(?<x>a)|(?<x>b)']) {
+      expect(() => ev('aa', 'matches', pattern), pattern).toThrow(InvalidRuleError);
+    }
+  });
+
+  it('un patrón roto falla aunque la variable no tenga valor', () => {
+    expect(() => ev(NONE, 'matches', '(')).toThrow(InvalidRuleError);
+  });
+
+  it('el mensaje no incluye el valor de la variable', () => {
+    try {
+      ev('ana@example.com', 'matches', '(');
+      expect.unreachable();
+    } catch (error) {
+      expect((error as Error).message).not.toContain('ana@example.com');
+      expect((error as Error).message).toContain("'v'");
+    }
+  });
+});
+
 describe('Operadores isSet e isEmpty', () => {
   it('String vacío', () => {
     expect(ev('', 'isSet')).toBe(true);

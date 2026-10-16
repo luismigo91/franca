@@ -20,16 +20,16 @@ Fases secuenciales; cada una empieza cuando la anterior pasa su gate. Comportami
 
 ## 3. `matches` lineal — dueño: `popi:backend-developer`
 
-- [ ] 3.1 `src/regex/parse.ts`: AST del subconjunto de la spec y motivo de rechazo para referencias, lookarounds, `(?` no admitidos y nombres repetidos comparados tras decodificar sus escapes (`(?<a>x)(?<\u0061>y)` es repetido); `tests/unit/regex-parse.test.ts` con un caso por construcción admitida y por rechazada
-- [ ] 3.2 `src/regex/compile.ts`: tamaño calculado sobre el AST antes de expandir (definición de la spec) y programa NFA; tests de tamaño con `a{1000}` (admitido), `a{1001}` y `(a{40}){40}` (rechazados) y de que `(a{1000}){1000}` se rechaza sin construir el programa
-- [ ] 3.3 `src/regex/match.ts`: Pike VM booleana con átomos delegados a `RegExp` nativo sobre un code point (D8) y contador interno de trabajo; `tests/unit/regex-match.test.ts` verifica:
+- [x] 3.1 `src/regex/parse.ts`: AST del subconjunto de la spec y motivo de rechazo para referencias, lookarounds, `(?` no admitidos y nombres repetidos comparados tras decodificar sus escapes (`(?<a>x)(?<\u0061>y)` es repetido); `tests/unit/regex-parse.test.ts` con un caso por construcción admitida y por rechazada
+- [x] 3.2 `src/regex/compile.ts`: tamaño calculado sobre el AST antes de expandir (definición de la spec) y programa NFA; tests de tamaño con `a{1000}` (admitido), `a{1001}` y `(a{40}){40}` (rechazados) y de que `(a{1000}){1000}` se rechaza sin construir el programa
+- [x] 3.3 `src/regex/match.ts`: Pike VM booleana con átomos delegados a `RegExp` nativo sobre un code point (D8) y contador interno de trabajo; `tests/unit/regex-match.test.ts` verifica:
   - diferencial contra `new RegExp(p, 'u').test(s)` con PRNG de semilla fija, ≥ 5000 casos y textos ≤ 12 caracteres, con un alfabeto pequeño (p. ej. `a`, `b` y un carácter no ASCII) compartido por el generador de patrones y el de textos, y una aserción de que al menos el 20 % de los casos da `true` y al menos el 20 % da `false` (el test falla si el diferencial es vacuo);
   - corpus curado: emoji, `\p{L}`, `\b`, perezosos, grupos anidados y con nombre, y bucles que casan vacío y aserciones bajo cuantificador: `(?:\b)*`, `(a|)*`, `(?:^|a)+`, `(?:$)*`;
   - generador de patrones fuera del subconjunto (referencias, lookahead, lookbehind, modificadores en línea, nombres repetidos incluso con escapes distintos) que afirma que todos se rechazan;
   - invariante "si el parser acepta, el nativo compila" sobre todos los patrones generados;
   - cota de trabajo ≤ (n+1)·m
-- [ ] 3.4 Conectar `matches` en `OPERATORS` (value no string, sintaxis inválida, no admitida y tamaño → `InvalidRuleError`) y cubrir en `tests/unit/predicates.test.ts` los escenarios de los requisitos "Operador matches", "Evaluación de matches en tiempo lineal" (dentro del timeout por defecto de Vitest), "Construcciones admitidas en matches", "Tamaño máximo del patrón de matches" y los de `matches` de "Reglas que no se pueden evaluar"
-- [ ] 3.5 Gate: `pnpm --filter @franca/engine test` en verde y ninguna llamada a `.test`/`.exec`/`.match` del patrón completo del autor en `src/regex/` ni en `src/predicates.ts` (revisión con `grep`)
+- [x] 3.4 Conectar `matches` en `OPERATORS` (value no string, sintaxis inválida, no admitida y tamaño → `InvalidRuleError`) y cubrir en `tests/unit/predicates.test.ts` los escenarios de los requisitos "Operador matches", "Evaluación de matches en tiempo lineal" (dentro del timeout por defecto de Vitest), "Construcciones admitidas en matches", "Tamaño máximo del patrón de matches" y los de `matches` de "Reglas que no se pueden evaluar"
+- [x] 3.5 Gate: `pnpm --filter @franca/engine test` en verde y ninguna llamada a `.test`/`.exec`/`.match` del patrón completo del autor en `src/regex/` ni en `src/predicates.ts` (revisión con `grep`)
 
 ## 4. Sesión, nodos y API pública — dueño: `popi:backend-developer`
 
