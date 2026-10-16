@@ -7,7 +7,7 @@ import type { TextParser } from './types.js';
  * El parser WHATWG quita o cambia en silencio estos caracteres: se rechazan antes de usarlo. Los
  * sustitutos sueltos y U+0000 ya los rechazó `hasUnstorable` en `checkTextAnswer`.
  */
-function hasHiddenChars(text: string): boolean {
+export function hasHiddenChars(text: string): boolean {
   for (const c of text) {
     if (isBlank(c) || isControl(c) || (c > '~' && isDefaultIgnorable(c))) return true;
   }
@@ -31,7 +31,7 @@ function explicitScheme(text: string): string | undefined {
  * codificados (`exa%C2%ADmple.com`). Empieza tras las `/` o `\` iniciales, que WHATWG ignora en
  * http y https, y llega hasta el primer `/`, `?`, `#` o `\`.
  */
-function hasPercentInHost(text: string, start: number): boolean {
+export function hasPercentInHost(text: string, start: number): boolean {
   let i = start;
   while (i < text.length && (text[i] === '/' || text[i] === '\\')) i++;
   for (; i < text.length; i++) {

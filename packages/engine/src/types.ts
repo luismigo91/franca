@@ -1,5 +1,5 @@
-import type { FlowIssue, InputNode } from '@franca/spec';
-import type { InvalidAnswerReason, RejectionCode, SessionErrorCode, STATE_VERSION } from './constants.js';
+import type { FlowIssue, HttpNode, InputNode } from '@franca/spec';
+import type { HttpErrorReason, InvalidAnswerReason, RejectionCode, SessionErrorCode, STATE_VERSION } from './constants.js';
 
 /** Valor JSON. */
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
@@ -66,7 +66,18 @@ export interface EngineChoiceInputEvent extends EngineInputEventBase {
 
 export type EngineInputEvent = EngineTextInputEvent | EngineChoiceInputEvent;
 
-export type EngineEvent = EngineMessageEvent | EngineInputEvent | EngineEndEvent | EngineErrorEvent;
+export interface EngineHttpEvent {
+  type: 'http';
+  nodeId: string;
+  /** Llamadas hechas al host (0 si la petición no se pudo construir). */
+  attempts: number;
+  /** Status del último intento si fue una respuesta; si no, `null`. */
+  status: number | null;
+  /** `null` en un éxito; si no, el motivo. */
+  error: HttpErrorReason | null;
+}
+
+export type EngineEvent = EngineMessageEvent | EngineInputEvent | EngineHttpEvent | EngineEndEvent | EngineErrorEvent;
 
 export type SessionStatus = 'ended' | 'failed' | 'waiting';
 
@@ -117,5 +128,44 @@ export interface ContinueSessionRequest {
   input: unknown;
 }
 
-/** Capacidades que inyecta el host. Vacía en esta versión. */
-export interface EngineHost {}
+/** Método de una petición `http`; derivado de `@franca/spec`, nunca redefinido. */
+export type HttpMethod = HttpNode['request']['method'];
+
+/** Cabecera de una petición: valor ya renderizado, o secreto por nombre (el motor nunca tiene su valor). */
+export type HttpRequestHeader = { name: string; value: string } | { name: string; secret: string };
+
+/** Lo que recibe el host en cada intento. Objeto nuevo por intento; el host puede quedárselo o mutarlo. */
+export interface HttpRequest {
+  nodeId: string;
+  method: HttpMethod;
+  /** Serialización WHATWG (`href`) de la URL ya validada. */
+  url: string;
+  /** Orden del flujo; `Content-Type` por defecto al final. */
+  headers: HttpRequestHeader[];
+  /** JSON compacto, o `null` sin body. */
+  body: string | null;
+  /** Del nodo o 10000; el host lo aplica a este intento. */
+  timeoutMs: number;
+  /** 1 el primero. */
+  attempt: number;
+  /** Alguna plantilla de `url`, cabeceras o body nombra una variable personal (`pii`, directa o derivada). */
+  containsPii: boolean;
+}
+
+/** Resultado de **un** intento. Las propiedades adicionales se ignoran. */
+export type HttpAttemptResult =
+  | { kind: 'response'; status: number; body: string }
+  | { kind: 'timeout' }
+  | { kind: 'network_error'; requestSent?: boolean }
+  | { kind: 'blocked' }
+  | { kind: 'response_too_large' }
+  | { kind: 'missing_secret' };
+
+/** Capacidad `http` del host: ejecuta un intento. Debe resolver siempre; rechazar es un defecto del host. */
+export type HttpCapability = (request: HttpRequest) => Promise<HttpAttemptResult>;
+
+/** Capacidades que inyecta el host. */
+export interface EngineHost {
+  /** Sin ella, un nodo `http` falla con `unsupported_node`. */
+  http?: HttpCapability;
+}
