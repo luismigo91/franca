@@ -1,6 +1,6 @@
 import type { Flow } from '@franca/spec';
 import { MAX_NESTING_DEPTH, SESSION_ERROR_CODES, STATE_VERSION } from './constants.js';
-import { cloneJsonWithinDepth, exceedsDepth } from './json.js';
+import { cloneJsonWithinDepth, exceedsDepth, isRecord } from './json.js';
 import { parseConversation, type Conversation } from './llm/conversation.js';
 import type { SessionError, SessionState, SessionStatus, VariableValue } from './types.js';
 import type { VariableStore } from './variables.js';
@@ -50,9 +50,6 @@ export function buildState(
  * 999 niveles, aceptado al arrancar, daba un estado de 1001 que `parseState` rechazaba.
  */
 const STATE_MAX_DEPTH = MAX_NESTING_DEPTH + 1;
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /**
  * Lee un estado recibido del host.

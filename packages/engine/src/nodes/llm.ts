@@ -5,8 +5,9 @@ import { invokeLlm, readLlmCapability } from '../llm/capability.js';
 import { Conversation, exhaustedReason } from '../llm/conversation.js';
 import { buildTurnRequest } from '../llm/request.js';
 import { readTurnResult } from '../llm/result.js';
-import { collectSlots, hasRequired, revalidateCollected, slotSpecs, type SlotSpec } from '../llm/slots.js';
+import { collectSlots, hasRequired, NO_RULES, revalidateCollected, slotSpecs, type SlotSpec } from '../llm/slots.js';
 import { readAssistantText } from '../llm/text.js';
+import { languageOf } from '../json.js';
 import { renderTemplate, ValueTooLargeError } from '../template.js';
 import type { EngineTextInputEvent, LlmConversation } from '../types.js';
 import { VALUE_TOO_LARGE } from './message.js';
@@ -20,9 +21,6 @@ const HOST_ERROR = fail('llm_host_error', 'la capacidad llm del host falló o de
 const NOT_CONFIGURED = fail('llm_not_configured', 'el proveedor o el modelo del nodo no están configurados en la instalación');
 const LIMIT_EXCEEDED = fail('llm_limit_exceeded', `se superó el límite de ${MAX_EXTERNAL_CALLS_PER_ADVANCE} llamadas externas por avance`);
 
-/** El mensaje del usuario se comprueba como el de un `input` de texto sin reglas. */
-const NO_RULES = { program: null } as const;
-
 /** Lo que la continuación sabe de la conversación en espera. */
 export interface PendingMessage {
   /** Intento de la pregunta pendiente (el que se está respondiendo). */
@@ -32,9 +30,6 @@ export interface PendingMessage {
   /** El `text` de la entrada, sin recortar. */
   text: string;
 }
-
-/** Idioma del flujo: parte de `locale` antes del guion, como en `input`. */
-const languageOf = (ctx: StepContext): string => ctx.locale.split('-')[0]!;
 
 const inputEvent = (nodeId: string, attempt: number, reason: EngineTextInputEvent['reason']): EngineTextInputEvent => ({
   type: 'input',
@@ -71,7 +66,7 @@ export function resumeLlm(node: LlmNode, ctx: StepContext, pending: PendingMessa
   const capability = readLlmCapability(ctx.host);
   if (capability.kind === 'absent') return executeUnsupported(node);
   if (capability.kind === 'error') return HOST_ERROR;
-  const language = languageOf(ctx);
+  const language = languageOf(ctx.locale);
   const check = checkTextAnswer(pending.text, 'text', language, NO_RULES);
   if (!check.ok) {
     // La conversación queda tal cual llegó: ni se revalida ni se cuenta nada.
@@ -143,7 +138,7 @@ async function converse(
   // El texto se comprueba antes de recoger nada: un turno descartado no aporta slots ni `done`.
   const text = readAssistantText(result.text);
   if (text === null) return exit(node, ctx, conversation, node.onExhausted, 'invalid_turn');
-  conversation.collect(collectSlots(result.values, specs, languageOf(ctx)));
+  conversation.collect(collectSlots(result.values, specs, languageOf(ctx.locale)));
   ctx.emit({ type: 'message', nodeId: node.id, content: [{ kind: 'text', text }], typingDelayMs: ctx.typingDelayMs });
   conversation.pushAssistant(text);
 

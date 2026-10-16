@@ -1,7 +1,7 @@
 import { validateFlow } from '@franca/spec';
 import type { Flow, FlowIssue, InputNode } from '@franca/spec';
 import { MAX_NESTING_DEPTH } from './constants.js';
-import { cloneJsonWithinDepth, exceedsDepth, toJsonForm } from './json.js';
+import { cloneJsonWithinDepth, exceedsDepth, languageOf, toJsonForm } from './json.js';
 import { isWaitingNode, planResume, waitingTypeOf } from './resume.js';
 import { run } from './run.js';
 import { parseState } from './state.js';
@@ -104,7 +104,7 @@ export async function continueSession(request: ContinueSessionRequest, host?: En
   if (state.status !== 'waiting' || !isWaitingNode(node)) {
     return { ok: false, code: 'session_not_active', message: 'la sesión no está activa' };
   }
-  const language = (flow.locale ?? 'es').split('-')[0]!;
+  const language = languageOf(flow.locale ?? 'es');
   const plan = planResume(node, state, request.input, language);
   if (plan.kind === 'rejected') return { ok: false, code: 'invalid_input', message: plan.message };
   const vars = restoreVariableStore(flow.variables, state);

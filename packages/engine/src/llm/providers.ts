@@ -1,6 +1,7 @@
 import type { LlmCapability, LlmTurnRequest, LlmTurnResult } from '../types.js';
 
-const NOT_CONFIGURED: LlmTurnResult = { kind: 'not_configured' };
+// Congelado: el mismo objeto se devuelve en cada petición y un proveedor no debe poder mutarlo para las siguientes.
+const NOT_CONFIGURED: LlmTurnResult = Object.freeze({ kind: 'not_configured' });
 
 /** Entradas propias y enumerables de un objeto, o las de un `Map`. Un `__proto__` de `JSON.parse` es propio y cuenta. */
 function entriesOf(providers: unknown): [string, unknown][] {

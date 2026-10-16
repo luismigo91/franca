@@ -24,7 +24,7 @@ export interface SlotSpec {
 }
 
 /** Sin `validation`: los slots se comprueban solo por formato. */
-const NO_RULES = { program: null } as const;
+export const NO_RULES = { program: null } as const;
 
 /**
  * Los slots del nodo sin repetir variable (cuenta el primero), en su orden y con el tipo declarado

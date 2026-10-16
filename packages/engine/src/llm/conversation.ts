@@ -1,5 +1,6 @@
 import type { LlmNode } from '@franca/spec';
 import { DEFAULT_LLM_MAX_TURNS, MAX_CONVERSATION_MESSAGES, MAX_INPUT_LENGTH, type LlmExitReason } from '../constants.js';
+import { isRecord } from '../json.js';
 import { hasUnstorable } from '../input/parsers/chars.js';
 import type { LlmConversation, LlmMessage, VariableValue } from '../types.js';
 
@@ -105,9 +106,6 @@ export function exhaustedReason(conversation: Pick<Conversation, 'turns' | 'cost
   if (node.costCapUsd !== undefined && conversation.costUsd >= node.costCapUsd) return 'cost_cap';
   return null;
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 function parseMessages(value: unknown): LlmMessage[] | null {
   if (!Array.isArray(value) || value.length < 1 || value.length > MAX_CONVERSATION_MESSAGES || value.length % 2 === 0) return null;

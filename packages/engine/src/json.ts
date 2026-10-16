@@ -119,3 +119,10 @@ export function deepEqual(a: JsonValue, b: JsonValue): boolean {
   if (keysA.length !== Object.keys(b).length) return false;
   return keysA.every((key) => Object.hasOwn(b, key) && deepEqual(a[key]!, b[key]!));
 }
+
+/** Un objeto no `null` y no array (cualquier prototipo). */
+export const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** Idioma de un `locale`: la parte antes del guion, como en `input` y `llm`. */
+export const languageOf = (locale: string): string => locale.split('-')[0]!;
