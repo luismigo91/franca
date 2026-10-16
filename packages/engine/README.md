@@ -65,7 +65,7 @@ Se hacen 1 + `retries` intentos (1 reintento por defecto) y, entre `http` y el f
 
 Límites que el host debe respetar o conocer:
 
-- **Host de producción** (spec «Host de producción: …»): bloquea destinos internos comprobando la dirección real de cada conexión (par dirección y puerto), no sigue redirecciones, no añade credenciales propias, corta el cuerpo en 1 MiB **ya descomprimido**, aplica `timeoutMs` como tope **total** del intento (no de inactividad), ata cada secreto al origen exacto y no registra URL, cabeceras ni body de una petición con `containsPii`. Se comprueba con `@franca/engine/conformance`: `HOST_CONFORMANCE_CASES` y el arnés `HostConformanceHarness`, que implementa quien ofrece el host con servidores reales. El runner debe dar a cada caso un timeout **mayor** que sus esperas límite (`CALL_DEADLINE_MARGIN_MS` más `timeoutMs` más la tolerancia del entorno, ver `call.ts`).
+- **Host de producción** (spec «Host de producción: …»): bloquea destinos internos comprobando la dirección real de cada conexión (par dirección y puerto), no sigue redirecciones, no añade credenciales propias, corta el cuerpo en 1 MiB **ya descomprimido**, aplica `timeoutMs` como tope **total** del intento (no de inactividad), ata cada secreto al origen exacto y no registra URL, cabeceras ni body de una petición con `containsPii`. Se comprueba con `@franca/engine/conformance`: `HOST_CONFORMANCE_CASES` y el arnés `HostConformanceHarness`, que implementa quien ofrece el host con servidores reales. `HostConformanceHarness.sleep(ms, signal?)` recibe un `AbortSignal` que `call.ts` aborta en cuanto responde el host: el arnés debe liberar su temporizador. El runner debe dar a cada caso un timeout **mayor** que sus esperas límite (`CALL_DEADLINE_MARGIN_MS` más `timeoutMs` más la tolerancia del entorno, ver `call.ts`).
 - **Clientes que recortan espacios**: clientes como undici recortan los espacios de los extremos de un valor de cabecera; el motor los admite y el valor puede llegar sin ellos.
 - **Valores en la ruta**: un valor `../admin` llega como `..%2Fadmin`, pero un servidor o proxy que decodifica `%2F` antes de enrutar lo verá como `../admin`; uno vacío deja `//` en la ruta (`/users//x`) y algunos servidores lo fusionan. Quien escribe el flujo debe validar esos valores antes (con `matches` o un `input` con `pattern`) si el servidor hace eso.
 - **Coste de `responseMap`**: O(entradas × 1 MiB) en el peor caso (cada entrada puede medir y copiar un subárbol de hasta 1 MiB).
@@ -80,6 +80,7 @@ pnpm --filter @franca/engine test       # Vitest (sin --watch)
 pnpm --filter @franca/engine typecheck
 pnpm --filter @franca/engine build      # dist/index.mjs + dist/index.d.mts
 pnpm --filter @franca/engine mutate     # mutación dirigida: cada mutación de tests/mutations.json debe matarla algún test
+                                        # (antes ejecuta una línea base: si no está en verde, aborta; SIGINT restaura el fichero)
 ```
 
 Depende de `@franca/spec` compilado (`dist/`). Con turbo (`pnpm check`, `pnpm build`) se construye antes; si ejecutas los scripts del paquete sin turbo y falla `Cannot find module '@franca/spec'`, ejecuta antes `pnpm --filter @franca/spec build`.

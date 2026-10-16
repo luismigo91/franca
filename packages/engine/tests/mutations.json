@@ -63,13 +63,14 @@
     ]
   },
   {
-    "id": "raw-host",
-    "file": "src/http/url.ts",
-    "find": "const host = url.hostname;",
-    "replace": "const host = text.slice(authorityStart).split('/')[0]!.split('?')[0]!.split(':')[0]!;",
+    "id": "domain-check",
+    "file": "src/input/parsers/url.ts",
+    "find": " || !isDomainName(url.hostname)) return undefined;",
+    "replace": ") return undefined;",
     "tests": [
       "tests/unit/http-url.test.ts",
-      "tests/scenarios/http-request.test.ts"
+      "tests/unit/http-hypotheses.test.ts",
+      "tests/unit/input-url.test.ts"
     ]
   },
   {
@@ -227,7 +228,7 @@
   {
     "id": "pii-body",
     "file": "src/http/request.ts",
-    "find": "collectStrings(body, templates);",
+    "find": "templates.push(value); // las plantillas de `containsPii`, recogidas en el mismo recorrido",
     "replace": "",
     "tests": [
       "tests/unit/http-request.test.ts",
@@ -237,8 +238,8 @@
   {
     "id": "pii-closure",
     "file": "src/http/request.ts",
-    "find": "templateVariables(value).some((name) => personal.has(name))",
-    "replace": "false",
+    "find": "      personal.add(target);\n      pending.push(target);\n",
+    "replace": "",
     "tests": [
       "tests/unit/http-request.test.ts",
       "tests/scenarios/http-privacy.test.ts"
@@ -329,9 +330,9 @@
   },
   {
     "id": "qa3-url-password",
-    "file": "src/http/url.ts",
-    "find": "if (url.username !== '' || url.password !== '') return undefined;",
-    "replace": "if (url.username !== '') return undefined;",
+    "file": "src/input/parsers/url.ts",
+    "find": "if (url.username !== '' || url.password !== '' || !isDomainName(url.hostname)) return undefined;",
+    "replace": "if (url.username !== '' || !isDomainName(url.hostname)) return undefined;",
     "tests": [
       "tests/unit/http-ssrf-adversarial.test.ts"
     ]
@@ -348,8 +349,8 @@
   {
     "id": "qa3-success-upper",
     "file": "src/http/retry.ts",
-    "find": "if (status >= 200 && status <= 299) return { ok: true, status };",
-    "replace": "if (status >= 200 && status <= 300) return { ok: true, status };",
+    "find": "if (status >= 200 && status <= 299) return { ok: true, status, body };",
+    "replace": "if (status >= 200 && status <= 300) return { ok: true, status, body };",
     "tests": [
       "tests/scenarios/http-adversarial.test.ts"
     ]
@@ -361,6 +362,44 @@
     "replace": "if (attempts >= 0) return fail('http_limit_exceeded'",
     "tests": [
       "tests/scenarios/http-adversarial.test.ts"
+    ]
+  },
+  {
+    "id": "pii-eager",
+    "file": "src/run.ts",
+    "find": "  let personal: Set<string> | undefined;",
+    "replace": "  let personal: Set<string> | undefined = personalVariables(flow);",
+    "tests": [
+      "tests/unit/http-pii-closure.test.ts"
+    ]
+  },
+  {
+    "id": "pii-closure-calls",
+    "file": "src/http/request.ts",
+    "find": "for (const source of new Set(templateVariables(value))) {",
+    "replace": "for (const source of new Set([...templateVariables(value), ...templateVariables(value)])) {",
+    "tests": [
+      "tests/unit/http-pii-closure.test.ts"
+    ]
+  },
+  {
+    "id": "dot-query",
+    "file": "src/http/url.ts",
+    "find": "const end = query === -1 ? text.length : query;",
+    "replace": "const end = text.length;",
+    "tests": [
+      "tests/unit/http-ssrf-adversarial.test.ts",
+      "tests/unit/http-url.test.ts",
+      "tests/scenarios/http-request.test.ts"
+    ]
+  },
+  {
+    "id": "call-abort",
+    "file": "src/conformance/call.ts",
+    "find": "  stopWaiting.abort();\n",
+    "replace": "",
+    "tests": [
+      "tests/conformance.test.ts"
     ]
   }
 ]

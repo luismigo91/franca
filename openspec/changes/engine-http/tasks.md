@@ -58,6 +58,8 @@ Fases secuenciales; cada una empieza cuando la anterior pasa su gate. Comportami
 - [ ] 6.6 FOLLOW-UP (formato, aditivo): `statusVariable`, inserción con tipo en el body y opción explícita con `Idempotency-Key` del host para reintentar `POST`/`PATCH`
 - [ ] 6.7 FOLLOW-UP: anotar en RFC-0001 (amplía los FOLLOW-UP 6.3 de `engine-base` y 6.6 de `engine-input`): `url`, valores de cabecera y strings del body son plantillas; claves del body y `pointer` literales; valores de la `url` codificados; `body: null` = sin body; `Content-Type` por defecto; defaults de `timeoutMs` y `retries`; orden de claves de la forma JSON
 - [ ] 6.8 FOLLOW-UP (feature 4): los valores que asignen los slots de `llm` deben quedar en ≤ 999 niveles para que el estado siga siendo continuable (D13), y el nodo `llm` reutiliza `piiVariables` y consume del mismo presupuesto `reserveExternalCall` (10 llamadas externas por avance entre `http` y `llm`), sin un contador propio
+- [ ] 6.9 FOLLOW-UP (feature 6): ampliar `CONFORMANCE_INTERNAL_ADDRESSES` y el caso `destinos-internos` con NAT64 (`64:ff9b::a9fe:a9fe`), la v4 mapeada de metadatos (`::ffff:169.254.169.254`) y la IPv4-compatible (`::127.0.0.1`), que un host con una lista de clases ingenua podría dejar pasar
+- [ ] 6.10 FOLLOW-UP (feature 5): adelantar a la API el aviso del validador sobre marcadores pegados al host (`https://api.example.com{{v}}`), además de los del esquema, el host y el puerto: la API devolverá avisos (no errores) al guardar el flujo
 
 ## Workflow follow-up
 
