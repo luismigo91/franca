@@ -71,8 +71,8 @@ describe('Tipo boolean', () => {
   });
 
   it('un acento combinante se normaliza a NFC', () => {
-    expect(bool('sí', 'es')).toBe(true);
-    expect(bool('Sí', 'es')).toBe(true);
+    expect(bool('si\u0301', 'es')).toBe(true);
+    expect(bool('Si\u0301', 'es')).toBe(true);
   });
 
   it('İ y Sİ no dependen del locale del host', () => {

@@ -14,7 +14,7 @@ describe('hasUnstorable', () => {
 
 describe('predicados de carácter', () => {
   it('isBlank sigue a String.prototype.trim', () => {
-    for (const c of [' ', '\t', '\n', '\u00a0', '\u2003', '\u202f', '\ufeff', '　']) expect(isBlank(c), c).toBe(true);
+    for (const c of [' ', '\t', '\n', '\u00a0', '\u2003', '\u202f', '\ufeff', '\u3000']) expect(isBlank(c), c).toBe(true);
     for (const c of ['a', '0', '\u200b', '', '-']) expect(isBlank(c), c).toBe(false);
   });
   it('isControl', () => {
@@ -25,7 +25,7 @@ describe('predicados de carácter', () => {
     expect(isControl('~')).toBe(false);
   });
   it('isDefaultIgnorable', () => {
-    for (const c of ['\u00ad', '\u200b', '\u200d', '\ufeff', '\ufe0f', '\u{e0100}', '\u2060', '͏']) expect(isDefaultIgnorable(c)).toBe(true);
+    for (const c of ['\u00ad', '\u200b', '\u200d', '\ufeff', '\ufe0f', '\u{e0100}', '\u2060', '\u034f']) expect(isDefaultIgnorable(c)).toBe(true);
     for (const c of ['a', ' ', '😀', 'ñ']) expect(isDefaultIgnorable(c)).toBe(false);
   });
 });

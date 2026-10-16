@@ -213,7 +213,9 @@ describe('Teléfono, email y URL: textos hostiles revisados', () => {
     ['//example.com', 'https://example.com/'], ['https:///example.com', 'https://example.com/'], ['example.com:8080', 'https://example.com:8080/'], ['example.com:', 'https://example.com/'],
     ['https://example.com:443', 'https://example.com/'], ['http://example.com:80', 'http://example.com/'], ['EXAMPLE.COM/A?B#C', 'https://example.com/A?B#C'],
     ['\uff45xample.com', 'https://example.com/'], ['example\u3002com', 'https://example.com/'], ['fa\u00df.de', 'https://xn--fa-hia.de/'],
-    ['https://exa%6dple.com', 'https://example.com/'], ['https://:@example.com', 'https://example.com/'], ['1.1.1.1e1', 'https://1.1.1.1e1/'],
+    ['example.com/?u=http://y.com', 'https://example.com/?u=http://y.com'], ['example.com/r?next=https://x.com', 'https://example.com/r?next=https://x.com'],
+    ['example.com#a://b', 'https://example.com/#a://b'], ['example.com:8080/a://b', 'https://example.com:8080/a://b'], ['example.com\\a%20b', 'https://example.com/a%20b'],
+    ['https://:@example.com', 'https://example.com/'], ['1.1.1.1e1', 'https://1.1.1.1e1/'],
     ['example.com/%zz', 'https://example.com/%zz'], ['example.com/ñ?ñ#ñ', 'https://example.com/%C3%B1?%C3%B1#%C3%B1'],
   ])('url %j se guarda como %j', async (text, expected) => {
     expect(await stored('url', text)).toBe(expected);
@@ -222,7 +224,7 @@ describe('Teléfono, email y URL: textos hostiles revisados', () => {
   it.each([
     'https://:p@example.com', 'https://a:b@example.com', 'https://a@example.com', 'user@example.com', 'https://example.com:99999', 'example.com:abc', 'a_b.com', 'a-.com', '-a.com', 'a..com',
     '.example.com', 'example.com.', 'example.com..', 'localhost', 'a.b.12', 'example.c', `${'a'.repeat(64)}.com`, 'https://example.com%2e', 'https://exa%00mple.com', 'https://exa%mple.com',
-    'xn--a.com', 'http:/example.com', 'http:example.com', 'ws://example.com', 'view-source:https://example.com', 'example.com/?u=http://y.com', 'http://example.com:8080@evil.com',
+    'xn--a.com', 'http:/example.com', 'http:example.com', 'ws://example.com', 'view-source:https://example.com', 'git+ssh://example.com', 'https://exa%6dple.com', 'exa%C2%ADmple.com', 'exa%E2%80%8Bmple.com', 'http://example.com:8080@evil.com',
     'HTTP:\\\\example.com', 'http://example.\u2460',
   ])('url %j es inválida', async (text) => {
     expect(await stored('url', text)).toBe('rechazada:invalid_format');

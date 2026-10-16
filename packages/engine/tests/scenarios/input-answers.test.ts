@@ -211,6 +211,15 @@ describe('Tipo url', () => {
   });
 });
 
+describe('Tipo url: esquema y consulta', () => {
+  it('`://` dentro de la consulta', async () => {
+    expect(await valid('url', 'example.com/?u=http://y.com')).toBe('https://example.com/?u=http://y.com');
+    expect(await valid('url', 'example.com#a://b')).toBe('https://example.com/#a://b');
+    expect(await valid('url', 'example.com:8080/a://b')).toBe('https://example.com:8080/a://b');
+    expect(await valid('url', 'git+ssh://example.com')).toBe('INVALID:invalid_format');
+  });
+});
+
 describe('Host de una url', () => {
   it('Direcciones IP y hosts sin dominio', async () => {
     for (const bad of ['12345', '1.5', '2130706433', '600123456', '192.168.1.1', 'https://[::1]', 'a.b', 'example.com.']) {
@@ -234,6 +243,18 @@ describe('Espacios y controles en una url', () => {
     for (const bad of ['ex\u00adample.com', 'ex\u200bample.com', 'example.com/\ufeffa', 'example.com/\ud800']) {
       expect(await valid('url', bad), JSON.stringify(bad)).toBe('INVALID:invalid_format');
     }
+  });
+});
+
+describe('Porcentaje en el host de una url', () => {
+  it('Invisibles codificados en el host', async () => {
+    for (const bad of ['exa%C2%ADmple.com', 'exa%E2%80%8Bmple.com', 'exa%EF%BB%BFmple.com', 'https://exa%C2%ADmple.com/', 'exa%41mple.com']) {
+      expect(await valid('url', bad), bad).toBe('INVALID:invalid_format');
+    }
+  });
+
+  it('Porcentaje fuera del host', async () => {
+    expect(await valid('url', 'example.com/a%20b?q=%C3%B1')).toBe('https://example.com/a%20b?q=%C3%B1');
   });
 });
 
@@ -319,6 +340,6 @@ describe('Tipo boolean', () => {
   });
 
   it('Acento combinado', async () => {
-    expect(await boolean('sí', 'es')).toBe(true);
+    expect(await boolean('si\u0301', 'es')).toBe(true);
   });
 });

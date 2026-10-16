@@ -5,7 +5,7 @@ const email = PARSERS.email;
 
 describe('Tipo text', () => {
   it('se guarda lo escrito, sin normalizar', () => {
-    for (const text of ['Ana', '<b>Hola</b>\nsegunda línea', 'é', '😀', 'a  b']) {
+    for (const text of ['Ana', '<b>Hola</b>\nsegunda línea', 'e\u0301', '😀', 'a  b']) {
       expect(PARSERS.text(text, 'es')).toBe(text);
     }
   });

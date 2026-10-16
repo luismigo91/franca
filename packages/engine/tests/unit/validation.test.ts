@@ -41,6 +41,14 @@ describe('prepareRules: límites imposibles', () => {
     expect(invalid(inputNode('text', { validation: { max: 0.5 } }))).toContain('max');
   });
 
+  it('min mayor que la longitud máxima de una respuesta en text', () => {
+    expect(invalid(inputNode('text', { validation: { min: 4097 } }))).toContain('longitud máxima');
+    expect(invalid(inputNode('text', { validation: { min: 5000 } }))).toContain('longitud máxima');
+    expect(prepareRules(inputNode('text', { validation: { min: 4096 } })).ok).toBe(true);
+    expect(prepareRules(inputNode('email', { validation: { min: 5000 } })).ok).toBe(true); // se ignora
+    expect(prepareRules(inputNode('number', { validation: { min: 5000 } })).ok).toBe(true); // alcanzable
+  });
+
   it('min mayor que el número de opciones en múltiple', () => {
     expect(invalid(choiceNode(['a', 'b', 'c'], { multiple: true, validation: { min: 4 } }))).toContain('opciones');
   });

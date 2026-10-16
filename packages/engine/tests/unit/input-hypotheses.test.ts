@@ -82,6 +82,7 @@ describe('Hipótesis (b): la forma textual del valor convertido cabe en 4096 uni
     ];
     for (const [type, raw] of longest) {
       const result = check(raw, type);
+      expect(result.ok, type).toBe(true); // se mide una respuesta aceptada, no un rechazo
       if (result.ok) expect(textOf(result.value).length, type).toBeLessThanOrEqual(MAX_INPUT_LENGTH);
     }
   });

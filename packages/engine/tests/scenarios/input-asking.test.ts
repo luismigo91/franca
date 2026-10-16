@@ -212,6 +212,7 @@ describe('Validación que no se puede aplicar', () => {
     const multiple = (validation: object, ids: string[]) => ({ multiple: true, choices: choicesOf(ids), validation });
     const cases: [string, Record<string, unknown>][] = [
       ['text', { validation: { max: 0 } }],
+      ['text', { validation: { min: 5000 } }],
       ['choice', multiple({ max: 0 }, ['a', 'b'])],
       ['choice', multiple({ min: 4 }, ['a', 'b', 'c'])],
     ];
