@@ -1,0 +1,44 @@
+schema: spec-driven
+
+# Contexto del proyecto: se muestra a la IA al crear artefactos.
+context: |
+  Franca: flujos conversacionales declarativos (mensajes, preguntas, condiciones,
+  HTTP y pasos con LLM acotados) descritos en JSON. Marca de cara al usuario: Franca.
+  Repo público con licencia MIT: nada de secretos, PII ni nombres de clientes.
+
+  Stack: monorepo pnpm + Turborepo. apps/api (NestJS 12, ESM, :3001),
+  apps/web (Next.js 16 App Router + Tailwind 4, :3000), packages/spec
+  (JSON Schema del formato de flujo + tipos generados + validateFlow).
+
+  Ojo con la palabra "spec": las specs de openspec/ describen comportamiento de
+  features; el formato de flujo es otra cosa y vive en packages/spec
+  (flow.schema.json es su fuente de verdad). Un cambio de formato se refleja en
+  packages/spec y se anota en docs/rfcs/.
+
+  Convenciones:
+  - Ramas de trabajo desde main, PR con `gh pr create --base main`. No hay rama
+    de integración aparte: main es producción y solo recibe PRs con CI en verde.
+  - Conventional commits. Verificación canónica: `pnpm check`.
+  - Artefactos en español.
+  - Más contexto en CLAUDE.md y `.claude/rules/`.
+
+rules:
+  proposal:
+    - Incluir siempre una sección de Non-goals / Out of scope
+    - >-
+      Incluir una sección "Plan de verificación por capas" que evalúe, capa a
+      capa, qué verificación necesita el cambio (unit, golden/contractual,
+      integración HTTP, E2E opción-al-menos-una-vez, mutación). Una línea por
+      capa con veredicto aplica/no-aplica y su razón. Árbol de decisión en
+      .claude/rules/always/testing-pyramid.md.
+    - Si el cambio toca el formato de flujo, decir qué cambia en packages/spec/flow.schema.json y si rompe flujos existentes
+  specs:
+    - Escenarios testables, incluidos los de error, autenticación y privacidad
+  design:
+    - Cada mecanismo ligado a un requisito; sin servicios ni dependencias que ningún requisito aprobado exija
+    - Tipos y validación de flujos siempre desde @franca/spec; ni api ni web los redefinen
+  tasks:
+    - Secuenciales, un dueño por fase, con gate de verificación por fase
+    - Etiquetar las tareas que solo se pueden completar tras merge/deploy con
+      DEPLOY-TIME, y las de seguimiento con FOLLOW-UP, para que verify/archive no
+      las trate como bloqueantes
