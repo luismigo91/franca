@@ -35,7 +35,8 @@
       "apps/api/src/**",
       "apps/web/src/**",
       "packages/spec/src/**",
-      "packages/spec/flow.schema.json"
+      "packages/spec/flow.schema.json",
+      "packages/engine/src/**"
     ],
     "testGlobs": [
       "**/*.test.*",
@@ -70,9 +71,10 @@
   },
   "protectedFixtures": {
     "patterns": [
-      "packages/spec/src/types.ts"
+      "packages/spec/src/types.ts",
+      "packages/engine/tests/golden/**"
     ],
-    "howToUpdate": "edita packages/spec/flow.schema.json y ejecuta `pnpm --filter @franca/spec generate`."
+    "howToUpdate": "edita packages/spec/flow.schema.json y ejecuta `pnpm --filter @franca/spec generate`; golden del motor: `pnpm --filter @franca/engine test -u` y revisar el diff."
   },
   "docsGuard": {
     "enabled": false,
