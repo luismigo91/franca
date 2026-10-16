@@ -1,29 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { compilePattern } from '../../src/regex/compile.js';
+import { expectProgramBound, native, oracleIsUnreliable, prng } from '../helpers/regex.js';
+import { MAX_PATTERN_SIZE } from '../../src/constants.js';
+import { compilePattern, patternSize } from '../../src/regex/compile.js';
 import { matchPattern, type MatchStats } from '../../src/regex/match.js';
 import { parseAssumingValid, parsePattern, PatternError } from '../../src/regex/parse.js';
-
-const native = (pattern: string, text: string): boolean => new RegExp(pattern, 'u').test(text);
-
-/**
- * V8 prueba `\B` entre las dos mitades de un par sustituto aunque el modo Unicode lo prohíbe
- * (p. ej. `/\B/u.test('a😀b')` da `true`; la spec dice `false`). El oráculo no es fiable ahí, así
- * que el diferencial salta esos casos; el comportamiento de la spec se fija en 'resultados concretos'.
- */
-const oracleIsUnreliable = (pattern: string, text: string): boolean =>
-  pattern.includes('\\B') && /[\ud800-\udfff]/.test(text);
-
-/** PRNG con semilla fija (mulberry32): sin dependencias y reproducible. */
-function prng(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 // Alfabeto pequeño compartido por el generador de patrones y el de textos.
 const ALPHABET = ['a', 'b', 'é', '😀', '1', ' '];
@@ -82,6 +62,7 @@ describe('diferencial contra RegExp nativo', () => {
     let truths = 0;
     while (cases < 6000) {
       const pattern = gen.pattern();
+      expectProgramBound(pattern);
       for (let i = 0; i < 3; i++) {
         const text = gen.text();
         if (oracleIsUnreliable(pattern, text)) continue;
@@ -248,7 +229,7 @@ describe('si el parser acepta, el nativo compila', () => {
         continue;
       }
       accepted++;
-      expect(ast).toBeDefined();
+      if (patternSize(ast) <= MAX_PATTERN_SIZE) expectProgramBound(pattern);
       expect(() => new RegExp(pattern, 'u'), `/${pattern}/u`).not.toThrow();
       const text = gen.text();
       if (oracleIsUnreliable(pattern, text)) continue;
@@ -276,6 +257,7 @@ describe('cota de trabajo', () => {
     matchPattern(pattern, text, s);
     const n = Array.from(text).length;
     expect(s.instructions).toBeGreaterThan(0);
+    expect(s.instructions).toBeLessThanOrEqual(2 * MAX_PATTERN_SIZE + 1);
     expect(s.work).toBeLessThanOrEqual((n + 1) * s.instructions);
   });
 

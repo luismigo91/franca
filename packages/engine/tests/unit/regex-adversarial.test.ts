@@ -1,14 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_PATTERN_SIZE } from '../../src/constants.js';
-import { compilePattern } from '../../src/regex/compile.js';
+import { expectProgramBound, native, oracleIsUnreliable, prng } from '../helpers/regex.js';
+import { compilePattern, compileProgram, patternSize } from '../../src/regex/compile.js';
 import { matchPattern, type MatchStats } from '../../src/regex/match.js';
-import { PatternError } from '../../src/regex/parse.js';
-
-const native = (pattern: string, text: string): boolean => new RegExp(pattern, 'u').test(text);
-
-/** Mismo motivo que en regex-match.test.ts: V8 prueba `\B` dentro de un par sustituto. */
-const oracleIsUnreliable = (pattern: string, text: string): boolean =>
-  pattern.includes('\\B') && /[\ud800-\udfff]/.test(text);
+import { parsePattern, PatternError } from '../../src/regex/parse.js';
 
 function kindOf(pattern: string): string | undefined {
   try {
@@ -62,13 +57,6 @@ describe('diferencial ampliado contra RegExp nativo (corpus fijo)', () => {
 });
 
 describe('diferencial ampliado contra RegExp nativo (generador con surrogates y saltos de línea)', () => {
-  function prng(seed: number): () => number {
-    let a = seed >>> 0;
-    return () => {
-      a = (Math.imul(a, 1103515245) + 12345) >>> 0;
-      return a / 4294967296;
-    };
-  }
   const rand = prng(20261017);
   const pick = <T>(items: readonly T[]): T => items[Math.floor(rand() * items.length)]!;
   const ALPHABET = ['a', 'b', '\n', '\r', ' ', '😀', '\ud83d', '\ude00', 'é', '_', '1', ' ', '\u0000', 'Ω', '-'];
@@ -101,6 +89,7 @@ describe('diferencial ampliado contra RegExp nativo (generador con surrogates y 
       } catch {
         continue;
       }
+      expectProgramBound(pattern);
       const text = Array.from({ length: Math.floor(rand() * 9) }, () => pick(ALPHABET)).join('');
       if (oracleIsUnreliable(pattern, text)) continue;
       const expected = native(pattern, text);
@@ -116,13 +105,13 @@ describe('diferencial ampliado contra RegExp nativo (generador con surrogates y 
 describe('Tamaño máximo del patrón: fronteras exactas', () => {
   it.each([
     ['a{1000}', 'a', false],
-    ['a{0,1000}', 'a', false],
-    ['a{1000,}', 'a', false],
+    ['a{0,500}', 'a', false],
+    ['a{999,}', 'a', false],
     ['(?:a{25}){40}', 'a', false],
     ['(?:a{40}){25}', 'a', false],
-    ['(?:a{0,40}){0,25}', 'a', false],
-    ['(?:a|b){500}', 'a', false],
-    ['(?:a*){1000}', 'a', false],
+    ['(?:a{0,19}){0,25}', 'a', false],
+    ['(?:a|b){333}', 'a', false],
+    ['(?:a*){500}', 'a', false],
     ['(?:\\b){1000}', 'a', false],
     ['(?:^){1000}', 'a', false],
     ['a{999}b', 'a', false],
@@ -139,10 +128,10 @@ describe('Tamaño máximo del patrón: fronteras exactas', () => {
     'a{0,1001}',
     'a{1001,}',
     'a{1000}b',
-    '(?:a{0,40}){0,26}',
+    '(?:a{0,19}){0,26}',
     '(?:a{41}){25}',
-    '(?:a|b){501}',
-    '(?:a*){1001}',
+    '(?:a|b){334}',
+    '(?:a*){501}',
     '(?:\\b){1001}',
     '(?:^){1001}',
     'a{99999999999999999999}',
@@ -154,12 +143,16 @@ describe('Tamaño máximo del patrón: fronteras exactas', () => {
     expect(kindOf(pattern)).toBe('too_large');
   });
 
-  it('un cuantificador con un número gigantesco como máximo no cuelga ni se rechaza si el contenido no cuenta', () => {
-    expect(matchPattern(`^a{1,${'9'.repeat(400)}}$`, 'aaaa')).toBe(native(`^a{1,${'9'.repeat(400)}}$`, 'aaaa'));
-    expect(matchPattern(`^(?:){${'9'.repeat(400)}}$`, '')).toBe(true);
+  it('un contador de 309 o más cifras no se confunde con «sin tope»', () => {
+    const huge = '9'.repeat(400);
+    expect(kindOf(`a{1,${huge}}`)).toBe('too_large');
+    expect(kindOf(`a{${huge},}`)).toBe('too_large');
+    expect(kindOf(`a{${'9'.repeat(309)}}`)).toBe('too_large');
+    expect(matchPattern(`^(?:){${huge}}$`, '')).toBe(true);
+    expect(matchPattern(`^(?:){1,${huge}}$`, '')).toBe(true);
   });
 
-  it('MAX_PATTERN_SIZE vale 1000 y el patrón vacío y las alternancias vacías cuentan 0', () => {
+  it('MAX_PATTERN_SIZE vale 1000 y las alternativas vacías se evalúan bien', () => {
     expect(MAX_PATTERN_SIZE).toBe(1000);
     expect(matchPattern('', 'x')).toBe(true);
     expect(matchPattern('|', '')).toBe(true);
@@ -170,23 +163,47 @@ describe('Tamaño máximo del patrón: fronteras exactas', () => {
     expect(matchPattern('^(?:)*a$', 'a')).toBe(true);
   });
 
-  it('el tamaño se calcula sobre cada alternativa por separado cuando están dentro de una repetición', () => {
-    expect(kindOf(`(?:${'a|'.repeat(499)}a){2}`)).toBeUndefined(); // 500 alternativas × 2 = 1000
-    expect(kindOf(`(?:${'a|'.repeat(500)}a){2}`)).toBe('too_large'); // 501 × 2
+  it('el tamaño de una alternativa cuenta cada rama y su separador, también dentro de una repetición', () => {
+    expect(kindOf(`(?:${'a|'.repeat(249)}a){2}`)).toBeUndefined(); // (250 + 249) × 2 = 998
+    expect(kindOf(`(?:${'a|'.repeat(250)}a){2}`)).toBe('too_large'); // (251 + 250) × 2 = 1002
+  });
+});
+
+describe('[critical] el tamaño acota las instrucciones emitidas', () => {
+  const stacked = (() => {
+    let inner = 'a';
+    for (let i = 0; i < 98; i++) inner = `(?:${inner})*`;
+    return `(?:${inner}){999}b`;
+  })();
+
+  it.each([
+    '(?:(?:|){1000}){1000}',
+    '(?:(?:|){1000}){1000}a',
+    '(?:(?:(?:|){1000}){1000}){1000}a',
+    stacked,
+    '(?:(?:a*)*){500}b',
+    `(?:${'|'.repeat(1500)})a`,
+  ])('%s se rechaza como demasiado grande, rápido y sin construir el programa', (pattern) => {
+    const started = performance.now();
+    expect(kindOf(pattern)).toBe('too_large');
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
+
+  it('la propiedad instrucciones ≤ 2·tamaño + 1 y tamaño 0 ⇔ no emite nada, sobre un corpus', () => {
+    for (const pattern of ['', '|', '(?:|)*', '(?:a{0}){9}', '(?:|){7}a', '(?:a|b|){3}', 'a{2,5}', '(?:a*)+b?', '^$', '(?:\\b|){10}', 'a{0}']) {
+      const ast = parsePattern(pattern);
+      const size = patternSize(ast);
+      const { instructions } = compileProgram(ast);
+      expect(instructions.length, pattern).toBeLessThanOrEqual(2 * size + 1);
+      expect(size === 0, pattern).toBe(instructions.length === 1); // solo `match`
+    }
   });
 });
 
 describe('Anidamiento extremo del patrón', () => {
-  // El límite exacto de anidamiento depende de la pila disponible (y del estado del JIT): a 5000 niveles
-  // unas veces se acepta y otras se rechaza. Lo que nunca debe ocurrir es que escape un RangeError.
-  it.each([5000, 20000])('%i grupos anidados: se aceptan o se rechazan como PatternError, nunca RangeError', (depth) => {
+  it.each([5000, 20000])('%i grupos anidados se rechazan siempre como PatternError', (depth) => {
     for (const [open, close] of [['(', ')'], ['(?:', ')'], ['(?:', ')*']] as const) {
-      const pattern = open.repeat(depth) + 'a' + close.repeat(depth);
-      try {
-        expect(matchPattern(pattern, 'a')).toBe(true);
-      } catch (error) {
-        expect(error).toBeInstanceOf(PatternError);
-      }
+      expect(() => matchPattern(open.repeat(depth) + 'a' + close.repeat(depth), 'a')).toThrow(PatternError);
     }
   });
 
@@ -212,17 +229,18 @@ describe('Cota de trabajo lineal en el tamaño máximo del patrón y del texto',
   };
 
   it.each([
-    ['(?:a*){500}(?:a*){499}b', 'a'.repeat(N)],
+    ['(?:a*){250}(?:a*){249}b', 'a'.repeat(N)],
     ['(?:a|a){300}b', 'a'.repeat(N)],
     ['^(?:a|aa|aaa)*!$', 'a'.repeat(N)],
     ['(?:(?:a*)*)*b', 'a'.repeat(N)],
     ['(?:\\w+\\s?)*$!', 'ab '.repeat(N / 3)],
-    ['(?:a?){400}a{400}', 'a'.repeat(N)],
+    ['(?:a?){300}a{300}', 'a'.repeat(N)],
     ['(.*)(.*)(.*)(.*)(.*)x', 'y'.repeat(N)],
     ['(?:😀|a)*b', '😀a'.repeat(N / 4)],
   ])('%s: hace como mucho (n + 1) · m visitas sobre un texto largo', (pattern, text) => {
     const s = stats(pattern, text);
     const n = Array.from(text).length;
+    expect(s.instructions).toBeLessThanOrEqual(2 * MAX_PATTERN_SIZE + 1);
     expect(s.work).toBeLessThanOrEqual((n + 1) * s.instructions);
     expect(s.work).toBeGreaterThan(n); // no es vacuo: recorrió el texto
   });

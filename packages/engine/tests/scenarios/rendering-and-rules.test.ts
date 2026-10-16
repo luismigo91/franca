@@ -136,6 +136,36 @@ describe('Reglas que no se pueden evaluar', () => {
     expectInvalidRule(await withRule(rule('cp', 'matches', '(a{40}){40}'), 'a'));
   });
 
+  describe('[critical] tamaño del patrón: lo que se emite cuenta', () => {
+    const stacked = (() => {
+      let inner = 'a';
+      for (let i = 0; i < 98; i++) inner = `(?:${inner})*`;
+      return `(?:${inner}){999}b`;
+    })();
+
+    it('Alternativas vacías repetidas', async () => {
+      for (const pattern of [
+        '(?:(?:|){1000}){1000}',
+        '(?:(?:|){1000}){1000}a',
+        '(?:(?:(?:|){1000}){1000}){1000}a',
+      ]) {
+        const started = performance.now();
+        expectInvalidRule(await withRule(rule('cp', 'matches', pattern), 'a'));
+        expect(performance.now() - started, pattern).toBeLessThan(1000);
+      }
+    });
+
+    it('Cuantificadores apilados', async () => {
+      expectInvalidRule(await withRule(rule('cp', 'matches', stacked), 'a'));
+    });
+
+    it('Contadores desmesurados', async () => {
+      const huge = '9'.repeat(400);
+      expect((await withRule(rule('cp', 'matches', `^(?:){${huge}}$`), '')).state.outcome).toBe('si');
+      expectInvalidRule(await withRule(rule('cp', 'matches', `a{1,${huge}}`), ''));
+    });
+  });
+
   it('Retroceso catastrófico en tiempo lineal', async () => {
     const texto = 'a'.repeat(5000) + '!';
     const result1 = await withRule(rule('cp', 'matches', '^(a+)+$'), texto);
