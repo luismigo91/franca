@@ -4,9 +4,9 @@ Fases secuenciales; cada una empieza cuando la anterior pasa su gate. Comportami
 
 ## 1. Regla del validador en `@franca/spec` — dueño: `popi:backend-developer`
 
-- [ ] 1.1 Añadir en `semanticIssues` (`packages/spec/src/validate.ts`), junto a la regla de la selección única, el issue `semantic` con `path` `/nodes/<i>`, `nodeId` y mensaje `"en selección múltiple, el nodo necesita next"` para un input `choice` con `multiple: true` sin `next` (D9); verificar que no cambian `flow.schema.json` ni `src/types.ts` (`git diff --stat packages/spec`)
-- [ ] 1.2 Tests en `packages/spec/tests/validate.test.ts` mutando `captacion-leads`: «múltiple sin next» da exactamente `['semantic /nodes/3 en selección múltiple, el nodo necesita next']` y «múltiple con next» (`next: 'marcar-pyme'`) es válido; el test existente «no exige next por opción en selección múltiple» sigue igual
-- [ ] 1.3 Gate: `pnpm --filter @franca/spec test`, `pnpm --filter @franca/spec build` y `pnpm --filter @franca/spec validate` en verde (el test «tipos» incluido)
+- [x] 1.1 Añadir en `semanticIssues` (`packages/spec/src/validate.ts`), junto a la regla de la selección única, el issue `semantic` con `path` `/nodes/<i>`, `nodeId` y mensaje `"en selección múltiple, el nodo necesita next"` para un input `choice` con `multiple: true` sin `next` (D9); verificar que no cambian `flow.schema.json` ni `src/types.ts` (`git diff --stat packages/spec`)
+- [x] 1.2 Tests en `packages/spec/tests/validate.test.ts` mutando `captacion-leads`: «múltiple sin next» da exactamente `['semantic /nodes/3 en selección múltiple, el nodo necesita next']` y «múltiple con next» (`next: 'marcar-pyme'`) es válido; el test existente «no exige next por opción en selección múltiple» sigue igual
+- [x] 1.3 Gate: `pnpm --filter @franca/spec test`, `pnpm --filter @franca/spec build` y `pnpm --filter @franca/spec validate` en verde (el test «tipos» incluido)
 
 ## 2. Contrato público y estado — dueño: `popi:backend-developer`
 
