@@ -4,6 +4,231 @@
     "file": "src/state.ts",
     "find": "const STATE_MAX_DEPTH = MAX_NESTING_DEPTH + 1;",
     "replace": "const STATE_MAX_DEPTH = MAX_NESTING_DEPTH;",
-    "tests": ["tests/scenarios/robustness-adversarial.test.ts", "tests/unit/state.test.ts"]
+    "tests": [
+      "tests/scenarios/robustness-adversarial.test.ts",
+      "tests/unit/state.test.ts"
+    ]
+  },
+  {
+    "id": "encode-budget",
+    "file": "src/http/url.ts",
+    "find": "if (text.length > budget) throw new ValueTooLargeError();",
+    "replace": "",
+    "tests": [
+      "tests/unit/http-hypotheses.test.ts"
+    ]
+  },
+  {
+    "id": "encode-subdelims",
+    "file": "src/http/url.ts",
+    "find": "out += SUB_DELIMS[encoded[i]!] ?? encoded[i];",
+    "replace": "out += encoded[i];",
+    "tests": [
+      "tests/unit/http-url.test.ts",
+      "tests/unit/http-url-oracle.test.ts"
+    ]
+  },
+  {
+    "id": "dot-encoded",
+    "file": "src/http/url.ts",
+    "find": "const decoded = decodeDots(segment);",
+    "replace": "const decoded = segment;",
+    "tests": [
+      "tests/unit/http-url.test.ts",
+      "tests/unit/http-url-oracle.test.ts"
+    ]
+  },
+  {
+    "id": "dot-case",
+    "file": "src/http/url.ts",
+    "find": "(segment[i + 2] === 'e' || segment[i + 2] === 'E')",
+    "replace": "segment[i + 2] === 'e'",
+    "tests": [
+      "tests/unit/http-url.test.ts",
+      "tests/unit/http-url-oracle.test.ts"
+    ]
+  },
+  {
+    "id": "percent-host",
+    "file": "src/http/url.ts",
+    "find": "if (hasPercentInHost(text, authorityStart)) return undefined;",
+    "replace": "",
+    "tests": [
+      "tests/unit/http-url.test.ts",
+      "tests/unit/http-hypotheses.test.ts"
+    ]
+  },
+  {
+    "id": "raw-host",
+    "file": "src/http/url.ts",
+    "find": "const host = url.hostname;",
+    "replace": "const host = text.slice(authorityStart).split('/')[0]!.split('?')[0]!.split(':')[0]!;",
+    "tests": [
+      "tests/unit/http-url.test.ts"
+    ]
+  },
+  {
+    "id": "localhost-suffix",
+    "file": "src/http/url.ts",
+    "find": " || host.endsWith('.localhost')",
+    "replace": "",
+    "tests": [
+      "tests/unit/http-url.test.ts",
+      "tests/unit/http-hypotheses.test.ts"
+    ]
+  },
+  {
+    "id": "literal-surrogate",
+    "file": "src/http/url.ts",
+    "find": "if (hasUnstorable(text) || hasHiddenChars(text)",
+    "replace": "if (hasHiddenChars(text)",
+    "tests": [
+      "tests/unit/http-url.test.ts"
+    ]
+  },
+  {
+    "id": "url-prelength",
+    "file": "src/http/url.ts",
+    "find": "{ maxLength: MAX_URL_LENGTH, insert: encodeUrlValue }",
+    "replace": "{ insert: encodeUrlValue }",
+    "tests": [
+      "tests/unit/http-url.test.ts"
+    ]
+  },
+  {
+    "id": "header-crlf",
+    "file": "src/http/request.ts",
+    "find": "if (code !== 0x20 && code !== 0x09 && (code < 0x21 || code > 0x7e)) return false;",
+    "replace": "if (code > 0x7e) return false;",
+    "tests": [
+      "tests/unit/http-request.test.ts"
+    ]
+  },
+  {
+    "id": "header-token",
+    "file": "src/http/config.ts",
+    "find": "!TCHAR_SYMBOLS.includes(c)",
+    "replace": "!(TCHAR_SYMBOLS + ' ').includes(c)",
+    "tests": [
+      "tests/unit/http-config.test.ts"
+    ]
+  },
+  {
+    "id": "header-dup",
+    "file": "src/http/config.ts",
+    "find": "const lower = lowerAscii(name);",
+    "replace": "const lower = name;",
+    "tests": [
+      "tests/unit/http-config.test.ts"
+    ]
+  },
+  {
+    "id": "content-type-case",
+    "file": "src/http/request.ts",
+    "find": "header.name.toLowerCase() === 'content-type'",
+    "replace": "header.name === 'Content-Type'",
+    "tests": [
+      "tests/unit/http-request.test.ts"
+    ]
+  },
+  {
+    "id": "get-body",
+    "file": "src/http/config.ts",
+    "find": "node.request.method === 'GET' && body !== undefined",
+    "replace": "false && body !== undefined",
+    "tests": [
+      "tests/unit/http-config.test.ts"
+    ]
+  },
+  {
+    "id": "post-idempotent",
+    "file": "src/http/retry.ts",
+    "find": "  POST: false,",
+    "replace": "  POST: true,",
+    "tests": [
+      "tests/unit/http-retry.test.ts"
+    ]
+  },
+  {
+    "id": "request-sent-default",
+    "file": "src/http/result.ts",
+    "find": "requestSent ?? true",
+    "replace": "requestSent ?? false",
+    "tests": [
+      "tests/unit/http-result.test.ts"
+    ]
+  },
+  {
+    "id": "size-after-parse",
+    "file": "src/http/retry.ts",
+    "find": "body.length > MAX_RESPONSE_BODY_LENGTH",
+    "replace": "body.length < 0",
+    "tests": [
+      "tests/unit/http-retry.test.ts"
+    ]
+  },
+  {
+    "id": "mapped-depth",
+    "file": "src/http/response-map.ts",
+    "find": "if (exceedsDepth(value, MAX_MAPPED_VALUE_DEPTH)) return undefined;",
+    "replace": "",
+    "tests": [
+      "tests/unit/http-hypotheses.test.ts",
+      "tests/unit/http-response-map.test.ts"
+    ]
+  },
+  {
+    "id": "unstorable-keys",
+    "file": "src/http/response-map.ts",
+    "find": "if (hasUnstorable(key)) return true;",
+    "replace": "",
+    "tests": [
+      "tests/unit/http-response-map.test.ts"
+    ]
+  },
+  {
+    "id": "pointer-leading-zero",
+    "file": "src/http/response-map.ts",
+    "find": "if (token.length === 0 || (token.length > 1 && token[0] === '0')) return undefined;",
+    "replace": "if (token.length === 0) return undefined;",
+    "tests": [
+      "tests/unit/http-response-map.test.ts"
+    ]
+  },
+  {
+    "id": "pointer-inherited",
+    "file": "src/http/response-map.ts",
+    "find": "if (!Object.hasOwn(current, token)) return undefined;",
+    "replace": "if (!(token in current)) return undefined;",
+    "tests": [
+      "tests/unit/http-response-map.test.ts"
+    ]
+  },
+  {
+    "id": "pii-body",
+    "file": "src/http/request.ts",
+    "find": "collectStrings(body, templates);",
+    "replace": "",
+    "tests": [
+      "tests/unit/http-request.test.ts"
+    ]
+  },
+  {
+    "id": "pii-closure",
+    "file": "src/http/request.ts",
+    "find": "templateVariables(value).some((name) => personal.has(name))",
+    "replace": "false",
+    "tests": [
+      "tests/unit/http-request.test.ts"
+    ]
+  },
+  {
+    "id": "body-retain",
+    "file": "src/http/request.ts",
+    "find": "if (state.retained > MAX_REQUEST_BODY_LENGTH) {",
+    "replace": "if (state.retained < 0) {",
+    "tests": [
+      "tests/unit/http-request.test.ts"
+    ]
   }
 ]

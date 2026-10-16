@@ -125,3 +125,13 @@ export const input = (id: string, variable: string, inputType: string, next: str
 /** Opciones `a`, `b`, `c`… con `next` por opción (selección única). */
 export const choicesOf = (ids: string[], next?: string): Obj[] =>
   ids.map((id) => ({ id, label: id.toUpperCase(), ...(next === undefined ? {} : { next }) }));
+
+/** Nodo `http` completo: `request` se mezcla sobre un `GET https://api.example.com/`; `extra` aporta `timeoutMs`, `retries`, `responseMap`, `next`, `onError`. */
+export const httpNode = (id: string, request: Obj = {}, extra: Obj = {}): Obj => ({
+  id,
+  type: 'http',
+  request: { method: 'GET', url: 'https://api.example.com/', ...request },
+  next: 'fin',
+  onError: 'fin',
+  ...extra,
+});
