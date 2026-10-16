@@ -1,0 +1,99 @@
+#!/bin/bash
+# Backstop universal (humanos y agentes): bloquea el push directo a ramas
+# protegidas, escanea secretos en los commits salientes y ejecuta el check
+# canónico antes de pushear. Se activa con `git config core.hooksPath .githooks`
+# (script "prepare" de package.json o /popi:setup).
+#
+# Configuración: lee .claude/popi.json (git.protectedBranches, verify.canonicalCheck).
+# WIP: SKIP_PREPUSH_CHECK=1 git push ...  (los guards de rama/secretos siguen activos).
+
+ZERO_SHA=0000000000000000000000000000000000000000
+ROOT=$(git rev-parse --show-toplevel)
+CFG="$ROOT/.claude/popi.json"
+
+read_cfg() { python3 -c "import json,sys; d=json.load(open('$CFG')); print($1)" 2>/dev/null; }
+PROTECTED=$(read_cfg "' '.join(d.get('git',{}).get('protectedBranches',['main','staging']))")
+[ -z "$PROTECTED" ] && PROTECTED="main staging"
+CHECK=$(read_cfg "d.get('verify',{}).get('canonicalCheck','')")
+INTEG=$(read_cfg "d.get('git',{}).get('integrationBranch','staging')")
+[ -z "$INTEG" ] && INTEG=staging
+
+PUSH_REFS=$(cat)
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ -z "$local_ref" ] && continue
+  branch="${remote_ref#refs/heads/}"
+  for p in $PROTECTED; do
+    if [ "$branch" = "$p" ]; then
+      cat >&2 <<MSG
+
+✋ Push directo a '$branch' bloqueado. Las ramas protegidas solo reciben cambios por pull request:
+
+       git checkout -b feat/<nombre>
+       git push -u origin feat/<nombre>
+       gh pr create --base $INTEG
+
+MSG
+      exit 1
+    fi
+  done
+done <<EOF2
+$PUSH_REFS
+EOF2
+
+# Secretos (best-effort): solo los commits salientes.
+if command -v gitleaks >/dev/null 2>&1; then
+  if ! gitleaks detect --no-banner --redact --exit-code 1 --log-opts="--all --not --remotes" >/dev/null 2>&1; then
+    cat >&2 <<'MSG'
+
+✋ gitleaks detectó posibles secretos en los commits a empujar. Push abortado.
+   Revisa con: gitleaks detect --redact --log-opts="--all --not --remotes"
+   Falso positivo → .gitleaksignore / .gitleaks.toml.
+
+MSG
+    exit 1
+  fi
+fi
+
+# Check canónico en local (= CI). Atajos seguros: solo docs/meta salientes, o
+# árbol exacto que ya pasó (caché en .git/prepush-check-tree).
+[ -z "$CHECK" ] && exit 0
+[ "${SKIP_PREPUSH_CHECK:-0}" = "1" ] && exit 0
+
+is_irrelevant() { case "$1" in docs/*|openspec/*|.claude/*|.githooks/*|*.md) return 0 ;; *) return 1 ;; esac; }
+only_irrelevant=1; analysis_ok=1; files=""
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ -z "$local_ref" ] && continue
+  [ "$local_sha" = "$ZERO_SHA" ] && continue
+  if [ "$remote_sha" = "$ZERO_SHA" ]; then
+    f=$(git log --format= --name-only --no-renames "$local_sha" --not --remotes 2>/dev/null) || analysis_ok=0
+  else
+    f=$(git diff --name-only --no-renames "$remote_sha" "$local_sha" 2>/dev/null) || analysis_ok=0
+  fi
+  files="$files
+$f"
+done <<EOF2
+$PUSH_REFS
+EOF2
+[ "$analysis_ok" = "1" ] || only_irrelevant=0
+if [ "$only_irrelevant" = "1" ]; then
+  while IFS= read -r f; do [ -z "$f" ] && continue; is_irrelevant "$f" || { only_irrelevant=0; break; }; done <<EOF2
+$files
+EOF2
+fi
+if [ "$only_irrelevant" = "1" ]; then
+  echo "▶ pre-push: lo saliente no puede alterar el veredicto (docs/meta) — check omitido (CI lo ejecuta igual)."
+  exit 0
+fi
+cache="$(git rev-parse --git-dir)/prepush-check-tree"; head_tree=""
+[ -z "$(git status --porcelain 2>/dev/null)" ] && head_tree=$(git rev-parse 'HEAD^{tree}' 2>/dev/null)
+if [ -n "$head_tree" ] && [ -f "$cache" ] && [ "$(cat "$cache")" = "$head_tree" ]; then
+  echo "▶ pre-push: este árbol exacto ya pasó el check — omitido."; exit 0
+fi
+echo "▶ pre-push: $CHECK  (SKIP_PREPUSH_CHECK=1 para saltar)"
+if ! sh -c "$CHECK"; then
+  printf '\n✋ `%s` falló — push abortado. Corrige, o para WIP: SKIP_PREPUSH_CHECK=1 git push ...\n\n' "$CHECK" >&2
+  exit 1
+fi
+[ -n "$head_tree" ] && echo "$head_tree" > "$cache"
+exit 0

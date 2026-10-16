@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status:*)", "Bash(git log:*)", "Bash(git diff:*)", "Bash(git branch:*)", "Bash(git add:*)",
+      "Bash(git commit:*)", "Bash(git checkout:*)", "Bash(git pull:*)", "Bash(git fetch:*)", "Bash(git push:*)",
+      "Bash(gh pr create:*)", "Bash(gh pr list:*)", "Bash(gh pr view:*)", "Bash(gh pr diff:*)", "Bash(gh pr checks:*)",
+      "Bash(gh run list:*)", "Bash(gh run view:*)",
+      "Bash(pnpm check)", "Bash(pnpm build)", "Bash(pnpm lint)", "Bash(pnpm typecheck)", "Bash(pnpm test)",
+      "Bash(pnpm test:e2e)", "Bash(pnpm validate)", "Bash(pnpm wiki:lint)", "Bash(pnpm install)",
+      "Bash(pnpm --filter:*)", "Bash(pnpm exec tsc:*)", "Bash(pnpm exec vitest:*)", "Bash(pnpm exec turbo:*)",
+      "Bash(node scripts/wiki-lint.mjs:*)", "Bash(curl -s localhost:*)", "Bash(lsof:*)", "Bash(grep:*)"
+    ],
+    "deny": [
+      "Read(**/.env)", "Read(**/.env.*)", "Edit(**/.env)", "Edit(**/.env.*)", "Write(**/.env)", "Write(**/.env.*)",
+      "Read(**/*credentials*)", "Read(**/google-services.json)", "Read(**/GoogleService-Info.plist)",
+      "Bash(rm -rf *)", "Bash(git push --force *)", "Bash(git push -f *)"
+    ]
+  }
+}
