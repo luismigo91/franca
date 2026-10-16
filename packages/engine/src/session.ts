@@ -68,18 +68,18 @@ function checkContact(contact: unknown, flow: Flow): ContactCheck {
  * Arranca una sesión y la ejecuta hasta que termina o falla.
  *
  * @param request Flujo y valores de contacto opcionales (ambos sin tipar: se validan siempre).
- * @param host Capacidades del host (vacío en esta versión).
+ * @param host Capacidades del host; omitido o `null` equivale a `{}`.
  * @returns El resultado de la sesión, o el rechazo (`invalid_flow`, `invalid_contact`) como valor.
  * @throws Si el flujo es un objeto en memoria que no se puede serializar (ciclos, `bigint`).
  */
-export async function startSession(request: StartSessionRequest, host: EngineHost = {}): Promise<AdvanceResult> {
+export async function startSession(request: StartSessionRequest, host?: EngineHost | null): Promise<AdvanceResult> {
   const checkedFlow = checkFlow(request.flow);
   if ('rejection' in checkedFlow) return checkedFlow.rejection;
   const { flow } = checkedFlow;
   const checkedContact = checkContact(request.contact, flow);
   if ('rejection' in checkedContact) return checkedContact.rejection;
   const vars = createVariableStore(flow.variables, checkedContact.values);
-  return run(flow, vars, flow.start, host);
+  return run(flow, vars, flow.start, host ?? {});
 }
 
 const EXPECTED_SHAPE = {
@@ -94,11 +94,11 @@ const EXPECTED_SHAPE = {
  * espera y entrada con la forma del nodo. Un rechazo no produce eventos ni estado.
  *
  * @param request Flujo, estado e `input` del usuario (sin tipar).
- * @param host Capacidades del host (vacío en esta versión).
+ * @param host Capacidades del host; omitido o `null` equivale a `{}`.
  * @returns La respuesta evaluada y la ejecución hasta la siguiente detención, o el rechazo como valor.
  * @throws Si el flujo es un objeto en memoria que no se puede serializar (ciclos, `bigint`).
  */
-export async function continueSession(request: ContinueSessionRequest, host: EngineHost = {}): Promise<AdvanceResult> {
+export async function continueSession(request: ContinueSessionRequest, host?: EngineHost | null): Promise<AdvanceResult> {
   const checkedFlow = checkFlow(request.flow);
   if ('rejection' in checkedFlow) return checkedFlow.rejection;
   const { flow } = checkedFlow;
@@ -116,5 +116,5 @@ export async function continueSession(request: ContinueSessionRequest, host: Eng
   const vars = restoreVariableStore(flow.variables, state);
   const language = (flow.locale ?? 'es').split('-')[0]!;
   const attempt = state.attempt!;
-  return run(flow, vars, node.id, host, (ctx) => resumeInput(node, ctx, { attempt, input, language }));
+  return run(flow, vars, node.id, host ?? {}, (ctx) => resumeInput(node, ctx, { attempt, input, language }));
 }

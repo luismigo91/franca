@@ -1,5 +1,6 @@
 import type { Flow, Node } from '@franca/spec';
-import { DEFAULT_TYPING_DELAY_MS, MAX_STEPS_PER_ADVANCE } from './constants.js';
+import { DEFAULT_TYPING_DELAY_MS, MAX_EXTERNAL_CALLS_PER_ADVANCE, MAX_STEPS_PER_ADVANCE } from './constants.js';
+import { personalVariables } from './http/request.js';
 import { EXECUTORS } from './nodes/index.js';
 import type { NodeExecutor, StepContext, StepOutcome } from './nodes/types.js';
 import { buildState } from './state.js';
@@ -25,9 +26,13 @@ export async function run(
 ): Promise<SessionResult> {
   const nodes = new Map<string, Node>(flow.nodes.map((node) => [node.id, node]));
   const events: EngineEvent[] = [];
+  // El contador vive en la operación, no en un módulo: se reinicia en cada startSession/continueSession.
+  let externalCalls = 0;
   const ctx: StepContext = {
     vars,
     host,
+    piiVariables: personalVariables(flow),
+    reserveExternalCall: () => externalCalls < MAX_EXTERNAL_CALLS_PER_ADVANCE && ++externalCalls > 0,
     typingDelayMs: flow.settings?.typingDelayMs ?? DEFAULT_TYPING_DELAY_MS,
     emit: (event) => void events.push(event),
   };

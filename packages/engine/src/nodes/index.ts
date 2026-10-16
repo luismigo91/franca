@@ -1,6 +1,7 @@
 import type { Node } from '@franca/spec';
 import { executeCondition } from './condition.js';
 import { executeEnd } from './end.js';
+import { executeHttp } from './http.js';
 import { executeInput } from './input.js';
 import { executeJump } from './jump.js';
 import { executeMessage } from './message.js';
@@ -19,6 +20,6 @@ export const EXECUTORS: { [K in Node['type']]: NodeExecutor<K> } = {
   condition: executeCondition,
   end: executeEnd,
   input: executeInput,
-  http: executeUnsupported,
+  http: executeHttp,
   llm: executeUnsupported,
 };
