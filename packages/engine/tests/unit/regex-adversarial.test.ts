@@ -29,10 +29,10 @@ describe('diferencial ampliado contra RegExp nativo (corpus fijo)', () => {
     '[\\ud800-\\udbff]', '^.{2}$', '^..$', 'a_b', 'a\\b_', 'a\\B_', '\\b_', '_\\b', '^\\w+$', '^\\W+$', '[^\\w]',
   ];
   const TEXTS = [
-    '', 'a', 'ab', '😀', 'a😀b', '\ud83d', '\ude00', '\ude00\ud83d', 'a\nb', 'a\n', '\n', '\r\n', ' ', ' ',
-    'é', 'é', 'ΑΒΓ', 'Ab', 'A', ' ', '\t', ' ', '﻿', 'aaa', 'aab', 'abc', 'x\u0000y', '\u{10FFFF}',
+    '', 'a', 'ab', '😀', 'a😀b', '\ud83d', '\ude00', '\ude00\ud83d', 'a\nb', 'a\n', '\n', '\r\n', '\u2028', '\u2029',
+    'é', 'e\u0301', 'ΑΒΓ', 'Ab', 'A', ' ', '\t', '\u00a0', '\ufeff', 'aaa', 'aab', 'abc', 'x\u0000y', '\u{10FFFF}',
     'ñ', '1', '٣', '_', '-', 'bé', 'éb', 'a b', '😀😀', '\ud83d\ud83d', 'a\ud83d', '\ude00a', '\u0000', '￿',
-    '᠎', ' ', 'a_b', '_a', 'a_',
+    '\u180e', '\u2003', 'a_b', '_a', 'a_',
   ];
 
   it('coincide en patrones × textos con surrogates sueltos, terminadores de línea y escapes', () => {
@@ -59,7 +59,7 @@ describe('diferencial ampliado contra RegExp nativo (corpus fijo)', () => {
 describe('diferencial ampliado contra RegExp nativo (generador con surrogates y saltos de línea)', () => {
   const rand = prng(20261017);
   const pick = <T>(items: readonly T[]): T => items[Math.floor(rand() * items.length)]!;
-  const ALPHABET = ['a', 'b', '\n', '\r', ' ', '😀', '\ud83d', '\ude00', 'é', '_', '1', ' ', '\u0000', 'Ω', '-'];
+  const ALPHABET = ['a', 'b', '\n', '\r', '\u2028', '😀', '\ud83d', '\ude00', 'é', '_', '1', ' ', '\u0000', 'Ω', '-'];
   const ATOMS = [
     'a', 'b', '.', '[^a]', '[a-b]', '[^\\n]', '\\w', '\\W', '\\d', '\\s', '\\S', '\\n', '\\p{L}', '\\P{L}', '\\ude00',
     '\\ud83d', '\\ud83d\\ude00', '\\u{1F600}', '[\\ud83d\\ude00]', '[^\\ud83d]', '[\\s\\S]', '\\u2028', 'é', '😀',

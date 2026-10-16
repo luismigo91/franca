@@ -180,6 +180,13 @@ describe('Porcentaje en el host', () => {
     'example.com%?x',
     'example.com%#x',
     'example.com%\\a',
+    '/exa%C2%ADmple.com',
+    '//exa%C2%ADmple.com',
+    'https:///exa%C2%ADmple.com',
+    'https:////exa%C2%ADmple.com',
+    'https://\\exa%C2%ADmple.com',
+    'http:///exa%E2%80%8Bmple.com',
+    '\\\\exa%C2%ADmple.com',
   ])('%j es inválida', (text) => {
     expect(url(text, 'es')).toBeUndefined();
   });
@@ -198,6 +205,9 @@ describe('Porcentaje en el host', () => {
     ['example.com?q=%C3%B1', 'https://example.com/?q=%C3%B1'],
     ['example.com#%41', 'https://example.com/#%41'],
     ['https://example.com/%zz', 'https://example.com/%zz'],
+    ['https:///example.com/%41', 'https://example.com/%41'],
+    ['example.com\\a%41', 'https://example.com/a%41'],
+    ['//example.com/%41', 'https://example.com/%41'],
   ])('el porcentaje fuera del host se conserva: %j → %j', (text, value) => {
     expect(url(text, 'es')).toBe(value);
   });

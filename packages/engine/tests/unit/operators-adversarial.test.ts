@@ -260,7 +260,7 @@ describe('Operadores de orden en tipos mezclados', () => {
 
 describe('isEmpty e isSet en valores límite', () => {
   it('solo espacios en blanco de cualquier tipo habitual', () => {
-    for (const blank of [' ', '\t', '\n', '\r\n', ' \t\n ', ' ', ' ']) expect(ev(blank, 'isEmpty')).toBe(true);
+    for (const blank of [' ', '\t', '\n', '\r\n', ' \t\n ', '\u00a0', '\u2003']) expect(ev(blank, 'isEmpty')).toBe(true);
     expect(ev(' a ', 'isEmpty')).toBe(false);
     expect(ev('0', 'isEmpty')).toBe(false);
   });

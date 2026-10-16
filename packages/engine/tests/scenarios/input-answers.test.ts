@@ -248,13 +248,15 @@ describe('Espacios y controles en una url', () => {
 
 describe('Porcentaje en el host de una url', () => {
   it('Invisibles codificados en el host', async () => {
-    for (const bad of ['exa%C2%ADmple.com', 'exa%E2%80%8Bmple.com', 'exa%EF%BB%BFmple.com', 'https://exa%C2%ADmple.com/', 'exa%41mple.com']) {
+    for (const bad of ['exa%C2%ADmple.com', 'exa%E2%80%8Bmple.com', 'exa%EF%BB%BFmple.com', 'https://exa%C2%ADmple.com/', 'exa%41mple.com', '/exa%C2%ADmple.com', '//exa%C2%ADmple.com', 'https:///exa%C2%ADmple.com', 'https:////exa%C2%ADmple.com', 'https://\\exa%C2%ADmple.com']) {
       expect(await valid('url', bad), bad).toBe('INVALID:invalid_format');
     }
   });
 
   it('Porcentaje fuera del host', async () => {
     expect(await valid('url', 'example.com/a%20b?q=%C3%B1')).toBe('https://example.com/a%20b?q=%C3%B1');
+    expect(await valid('url', 'https:///example.com/%41')).toBe('https://example.com/%41');
+    expect(await valid('url', 'example.com\\a%41')).toBe('https://example.com/a%41');
   });
 });
 
