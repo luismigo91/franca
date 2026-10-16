@@ -1,0 +1,59 @@
+{
+  "$comment": "Configuración del plugin popi para este proyecto. La escribe /popi:setup y la leen los hooks. Todos los globs son fnmatch relativos a la raíz del repo.",
+  "version": 1,
+  "project": {
+    "name": "franca",
+    "brand": "Franca",
+    "language": "es",
+    "stacks": ["nestjs", "nextjs"]
+  },
+  "git": {
+    "integrationBranch": "main",
+    "productionBranch": "main",
+    "protectedBranches": ["main"],
+    "branchPrefixes": ["feat", "fix", "refactor", "chore", "docs", "test", "spec", "hotfix"]
+  },
+  "verify": {
+    "canonicalCheck": "pnpm check",
+    "runOnStop": true,
+    "stopCheck": "",
+    "srcGlobs": ["apps/api/src/**", "apps/web/src/**", "packages/spec/src/**", "packages/spec/flow.schema.json"],
+    "testGlobs": ["**/*.test.*", "**/*.spec.*", "**/*.e2e-spec.*", "**/__tests__/**", "**/tests/**", "**/test/**", "**/fixtures/**"],
+    "sourceExtensions": ["ts", "tsx", "json"]
+  },
+  "security": {
+    "secretFilePatterns": ["**/.env", "**/.env.*", "**/*credentials*", "**/*apikey*", "**/*.pem", "**/*keystore*", "**/google-services.json", "**/GoogleService-Info.plist"],
+    "secretAllowlist": ["**/.env.example", "**/.env.sample"]
+  },
+  "protectedFixtures": {
+    "patterns": ["packages/spec/src/types.ts"],
+    "howToUpdate": "edita packages/spec/flow.schema.json y ejecuta `pnpm --filter @franca/spec generate`."
+  },
+  "docsGuard": {
+    "enabled": false,
+    "codeGlobs": [],
+    "docsGlobs": [],
+    "bypassMarker": "[no-doc-impact]",
+    "message": ""
+  },
+  "wiki": {
+    "enabled": true,
+    "dir": ".claude/wiki",
+    "indexRule": ".claude/rules/always/knowledge-wiki.md",
+    "nudgeThreshold": 3
+  },
+  "testingPyramid": {
+    "enabled": true,
+    "nudgeThreshold": 2
+  },
+  "specs": {
+    "tool": "docs",
+    "dir": "docs/specs"
+  },
+  "prSecurityReview": true,
+  "release": {
+    "marketingNotes": false,
+    "marketingDir": "docs/releases",
+    "slackAudience": ""
+  }
+}

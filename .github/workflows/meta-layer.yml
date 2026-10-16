@@ -1,0 +1,25 @@
+# Meta-capa: lint de la wiki de conocimiento y de los hooks. Plantilla del plugin popi.
+name: Meta layer
+on:
+  pull_request:
+    paths:
+      - ".claude/**"
+      - ".githooks/**"
+      - "scripts/wiki-lint.mjs"
+jobs:
+  wiki-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/wiki-lint.mjs --self-test
+      - run: node scripts/wiki-lint.mjs --changed-since "origin/${{ github.base_ref }}"
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get install -y shellcheck && shellcheck .githooks/*
