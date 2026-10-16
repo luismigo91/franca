@@ -66,10 +66,10 @@ Fases secuenciales; cada una empieza cuando la anterior pasa su gate. Comportami
 
 ## 7. Verificación — dueño: `popi:qa-tester` (modo verificación de spec)
 
-- [ ] 7.1 Matriz escenario → test de los dos deltas (cada `#### Scenario` con un `it` de su título); listar los que falten y devolverlos a la fase 4 o 6
-- [ ] 7.2 Mutación: `pnpm --filter @franca/engine mutate` y `pnpm --filter @franca/llm-anthropic mutate` completos sin supervivientes; mutación manual de la regla del validador (D12: quitar `|| t.key === 'onExhausted'` hace fallar el test de 1.2) y de las hipótesis de 3.5, con constancia en el informe
-- [ ] 7.3 Revisar el alcance del diff (`git diff --stat main...`): solo `packages/engine/**`, `packages/llm-anthropic/**`, `packages/spec/src/validate.ts`, `packages/spec/tests/validate.test.ts`, `pnpm-lock.yaml`, `openspec/changes/engine-llm/**`, `.claude/wiki/**`, `.claude/rules/always/knowledge-wiki.md` y, con su OK, `.claude/popi.json` y `CLAUDE.md`; de las features 1-3 solo `src/input/user-input.ts` y `scripts/mutate.mjs` con cambio de comportamiento nulo (`src/http/` sin cambios); ningún fichero de `apps/`, `turbo.json`, la CI, `flow.schema.json` ni `packages/spec/src/types.ts`
-- [ ] 7.4 Gate: ejecutar en local la secuencia de la CI (`pnpm install --frozen-lockfile && pnpm lint && pnpm typecheck && pnpm build && pnpm test && pnpm test:e2e && pnpm validate`) y `openspec validate engine-llm --strict`; informar solo de lo ejecutado
+- [x] 7.1 Matriz escenario → test de los dos deltas (cada `#### Scenario` con un `it` de su título); listar los que falten y devolverlos a la fase 4 o 6
+- [x] 7.2 Mutación: `pnpm --filter @franca/engine mutate` y `pnpm --filter @franca/llm-anthropic mutate` completos sin supervivientes; mutación manual de la regla del validador (D12: quitar `|| t.key === 'onExhausted'` hace fallar el test de 1.2) y de las hipótesis de 3.5, con constancia en el informe
+- [x] 7.3 Revisar el alcance del diff (`git diff --stat main...`): solo `packages/engine/**`, `packages/llm-anthropic/**`, `packages/spec/src/validate.ts`, `packages/spec/tests/validate.test.ts`, `pnpm-lock.yaml`, `openspec/changes/engine-llm/**`, `.claude/wiki/**`, `.claude/rules/always/knowledge-wiki.md` y, con su OK, `.claude/popi.json` y `CLAUDE.md`; de las features 1-3 solo `src/input/user-input.ts` y `scripts/mutate.mjs` con cambio de comportamiento nulo (`src/http/` sin cambios); ningún fichero de `apps/`, `turbo.json`, la CI, `flow.schema.json` ni `packages/spec/src/types.ts`
+- [x] 7.4 Gate: ejecutar en local la secuencia de la CI (`pnpm install --frozen-lockfile && pnpm lint && pnpm typecheck && pnpm build && pnpm test && pnpm test:e2e && pnpm validate`) y `openspec validate engine-llm --strict`; informar solo de lo ejecutado
 
 ## 8. Seguimiento (no bloquea verify/archive)
 
