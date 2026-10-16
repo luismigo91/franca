@@ -242,6 +242,7 @@ function semanticIssues(flow: Flow): FlowIssue[] {
       if (!n.multiple && n.choices.some((c) => !c.next)) {
         add(`${path}/choices`, 'en selección única, cada opción necesita next', n.id);
       }
+      if (n.multiple && !n.next) add(path, 'en selección múltiple, el nodo necesita next', n.id);
     }
 
     const used = new Set(writtenVars(n));

@@ -9,6 +9,9 @@ export const MAX_PATTERN_SIZE = 1000;
 /** Longitud máxima, en unidades de código UTF-16, de un texto renderizado. */
 export const MAX_RENDERED_LENGTH = 16384;
 
+/** Longitud máxima, en unidades de código UTF-16, de la respuesta de texto de un usuario (y de su valor guardado). */
+export const MAX_INPUT_LENGTH = 4096;
+
 /** Niveles máximos de array/objeto anidados en un flujo, un contacto o un estado recibidos. */
 export const MAX_NESTING_DEPTH = 1000;
 /** Grupos anidados máximos en un patrón de `matches`. */
@@ -20,6 +23,8 @@ export const SESSION_ERROR_CODES = [
   'invalid_rule',
   'step_limit_exceeded',
   'value_too_large',
+  'invalid_validation',
+  'retries_exhausted',
 ] as const;
 export type SessionErrorCode = (typeof SESSION_ERROR_CODES)[number];
 
@@ -30,5 +35,16 @@ export const REJECTION_CODES = [
   'invalid_state',
   'state_mismatch',
   'session_not_active',
+  'invalid_input',
 ] as const;
 export type RejectionCode = (typeof REJECTION_CODES)[number];
+
+/** Por qué una respuesta es inválida, en el orden en que se comprueba. */
+export const INVALID_ANSWER_REASONS = [
+  'too_long',
+  'required',
+  'invalid_format',
+  'out_of_range',
+  'pattern_mismatch',
+] as const;
+export type InvalidAnswerReason = (typeof INVALID_ANSWER_REASONS)[number];

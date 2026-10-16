@@ -3,7 +3,7 @@ name: decision-matches-regex-lineal
 description: Por qué el operador matches del motor usa una Pike VM propia con átomos nativos y no RegExp nativo, timeout ni RE2
 metadata:
   type: project
-  enforcement: packages/engine/tests/unit/regex-match.test.ts, packages/engine/tests/unit/regex-adversarial.test.ts, packages/engine/tests/static-guard.test.ts
+  enforcement: packages/engine/tests/unit/regex-match.test.ts, packages/engine/tests/unit/regex-adversarial.test.ts, packages/engine/tests/unit/input-hypotheses.test.ts, packages/engine/tests/static-guard.test.ts
 ---
 
 # `matches` se evalúa con un motor lineal propio, nunca con el `RegExp` nativo
@@ -22,4 +22,4 @@ metadata:
 - Se rechazan referencias, lookarounds, modificadores en línea y nombres de grupo repetidos aunque el V8 del host ya los rechace (Node 22) o los admita en el futuro: así el resultado no depende de la versión.
 - `\p{…}` depende de la versión de Unicode del V8 del host: un carácter añadido a Unicode puede clasificarse distinto entre versiones de Node. Se acepta (Node ≥ 22).
 - El oráculo diferencial contra el nativo no es fiable en un caso: V8 prueba `\B` entre las dos mitades de un par sustituto aunque el modo `u` lo prohíbe (`/\B/u.test('a😀b')` da `true`). El motor sigue la spec (`false`) y el diferencial salta esos casos.
-- La reutilización prevista es `validation.pattern` del nodo `input` (feature 2): debe usar este mismo matcher.
+- La reutilización ya existe: `validation.pattern` del nodo `input` usa este mismo matcher (`src/input/validation.ts`), con la misma cota; la respuesta se limita antes a 4096 unidades (`MAX_INPUT_LENGTH`) para que el coste siga acotado.

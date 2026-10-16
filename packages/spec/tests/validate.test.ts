@@ -152,6 +152,18 @@ describe('semántica', () => {
     expect(messages(flow)).toEqual(['semantic /nodes/5 nodo inalcanzable desde start']);
   });
 
+  it('exige next en el nodo de una selección múltiple', () => {
+    const flow = leads();
+    flow.nodes[3].multiple = true;
+    expect(messages(flow)).toEqual(['semantic /nodes/3 en selección múltiple, el nodo necesita next']);
+  });
+
+  it('acepta una selección múltiple con next en el nodo', () => {
+    const flow = leads();
+    Object.assign(flow.nodes[3], { multiple: true, next: 'marcar-pyme' });
+    expect(messages(flow)).toEqual([]);
+  });
+
   it('detecta ids de opción duplicados', () => {
     const flow = leads();
     flow.nodes[3].choices[1].id = 'pequena';

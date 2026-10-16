@@ -4,6 +4,7 @@ import {
   end,
   flowOf,
   http,
+  input,
   jump,
   message,
   messageTexts,
@@ -26,6 +27,13 @@ describe('Eventos de salida', () => {
     const result = await startOk(flow);
     expect(result.events.at(-1)).toMatchObject({ type: 'error' });
     expect(result.events.some((e) => e.type === 'end')).toBe(false);
+  });
+
+  it('El input es el último evento', async () => {
+    const flow = flowOf([message('a', 'Uno', 'p'), input('p', 'x', 'text', 'fin'), end('fin')], { variables: [variable('x')] });
+    const result = await startOk(flow);
+    expect(result.events.at(-1)).toMatchObject({ type: 'input' });
+    expect(result.events.some((e) => e.type === 'end' || e.type === 'error')).toBe(false);
   });
 
   it('los eventos tienen la forma del contrato', async () => {

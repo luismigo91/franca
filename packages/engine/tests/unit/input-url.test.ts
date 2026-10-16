@@ -1,0 +1,235 @@
+import { describe, expect, it } from 'vitest';
+import { MAX_INPUT_LENGTH } from '../../src/constants.js';
+import { isDomainName } from '../../src/input/parsers/domain.js';
+import { checkTextAnswer } from '../../src/input/answer.js';
+import { PARSERS } from '../../src/input/parsers/index.js';
+
+const url = PARSERS.url;
+
+describe('Tipo url', () => {
+  it.each([
+    ['example.com', 'https://example.com/'],
+    ['HTTP://Example.com/a?b=1', 'http://example.com/a?b=1'],
+    ['www.example.com/precios', 'https://www.example.com/precios'],
+    ['HTTPS://EXAMPLE.COM', 'https://example.com/'],
+    ['exámple.com', 'https://xn--exmple-qta.com/'],
+    ['example.com:8080/x', 'https://example.com:8080/x'],
+    ['example.com/a%20b', 'https://example.com/a%20b'],
+    ['example.com/ñ', 'https://example.com/%C3%B1'],
+    ['example.com/#frag', 'https://example.com/#frag'],
+    ['a-b.example.co.uk', 'https://a-b.example.co.uk/'],
+    ['example.com?q=1', 'https://example.com/?q=1'],
+  ])('%j → %j', (text, value) => {
+    expect(url(text, 'es')).toBe(value);
+  });
+
+  it.each([
+    'ftp://example.com',
+    'javascript:alert(1)',
+    'mailto:ana@example.com',
+    'https://user:pass@example.com',
+    'https://user@example.com',
+    'user@example.com',
+    'https://localhost',
+    'http://',
+    'https://',
+    'exa mple.com',
+    'file:///etc/passwd',
+    'data:text/html,hola',
+    'example.com://x',
+  ])('%j es inválida', (text) => {
+    expect(url(text, 'es')).toBeUndefined();
+  });
+
+  it('esquemas http/https sin distinguir mayúsculas, solo en el prefijo', () => {
+    expect(url('hTtP://example.com', 'es')).toBe('http://example.com/');
+    expect(url('xhttp://example.com', 'es')).toBeUndefined();
+  });
+});
+
+describe('Host de una url', () => {
+  it.each([
+    '12345',
+    '1.5',
+    '2130706433',
+    '600123456',
+    '192.168.1.1',
+    '127.1',
+    '0x7f.1',
+    '0x7f000001',
+    'https://[::1]',
+    'https://[2001:db8::1]',
+    'a.b',
+    'example.com.',
+    'example.123',
+    'a.',
+    '-example.com',
+    'example-.com',
+    'exa_mple.com',
+  ])('%j no es un dominio', (text) => {
+    expect(url(text, 'es')).toBeUndefined();
+  });
+
+  it('dominio internacional', () => {
+    expect(url('exámple.com', 'es')).toBe('https://xn--exmple-qta.com/');
+  });
+
+  it('isDomainName: etiquetas y última etiqueta', () => {
+    expect(isDomainName('example.com')).toBe(true);
+    expect(isDomainName('xn--exmple-qta.com')).toBe(true);
+    expect(isDomainName('a.co')).toBe(true);
+    expect(isDomainName('a.b')).toBe(false);
+    expect(isDomainName('example')).toBe(false);
+    expect(isDomainName('')).toBe(false);
+    expect(isDomainName('example.12')).toBe(false);
+    expect(isDomainName('example.1a')).toBe(true);
+    expect(isDomainName(`${'a'.repeat(63)}.com`)).toBe(true);
+    expect(isDomainName(`${'a'.repeat(64)}.com`)).toBe(false);
+    expect(isDomainName('[::1]')).toBe(false);
+  });
+});
+
+describe('Espacios y controles en una url', () => {
+  it.each([
+    'example.com/precios y más',
+    'exa\tmple.com',
+    'example.com\n/precios',
+    'example.com/\u0000',
+    'example.com/\u007f',
+    'example.com/\u001f',
+    'example.com/a\u00a0b',
+    'example.com/a\u2003b',
+    'exa\rmple.com',
+  ])('%j es inválida', (text) => {
+    expect(url(text, 'es')).toBeUndefined();
+  });
+
+  it.each([
+    ['soft hyphen', 'ex\u00adample.com'],
+    ['zero width space', 'ex\u200bample.com'],
+    ['BOM', 'example.com/\ufeff'],
+    ['ZWJ', 'example.com/\u200d'],
+    ['selector de variación', 'example.com/a\ufe0f'],
+    ['selector suplementario', 'example.com/\u{e0100}'],
+    ['word joiner', 'ex\u2060ample.com'],
+    ['mongol', 'ex\u180bample.com'],
+  ])('%s es inválida', (_name, text) => {
+    expect(url(text, 'es')).toBeUndefined();
+  });
+
+  it('un emoji completo en la ruta se codifica', () => {
+    expect(url('example.com/😀', 'es')).toBe('https://example.com/%F0%9F%98%80');
+  });
+});
+
+describe('Tamaño máximo del valor guardado en una url', () => {
+  it('679 ñ → 4094 unidades aceptadas; 680 → 4100 rechazadas', () => {
+    const ok = url(`example.com/${'ñ'.repeat(679)}`, 'es') as string;
+    expect(ok).toHaveLength(4094);
+    expect(url(`example.com/${'ñ'.repeat(680)}`, 'es')).toBeUndefined();
+  });
+
+  it('el límite es exacto: href de 4096 aceptado y de 4097 rechazado', () => {
+    const base = 'https://example.com/';
+    expect(url(`example.com/${'a'.repeat(MAX_INPUT_LENGTH - base.length)}`, 'es')).toHaveLength(MAX_INPUT_LENGTH);
+    expect(url(`example.com/${'a'.repeat(MAX_INPUT_LENGTH - base.length + 1)}`, 'es')).toBeUndefined();
+  });
+
+  it('4096 unidades de 中 en la ruta se rechazan (×9 al codificar)', () => {
+    expect(url(`example.com/${'中'.repeat(4083)}`, 'es')).toBeUndefined();
+  });
+});
+
+describe('Esquema solo al principio', () => {
+  it.each([
+    ['example.com/?u=http://y.com', 'https://example.com/?u=http://y.com'],
+    ['example.com/r?next=https://x.com', 'https://example.com/r?next=https://x.com'],
+    ['example.com#a://b', 'https://example.com/#a://b'],
+    ['example.com:8080/a://b', 'https://example.com:8080/a://b'],
+    ['example.com/a://b', 'https://example.com/a://b'],
+    ['HTTPS://example.com/?u=ftp://y', 'https://example.com/?u=ftp://y'],
+  ])('%j → %j', (text, value) => {
+    expect(url(text, 'es')).toBe(value);
+  });
+
+  it.each(['git+ssh://example.com', 'ftp://example.com', 'a.b-c+d://example.com', 'ws://example.com', 'file://x.com', 'httpx://example.com'])(
+    '%j es un esquema ajeno',
+    (text) => expect(url(text, 'es')).toBeUndefined(),
+  );
+
+  it.each(['1http://example.com', '-x://example.com', '://example.com'])('%j no es un esquema válido (cae a https://)', (text) => {
+    // no empieza por un esquema RFC 3986: se antepone https:// y el parser decide
+    expect(url(text, 'es')).toBeUndefined();
+  });
+});
+
+describe('Porcentaje en el host', () => {
+  it.each([
+    'exa%C2%ADmple.com',
+    'exa%E2%80%8Bmple.com',
+    'exa%EF%BB%BFmple.com',
+    'exa%EF%B8%8Fmple.com',
+    'exa%F3%A0%84%80mple.com',
+    'exa%41mple.com',
+    'exa%2Emple.com',
+    'https://exa%C2%ADmple.com/',
+    'http://exa%E2%80%8Bmple.com/a',
+    'example.com%2Fa',
+    'exa%c2%admple.com',
+    'example.com%/a',
+    'example.com%?x',
+    'example.com%#x',
+    'example.com%\\a',
+    '/exa%C2%ADmple.com',
+    '//exa%C2%ADmple.com',
+    'https:///exa%C2%ADmple.com',
+    'https:////exa%C2%ADmple.com',
+    'https://\\exa%C2%ADmple.com',
+    'http:///exa%E2%80%8Bmple.com',
+    '\\\\exa%C2%ADmple.com',
+  ])('%j es inválida', (text) => {
+    expect(url(text, 'es')).toBeUndefined();
+  });
+
+  it.each([
+    ['exa\uff05C2\uff05ADmple.com'],
+    ['exa\uff05E2\uff0580\uff058Bmple.com'],
+    ['exa\uff05mple.com'],
+  ])('la forma mapeada %j (porcentaje de ancho completo) es inválida', (text) => {
+    expect(url(text, 'es')).toBeUndefined();
+  });
+
+  it.each([
+    ['example.com/a%20b', 'https://example.com/a%20b'],
+    ['example.com/a%E2%80%8Bb', 'https://example.com/a%E2%80%8Bb'],
+    ['example.com?q=%C3%B1', 'https://example.com/?q=%C3%B1'],
+    ['example.com#%41', 'https://example.com/#%41'],
+    ['https://example.com/%zz', 'https://example.com/%zz'],
+    ['https:///example.com/%41', 'https://example.com/%41'],
+    ['example.com\\a%41', 'https://example.com/a%41'],
+    ['//example.com/%41', 'https://example.com/%41'],
+  ])('el porcentaje fuera del host se conserva: %j → %j', (text, value) => {
+    expect(url(text, 'es')).toBe(value);
+  });
+});
+
+describe('Canonicalización WHATWG que se acepta (no cambia el recurso)', () => {
+  it.each([
+    ['\uff45\uff58ample.com', 'https://example.com/'],
+    ['example\u3002com', 'https://example.com/'],
+    ['EXAMPLE.COM/A', 'https://example.com/A'],
+    ['example.com\\a\\b', 'https://example.com/a/b'],
+    ['example.com/a/./b/../c', 'https://example.com/a/c'],
+    ['https://example.com:443/', 'https://example.com/'],
+    ['http://example.com:80', 'http://example.com/'],
+  ])('%j → %j', (text, value) => {
+    expect(url(text, 'es')).toBe(value);
+  });
+});
+
+describe('Sustitutos sueltos (los rechaza checkTextAnswer antes del conversor)', () => {
+  const rules = { program: null };
+  it.each(['example.com/\ud800', 'example.com/\udc00'])('%j', (text) => {
+    expect(checkTextAnswer(text, 'url', 'es', rules)).toEqual({ ok: false, reason: 'invalid_format' });
+  });
+});

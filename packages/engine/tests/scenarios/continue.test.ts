@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { continueSession, type SessionState } from '../../src/index.js';
-import { deepFreeze, end, flowOf, http, message, startOk } from '../helpers/flows.js';
+import { deepFreeze, end, flowOf, http, input, message, startOk, variable } from '../helpers/flows.js';
 
 const flowA = () => flowOf([message('m', 'Hola', 'fin'), end('fin')], { id: 'a' });
 
@@ -44,6 +44,21 @@ describe('Continuar una sesión', () => {
       ok: false,
       code: 'state_mismatch',
     });
+  });
+
+  it('El nodo en espera ya no es un input', async () => {
+    const before = flowOf([input('pedir-nombre', 'x', 'text', 'fin'), end('fin')], { id: 'a', variables: [variable('x')] });
+    const { state } = await startOk(before);
+    expect(state.status).toBe('waiting');
+    const after = flowOf([message('pedir-nombre', 'Hola', 'fin'), end('fin')], { id: 'a', variables: [variable('x')] });
+    expect(await continueSession({ flow: after, state, input: { text: 'Ana' } })).toMatchObject({ ok: false, code: 'state_mismatch' });
+  });
+
+  it('La sesión se comprueba antes que la entrada', async () => {
+    const flow = flowA();
+    const { state } = await startOk(flow);
+    expect(state.status).toBe('ended');
+    expect(await continueSession({ flow, state, input: 'no es un objeto' })).toMatchObject({ ok: false, code: 'session_not_active' });
   });
 
   it('Estado mal formado o de versión desconocida', async () => {

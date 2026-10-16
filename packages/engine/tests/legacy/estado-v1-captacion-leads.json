@@ -1,0 +1,15 @@
+{
+  "stateVersion": 1,
+  "flowId": "captacion-leads",
+  "status": "failed",
+  "nodeId": "pedir-nombre",
+  "variables": {},
+  "contact": {
+    "email": null
+  },
+  "outcome": null,
+  "error": {
+    "code": "unsupported_node",
+    "nodeId": "pedir-nombre"
+  }
+}

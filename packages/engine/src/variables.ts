@@ -1,6 +1,6 @@
 import type { Variable } from '@franca/spec';
 import { cloneJsonStrict } from './json.js';
-import type { JsonValue, VariableValue } from './types.js';
+import type { JsonValue, SessionState, VariableValue } from './types.js';
 
 type Scope = 'session' | 'contact';
 
@@ -78,6 +78,28 @@ export function createVariableStore(
     }
     const copy = cloneJsonStrict(variable.default ?? null);
     store.set(variable.name, copy.ok ? copy.value : null);
+  }
+  return store;
+}
+
+/**
+ * Reconstruye el almacén al reanudar una sesión: cada variable declarada toma el valor que tiene
+ * en la parte del estado de su ámbito actual (`variables` o `contact`) o queda sin valor. No
+ * aplica los `default` y descarta lo que el flujo ya no declara.
+ *
+ * @param declared Variables del flujo recibido (forma JSON).
+ * @param state Estado ya comprobado (`parseState`).
+ * @returns El almacén listo para seguir ejecutando.
+ */
+export function restoreVariableStore(
+  declared: readonly Variable[] | undefined,
+  state: Pick<SessionState, 'variables' | 'contact'>,
+): VariableStore {
+  const store = new VariableStore(declared);
+  for (const variable of firstDeclarations(declared)) {
+    const part: Record<string, JsonValue> = variable.scope === 'contact' ? state.contact : state.variables;
+    const value = Object.hasOwn(part, variable.name) ? part[variable.name] : null;
+    store.set(variable.name, value ?? null);
   }
   return store;
 }

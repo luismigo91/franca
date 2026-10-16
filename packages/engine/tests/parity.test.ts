@@ -1,10 +1,12 @@
 import { schema } from '@franca/spec';
+import type { AdvanceResult, SessionResult } from '../src/index.js';
+import { PARSERS } from '../src/input/parsers/index.js';
 import { describe, expect, it } from 'vitest';
-import { REJECTION_CODES, SESSION_ERROR_CODES, continueSession, startSession } from '../src/index.js';
+import { INVALID_ANSWER_REASONS, REJECTION_CODES, SESSION_ERROR_CODES, continueSession, startSession } from '../src/index.js';
 import { EXECUTORS } from '../src/nodes/index.js';
 import { OPERATORS } from '../src/predicates.js';
 import { allFlows } from './helpers/files.js';
-import { deepFreeze, end, flowOf, http, jump, message, variable } from './helpers/flows.js';
+import { deepFreeze, end, flowOf, http, input, jump, message, variable } from './helpers/flows.js';
 
 type Defs = Record<string, { properties?: { type?: { const?: string } } }>;
 const defs = schema.$defs as unknown as Defs;
@@ -43,8 +45,13 @@ describe('códigos emitidos', () => {
       ],
       { variables: [variable('a')] },
     );
-    for (const flow of flows) {
-      const result = await startSession({ flow });
+    const results: AdvanceResult[] = [];
+    for (const flow of flows) results.push(await startSession({ flow }));
+    results.push(await startSession({ flow: flowOf([input('p', 'v', 'text', 'fin', { validation: { pattern: '(' } }), end('fin')], { variables: [variable('v')] }) }));
+    const asking = flowOf([input('p', 'v', 'email', 'fin', { validation: { maxRetries: 0 } }), end('fin')], { variables: [variable('v')] });
+    const waiting = (await startSession({ flow: asking })) as SessionResult;
+    results.push(await continueSession({ flow: asking, state: waiting.state, input: { text: 'no' } }));
+    for (const result of results) {
       if (result.ok) result.events.forEach((e) => e.type === 'error' && emitted.add(e.code));
     }
     expect([...emitted].sort()).toEqual([...SESSION_ERROR_CODES].sort());
@@ -53,7 +60,10 @@ describe('códigos emitidos', () => {
   it('todo código de rechazo emitido está en REJECTION_CODES', async () => {
     const good = flowOf([end('fin')]);
     const { state } = (await startSession({ flow: good })) as { state: unknown };
+    const asking = flowOf([input('p', 'v', 'text', 'fin'), end('fin')], { variables: [variable('v')] });
+    const waiting = (await startSession({ flow: asking })) as SessionResult;
     const results = [
+      await continueSession({ flow: asking, state: waiting.state, input: null }),
       await startSession({ flow: {} }),
       await startSession({ flow: good, contact: [] }),
       await continueSession({ flow: good, state: {}, input: null }),
@@ -75,5 +85,56 @@ describe('códigos emitidos', () => {
         if (event.type === 'error') expect(SESSION_ERROR_CODES as readonly string[], label).toContain(event.code);
       }
     }
+  });
+});
+
+describe('paridad de inputType y de defaults', () => {
+  const inputNode = schema.$defs.inputNode.properties as unknown as {
+    inputType: { enum: string[] };
+    validation: { properties: { maxRetries: { default: number } } };
+    multiple: { default?: boolean };
+  };
+
+  it('los inputType del esquema son las claves de PARSERS más choice', () => {
+    expect([...inputNode.inputType.enum].sort()).toEqual([...Object.keys(PARSERS), 'choice'].sort());
+  });
+
+  it('el default de maxRetries del esquema es el que usa el motor (3 reintentos)', async () => {
+    expect(inputNode.validation.properties.maxRetries.default).toBe(3);
+    const flow = flowOf([input('p', 'v', 'email', 'fin'), end('fin')], { variables: [variable('v')] });
+    let state = ((await startSession({ flow })) as SessionResult).state;
+    const attempts: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      const result = (await continueSession({ flow, state, input: { text: 'no' } })) as SessionResult;
+      attempts.push(result.state.attempt ?? 0);
+      state = result.state;
+    }
+    expect(attempts).toEqual([2, 3, 4, 0]);
+    expect(state.error?.code).toBe('retries_exhausted');
+  });
+
+  it('el default de locale del esquema es es', () => {
+    expect((schema.properties as unknown as { locale: { default?: string } }).locale.default ?? 'es').toBe('es');
+  });
+
+  it('multiple no tiene default true en el esquema', () => {
+    expect(inputNode.multiple.default ?? false).toBe(false);
+  });
+});
+
+describe('reason emitidos', () => {
+  it('cada reason de INVALID_ANSWER_REASONS se emite y ninguno fuera de la lista', async () => {
+    const flow = flowOf(
+      [input('p', 'v', 'text', 'fin', { validation: { min: 3, pattern: '^a+$', maxRetries: 10 } }), end('fin')],
+      { variables: [variable('v')] },
+    );
+    const { state } = (await startSession({ flow })) as SessionResult;
+    const answers = ['a'.repeat(4097), '  ', 'x\u0000', 'aa', 'bbb'];
+    const seen = new Set<string>();
+    for (const text of answers) {
+      const result = (await continueSession({ flow, state, input: { text } })) as SessionResult;
+      for (const event of result.events) if (event.type === 'input' && event.reason) seen.add(event.reason);
+    }
+    expect([...seen].sort()).toEqual([...INVALID_ANSWER_REASONS].sort());
   });
 });

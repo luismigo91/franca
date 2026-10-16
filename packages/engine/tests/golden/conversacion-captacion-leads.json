@@ -1,0 +1,213 @@
+[
+  {
+    "ok": true,
+    "status": "waiting",
+    "events": [
+      {
+        "type": "message",
+        "nodeId": "bienvenida",
+        "content": [
+          {
+            "kind": "text",
+            "text": "¡Hola! Te hago tres preguntas y te paso con la persona adecuada."
+          }
+        ],
+        "typingDelayMs": 600
+      },
+      {
+        "type": "message",
+        "nodeId": "pedir-nombre",
+        "content": [
+          {
+            "kind": "text",
+            "text": "¿Cómo te llamas?"
+          }
+        ],
+        "typingDelayMs": 600
+      },
+      {
+        "type": "input",
+        "nodeId": "pedir-nombre",
+        "inputType": "text",
+        "attempt": 1,
+        "reason": null
+      }
+    ],
+    "state": {
+      "stateVersion": 1,
+      "flowId": "captacion-leads",
+      "status": "waiting",
+      "nodeId": "pedir-nombre",
+      "variables": {},
+      "contact": {
+        "email": null
+      },
+      "outcome": null,
+      "error": null,
+      "attempt": 1
+    }
+  },
+  {
+    "ok": true,
+    "status": "waiting",
+    "events": [
+      {
+        "type": "message",
+        "nodeId": "pedir-email",
+        "content": [
+          {
+            "kind": "text",
+            "text": "Encantado, Ana. ¿A qué email te escribimos?"
+          }
+        ],
+        "typingDelayMs": 600
+      },
+      {
+        "type": "input",
+        "nodeId": "pedir-email",
+        "inputType": "email",
+        "attempt": 1,
+        "reason": null
+      }
+    ],
+    "state": {
+      "stateVersion": 1,
+      "flowId": "captacion-leads",
+      "status": "waiting",
+      "nodeId": "pedir-email",
+      "variables": {
+        "nombre": "Ana"
+      },
+      "contact": {
+        "email": null
+      },
+      "outcome": null,
+      "error": null,
+      "attempt": 1
+    }
+  },
+  {
+    "ok": true,
+    "status": "waiting",
+    "events": [
+      {
+        "type": "message",
+        "nodeId": "pedir-email",
+        "content": [
+          {
+            "kind": "text",
+            "text": "Ese email no parece válido, ¿lo revisas?"
+          }
+        ],
+        "typingDelayMs": 600
+      },
+      {
+        "type": "input",
+        "nodeId": "pedir-email",
+        "inputType": "email",
+        "attempt": 2,
+        "reason": "invalid_format"
+      }
+    ],
+    "state": {
+      "stateVersion": 1,
+      "flowId": "captacion-leads",
+      "status": "waiting",
+      "nodeId": "pedir-email",
+      "variables": {
+        "nombre": "Ana"
+      },
+      "contact": {
+        "email": null
+      },
+      "outcome": null,
+      "error": null,
+      "attempt": 2
+    }
+  },
+  {
+    "ok": true,
+    "status": "waiting",
+    "events": [
+      {
+        "type": "message",
+        "nodeId": "pedir-tamano",
+        "content": [
+          {
+            "kind": "text",
+            "text": "¿Cuántas personas sois en la empresa?"
+          }
+        ],
+        "typingDelayMs": 600
+      },
+      {
+        "type": "input",
+        "nodeId": "pedir-tamano",
+        "inputType": "choice",
+        "attempt": 1,
+        "reason": null,
+        "multiple": false,
+        "choices": [
+          {
+            "id": "pequena",
+            "label": "1 a 10"
+          },
+          {
+            "id": "mediana",
+            "label": "11 a 50"
+          },
+          {
+            "id": "grande",
+            "label": "Más de 50"
+          }
+        ]
+      }
+    ],
+    "state": {
+      "stateVersion": 1,
+      "flowId": "captacion-leads",
+      "status": "waiting",
+      "nodeId": "pedir-tamano",
+      "variables": {
+        "nombre": "Ana"
+      },
+      "contact": {
+        "email": "ana@example.com"
+      },
+      "outcome": null,
+      "error": null,
+      "attempt": 1
+    }
+  },
+  {
+    "ok": true,
+    "status": "failed",
+    "events": [
+      {
+        "type": "error",
+        "nodeId": "enviar-crm",
+        "code": "unsupported_node",
+        "message": "el nodo de tipo http aún no está soportado"
+      }
+    ],
+    "state": {
+      "stateVersion": 1,
+      "flowId": "captacion-leads",
+      "status": "failed",
+      "nodeId": "enviar-crm",
+      "variables": {
+        "nombre": "Ana",
+        "tamano": "51+",
+        "segmento": "empresa"
+      },
+      "contact": {
+        "email": "ana@example.com"
+      },
+      "outcome": null,
+      "error": {
+        "code": "unsupported_node",
+        "nodeId": "enviar-crm"
+      }
+    }
+  }
+]

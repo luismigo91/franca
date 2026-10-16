@@ -1,0 +1,33 @@
+{
+  "specVersion": "0.1",
+  "id": "seleccion-multiple",
+  "name": "seleccion-multiple",
+  "variables": [
+    { "name": "nombre", "type": "string", "default": "Ana" },
+    { "name": "intereses", "type": "json" }
+  ],
+  "start": "elegir",
+  "nodes": [
+    {
+      "id": "elegir",
+      "type": "input",
+      "inputType": "choice",
+      "variable": "intereses",
+      "multiple": true,
+      "prompt": [{ "kind": "text", "text": "{{nombre}}, ¿qué te interesa?" }],
+      "choices": [
+        { "id": "a", "label": "Precios", "value": "precios" },
+        { "id": "b", "label": "Envíos" },
+        { "id": "c", "label": "Soporte", "value": 3, "imageUrl": "https://example.com/{{nombre}}.png" }
+      ],
+      "validation": { "min": 1, "max": 2, "retryMessage": "{{nombre}}, elige entre 1 y 2 opciones." },
+      "next": "fin"
+    },
+    {
+      "id": "fin",
+      "type": "end",
+      "outcome": "elegido",
+      "content": [{ "kind": "text", "text": "Elegiste: {{intereses}}" }]
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   condition,
+  input,
   end,
   flowOf,
   message,
@@ -164,6 +165,14 @@ describe('Valores de contacto expuestos en el estado', () => {
 });
 
 describe('Ejecución hasta que la sesión se detiene', () => {
+  it('Detención en un input', async () => {
+    const flow = flowOf([message('m', 'Hola', 'p'), input('p', 'x', 'text', 'fin'), end('fin')], { variables: [variable('x')] });
+    const result = await startOk(flow);
+    expect(result.status).toBe('waiting');
+    expect(result.events.map((e) => e.type)).toEqual(['message', 'message', 'input']);
+    expect(result.events.some((e) => e.type === 'end')).toBe(false);
+  });
+
   it('Cadena completa hasta el fin', async () => {
     const flow = flowOf(
       [

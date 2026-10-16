@@ -23,6 +23,7 @@
 - [tsdown --watch borra dist/ de la spec](../../wiki/gotcha-spec-watch-borra-dist.md) — por qué el dev de @franca/spec lleva --no-clean
 - [ajv y los errores de oneOf](../../wiki/gotcha-ajv-errores-oneof.md) — por qué validate.ts revalida cada nodo contra la definición de su tipo
 - [json-schema-to-typescript y las tuplas](../../wiki/gotcha-json-schema-to-typescript-tuplas.md) — ignoreMinAndMaxItems, no maxItems -1
+- [new URL de WHATWG normaliza en silencio](../../wiki/gotcha-url-whatwg-normaliza.md) — por qué el tipo url rechaza controles, invisibles e IPs antes de parsear
 - [Variables llamadas __proto__ o constructor](../../wiki/gotcha-variables-nombre-proto.md) — por qué el motor usa Map y Object.fromEntries
 
 ### Decisiones
@@ -30,6 +31,7 @@
 - [matches con regex lineal propia](../../wiki/decision-matches-regex-lineal.md) — por qué no RegExp nativo, timeout ni RE2 en packages/engine
 
 ### Dominio
+- [Rechazos deliberados de input](../../wiki/domain-input-rechazos-deliberados.md) — por qué 1.500, más de 15 cifras o agotar reintentos se rechazan a propósito
 - [Solo el nodo llm puede saltar a sí mismo](../../wiki/domain-llm-puede-saltar-a-si-mismo.md) — no es un descuido; maxTurns y onExhausted lo acotan
 - [Flujos sin secretos](../../wiki/domain-flujos-sin-secretos.md) — secretos y proveedores por nombre, variables pii; implicaciones para api, editor y motor
 

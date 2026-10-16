@@ -16,6 +16,13 @@ function stripComments(code: string): string {
   return code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 }
 
+/**
+ * Un literal de expresión regular: una barra que empieza una expresión (tras `(`, `,`, `=`, `:`, `[`,
+ * `!`, `&`, `|`, `?`, `{`, `}`, `;` o `return`) y cierra en la misma línea. Una división va tras un
+ * identificador, un número o `)`, así que no coincide.
+ */
+const REGEX_LITERAL = /(?:^|[(,=:[!&|?{};]|\breturn\b)\s*\/(?![/*])(?:\\.|\[(?:\\.|[^\]\\\n])*\]|[^/\\\n[])+\/[a-z]*/m;
+
 /** Tokens prohibidos en src/ (D10): reloj, aleatoriedad, entorno, red, disco, consola y temporizadores. */
 const FORBIDDEN: [string, RegExp][] = [
   ['Date', /\bDate\b/],
@@ -33,7 +40,20 @@ const FORBIDDEN: [string, RegExp][] = [
   ['import node:', /['"`]node:/],
   ['require', /\brequire\s*\(/],
   ['import()', /\bimport\s*\(/],
+  ['Intl', /\bIntl\b/],
+  ['toLocale…', /\btoLocale\w*/],
+  ['localeCompare', /\blocaleCompare\b/],
 ];
+
+describe('detector de literales de regex', () => {
+  it.each(['const r = /a+/;', 'x.replace(/a/g, "")', 'if (/\\d/.test(c)) {}', 'return /[a/]/u;', 'f(a, /x/)', 'const r = /\\//;'])('detecta %j', (code) => {
+    expect(code).toMatch(REGEX_LITERAL);
+  });
+  it.each(['const half = a / b;', 'const q = (a + 1) / 2 / c;', 'x = n / 2;', 'const url = "https://x.com/a/b";', 'y = [1, 2].length / 4;'])(
+    'no confunde %j con una regex',
+    (code) => expect(code).not.toMatch(REGEX_LITERAL),
+  );
+});
 
 describe('guarda estática de src/', () => {
   const files = sourceFiles();
@@ -61,6 +81,18 @@ describe('guarda estática de src/', () => {
       'regex/match.ts: c',
       'regex/match.ts: codePoint',
     ]);
+  });
+
+  it('src/input/ no ejecuta expresiones regulares sobre el texto del usuario', () => {
+    const inputFiles = files.filter((f) => f.path.startsWith('input/'));
+    expect(inputFiles.length).toBeGreaterThanOrEqual(12);
+    for (const f of inputFiles) {
+      expect(f.code, `${f.path}: RegExp`).not.toMatch(/\bRegExp\b/);
+      expect(f.code, `${f.path}: exec/match/search`).not.toMatch(/\.(exec|match|matchAll|search)\(/);
+      if (f.path !== 'input/parsers/chars.ts') expect(f.code, `${f.path}: regex literal`).not.toMatch(REGEX_LITERAL);
+    }
+    const tests = inputFiles.flatMap((f) => [...f.code.matchAll(/\.test\(([^)]*)\)/g)].map((m) => `${f.path}: ${m[1]}`));
+    expect(tests).toEqual(['input/parsers/chars.ts: codePoint']);
   });
 
   it('new RegExp solo se construye para validar la sintaxis y para los átomos', () => {

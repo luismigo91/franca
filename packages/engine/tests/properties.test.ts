@@ -47,12 +47,14 @@ describe('propiedades sobre todos los fixtures y ejemplos', () => {
     for (const spy of spies) expect(spy).not.toHaveBeenCalled();
   });
 
-  it('todos los estados producidos se aceptan como estado conocido al continuar (y se rechazan por inactivos)', async () => {
+  it('un estado en espera continuado con null da invalid_input; uno ended/failed, session_not_active', async () => {
     for (const { label, flow } of flows) {
       const result = await startSession({ flow });
       if (!result.ok) continue;
-      const next = await continueSession({ flow, state: JSON.parse(JSON.stringify(result.state)), input: null });
-      expect(next, label).toMatchObject({ ok: false, code: 'session_not_active' });
+      const state = JSON.parse(JSON.stringify(result.state));
+      const next = await continueSession({ flow, state, input: null });
+      const expected = result.status === 'waiting' ? 'invalid_input' : 'session_not_active';
+      expect(next, label).toMatchObject({ ok: false, code: expected });
     }
   });
 });

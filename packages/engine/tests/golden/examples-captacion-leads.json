@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "status": "failed",
+  "status": "waiting",
   "events": [
     {
       "type": "message",
@@ -14,25 +14,35 @@
       "typingDelayMs": 600
     },
     {
-      "type": "error",
+      "type": "message",
       "nodeId": "pedir-nombre",
-      "code": "unsupported_node",
-      "message": "el nodo de tipo input aún no está soportado"
+      "content": [
+        {
+          "kind": "text",
+          "text": "¿Cómo te llamas?"
+        }
+      ],
+      "typingDelayMs": 600
+    },
+    {
+      "type": "input",
+      "nodeId": "pedir-nombre",
+      "inputType": "text",
+      "attempt": 1,
+      "reason": null
     }
   ],
   "state": {
     "stateVersion": 1,
     "flowId": "captacion-leads",
-    "status": "failed",
+    "status": "waiting",
     "nodeId": "pedir-nombre",
     "variables": {},
     "contact": {
       "email": null
     },
     "outcome": null,
-    "error": {
-      "code": "unsupported_node",
-      "nodeId": "pedir-nombre"
-    }
+    "error": null,
+    "attempt": 1
   }
 }
