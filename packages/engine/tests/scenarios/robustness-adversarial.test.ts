@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { continueSession, startSession } from '../../src/index.js';
-import { condition, end, flowOf, message, rule, startOk, variable, type Obj } from '../helpers/flows.js';
+import { condition, end, flowOf, input, message, rule, startOk, variable, type Obj } from '../helpers/flows.js';
 
 /** Anida `depth` niveles de `wrap` alrededor de `leaf`. */
 function nest<T>(depth: number, leaf: T, wrap: (inner: T) => T): T {
@@ -152,6 +152,65 @@ describe('Profundidad máxima de anidamiento', () => {
     const a = await startOk(contactFlow(), contact);
     const b = await startOk(contactFlow(), contact);
     expect(a).toEqual(b);
+  });
+});
+
+describe('Profundidad del estado: ida y vuelta en el límite (D13)', () => {
+  const chain = (levels: number): unknown => nest<unknown>(levels, 1, (inner) => [inner]);
+  const flowWithInput = () =>
+    flowOf([input('p', 'x', 'text', 'fin'), end('fin')], {
+      variables: [variable('x'), variable('c', { type: 'json', scope: 'contact' }), variable('s', { type: 'json' })],
+    });
+
+  it('Ida y vuelta con un contacto en el límite', async () => {
+    const flow = flowWithInput();
+    const started = await startSession({ flow, contact: { c: chain(999) } });
+    expect(started).toMatchObject({ ok: true, status: 'waiting' });
+    if (!started.ok) return;
+    for (const state of [started.state, JSON.parse(JSON.stringify(started.state))]) {
+      const next = await continueSession({ flow, state, input: { text: 'x' } });
+      expect(next, 'continuar con el estado devuelto').toMatchObject({ ok: true, status: 'ended' });
+    }
+  });
+
+  it('Estado justo en el límite de anidamiento', async () => {
+    const flow = flowWithInput();
+    const { state } = await startOk(flow);
+    for (const field of ['contact', 'variables'] as const) {
+      const key = field === 'contact' ? 'c' : 's';
+      const at = await continueSession({ flow, state: { ...state, [field]: { [key]: chain(999) } }, input: { text: 'x' } });
+      expect(at, `${field} 999`).toMatchObject({ ok: true, status: 'ended' });
+      const over = await continueSession({ flow, state: { ...state, [field]: { [key]: chain(1000) } }, input: { text: 'x' } });
+      expect(over, `${field} 1000`).toMatchObject({ ok: false, code: 'invalid_state' });
+    }
+  });
+
+  it('todo estado continuable: cada origen de valores en su máximo, también tras pasar por JSON', async () => {
+    // default de una variable: 997 niveles (el flujo tiene profundidad 1000)
+    const withDefault = flowOf([input('p', 'x', 'text', 'fin'), end('fin')], {
+      variables: [variable('x'), variable('d', { type: 'json', default: chain(997) })],
+    });
+    // selección múltiple: el valor es un array de escalares
+    const multiple = flowOf(
+      [input('p', 'x', 'choice', 'q', { multiple: true, choices: [{ id: 'a', label: 'A', value: 1 }] }), input('q', 'y', 'text', 'fin'), end('fin')],
+      { variables: [variable('x'), variable('y')] },
+    );
+    const cases: [string, Obj, unknown, unknown][] = [
+      ['default 997', withDefault, undefined, { text: 'x' }],
+      ['contacto 999', flowWithInput(), { c: chain(999) }, { text: 'x' }],
+      ['selección múltiple', multiple, undefined, { choices: ['a'] }],
+    ];
+    for (const [label, flow, contact, answer] of cases) {
+      const first = await startSession({ flow, contact });
+      expect(first.ok && first.status, label).toBe('waiting');
+      if (!first.ok) continue;
+      const second = await continueSession({ flow, state: JSON.parse(JSON.stringify(first.state)), input: answer });
+      expect(second.ok, `${label}: continuar`).toBe(true);
+      if (second.ok && second.status === 'waiting') {
+        const third = await continueSession({ flow, state: JSON.parse(JSON.stringify(second.state)), input: { text: 'y' } });
+        expect(third.ok, `${label}: continuar otra vez`).toBe(true);
+      }
+    }
   });
 });
 

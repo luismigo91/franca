@@ -95,6 +95,34 @@ describe('guarda estática de src/', () => {
     expect(tests).toEqual(['input/parsers/chars.ts: codePoint']);
   });
 
+  it('src/http/ aplica las mismas reglas que src/input/: filtros de URL, cabeceras y punteros son bucles', () => {
+    const httpFiles = files.filter((f) => f.path.startsWith('http/'));
+    expect(httpFiles.length).toBeGreaterThanOrEqual(7);
+    for (const f of httpFiles) {
+      expect(f.code, `${f.path}: RegExp`).not.toMatch(/\bRegExp\b/);
+      expect(f.code, `${f.path}: exec/match/search`).not.toMatch(/\.(exec|match|matchAll|search)\(/);
+      expect(f.code, `${f.path}: regex literal`).not.toMatch(REGEX_LITERAL);
+      expect(f.code, `${f.path}: .test(`).not.toMatch(/\.test\(/);
+    }
+  });
+
+  it('src/conformance/ está cubierto por la guarda: sin reloj ni IO (usa harness.now y harness.sleep)', () => {
+    const conformanceFiles = files.filter((f) => f.path.startsWith('conformance/'));
+    expect(conformanceFiles.map((f) => f.path).sort()).toEqual(['conformance/call.ts', 'conformance/cases.ts', 'conformance/index.ts', 'conformance/types.ts']);
+    for (const f of conformanceFiles) {
+      expect(f.code, `${f.path}: reloj o temporizador`).not.toMatch(/\b(Date|performance|setTimeout|setInterval|setImmediate)\b/);
+      expect(f.code, `${f.path}: IO`).not.toMatch(/\b(fetch|XMLHttpRequest|require)\b|['"`]node:/);
+    }
+  });
+
+  it('el catch de src/http/capability.ts no tiene variable: lo que lanza el host no se mira', () => {
+    const capability = files.find((f) => f.path === 'http/capability.ts');
+    expect(capability, 'existe http/capability.ts').toBeDefined();
+    const catches = [...capability!.code.matchAll(/\bcatch\b\s*(\(?)/g)];
+    expect(catches.length).toBeGreaterThanOrEqual(2);
+    for (const found of catches) expect(found[1], 'catch con variable').toBe('');
+  });
+
   it('new RegExp solo se construye para validar la sintaxis y para los átomos', () => {
     const builders = files.filter((f) => /new RegExp\(/.test(f.code)).map((f) => f.path).sort();
     expect(builders).toEqual(['regex/match.ts', 'regex/parse.ts']);

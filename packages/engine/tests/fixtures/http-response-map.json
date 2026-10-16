@@ -1,0 +1,44 @@
+{
+  "specVersion": "0.1",
+  "id": "http-response-map",
+  "name": "http-response-map",
+  "variables": [
+    { "name": "nombre", "type": "string", "default": "Ana" },
+    { "name": "cuenta", "type": "string", "default": "anonimo" },
+    { "name": "ticket", "type": "string" },
+    { "name": "ruta", "type": "string" },
+    { "name": "literal", "type": "string" },
+    { "name": "primero", "type": "string" },
+    { "name": "nada", "type": "string" }
+  ],
+  "start": "consultar",
+  "nodes": [
+    {
+      "id": "consultar",
+      "type": "http",
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.com/users/{{nombre}}",
+        "headers": { "Authorization": { "secret": "API_TOKEN" }, "X-Cliente": "cliente {{nombre}}" }
+      },
+      "timeoutMs": 5000,
+      "responseMap": [
+        { "variable": "ticket", "pointer": "/id" },
+        { "variable": "ruta", "pointer": "/a~1b" },
+        { "variable": "literal", "pointer": "/m~0n" },
+        { "variable": "primero", "pointer": "/lista/0" },
+        { "variable": "nada", "pointer": "/falta" },
+        { "variable": "cuenta", "pointer": "/cuenta" }
+      ],
+      "next": "fin-ok",
+      "onError": "fin-error"
+    },
+    {
+      "id": "fin-ok",
+      "type": "end",
+      "outcome": "consultado",
+      "content": [{ "kind": "text", "text": "Ticket {{ticket}} ({{ruta}}, {{literal}}, {{primero}}) de {{cuenta}}" }]
+    },
+    { "id": "fin-error", "type": "end", "outcome": "sin-datos" }
+  ]
+}

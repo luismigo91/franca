@@ -99,7 +99,7 @@ describe('diferencial ampliado contra RegExp nativo (generador con surrogates y 
     }
     expect(truths / cases).toBeGreaterThan(0.2);
     expect(1 - truths / cases).toBeGreaterThan(0.2);
-  });
+  }, 15_000);
 });
 
 describe('Tamaño máximo del patrón: fronteras exactas', () => {

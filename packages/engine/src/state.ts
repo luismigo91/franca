@@ -1,6 +1,6 @@
 import type { Flow } from '@franca/spec';
-import { SESSION_ERROR_CODES, STATE_VERSION } from './constants.js';
-import { cloneJsonStrict } from './json.js';
+import { MAX_NESTING_DEPTH, SESSION_ERROR_CODES, STATE_VERSION } from './constants.js';
+import { cloneJsonWithinDepth, exceedsDepth } from './json.js';
 import type { SessionError, SessionState, SessionStatus, VariableValue } from './types.js';
 import type { VariableStore } from './variables.js';
 
@@ -38,6 +38,15 @@ export function buildState(
   };
 }
 
+/**
+ * Profundidad máxima de un estado recibido. El objeto del estado añade un nivel sobre sus campos
+ * (`{contact: {c: v}}`), así que, para que cada campo admita `MAX_NESTING_DEPTH` niveles (lo mismo
+ * que un contacto recibido al arrancar) y todo estado que devuelve el motor se pueda continuar,
+ * el límite del estado entero es uno más. Con `MAX_NESTING_DEPTH` a secas, un valor de contacto de
+ * 999 niveles, aceptado al arrancar, daba un estado de 1001 que `parseState` rechazaba.
+ */
+const STATE_MAX_DEPTH = MAX_NESTING_DEPTH + 1;
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
@@ -49,7 +58,9 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
  *   desconocida, es incoherente (`status`/`outcome`/`error`) o contiene valores que no son JSON.
  */
 export function parseState(input: unknown): SessionState | null {
-  const json = cloneJsonStrict(input);
+  // Medir antes de copiar: la copia es recursiva y no puede ver un estado más profundo que el límite.
+  if (exceedsDepth(input, STATE_MAX_DEPTH)) return null;
+  const json = cloneJsonWithinDepth(input);
   if (!json.ok || !isRecord(json.value)) return null;
   const s = json.value;
   if (s.stateVersion !== STATE_VERSION) return null;

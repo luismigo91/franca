@@ -1,0 +1,405 @@
+[
+  {
+    "id": "state-depth",
+    "file": "src/state.ts",
+    "find": "const STATE_MAX_DEPTH = MAX_NESTING_DEPTH + 1;",
+    "replace": "const STATE_MAX_DEPTH = MAX_NESTING_DEPTH;",
+    "tests": [
+      "tests/scenarios/robustness-adversarial.test.ts",
+      "tests/unit/state.test.ts"
+    ]
+  },
+  {
+    "id": "encode-budget",
+    "file": "src/http/url.ts",
+    "find": "if (text.length > budget) throw new ValueTooLargeError();",
+    "replace": "",
+    "tests": [
+      "tests/unit/http-hypotheses.test.ts"
+    ]
+  },
+  {
+    "id": "encode-subdelims",
+    "file": "src/http/url.ts",
+    "find": "out += SUB_DELIMS[encoded[i]!] ?? encoded[i];",
+    "replace": "out += encoded[i];",
+    "tests": [
+      "tests/unit/http-url.test.ts",
+      "tests/unit/http-url-oracle.test.ts",
+      "tests/scenarios/http-request.test.ts"
+    ]
+  },
+  {
+    "id": "dot-encoded",
+    "file": "src/http/url.ts",
+    "find": "const decoded = decodeDots(segment);",
+    "replace": "const decoded = segment;",
+    "tests": [
+      "tests/unit/http-url.test.ts",
+      "tests/unit/http-url-oracle.test.ts",
+      "tests/scenarios/http-request.test.ts"
+    ]
+  },
+  {
+    "id": "dot-case",
+    "file": "src/http/url.ts",
+    "find": "(segment[i + 2] === 'e' || segment[i + 2] === 'E')",
+    "replace": "segment[i + 2] === 'e'",
+    "tests": [
+      "tests/unit/http-url.test.ts",
+      "tests/unit/http-url-oracle.test.ts",
+      "tests/scenarios/http-request.test.ts"
+    ]
+  },
+  {
+    "id": "percent-host",
+    "file": "src/http/url.ts",
+    "find": "if (hasPercentInHost(text, authorityStart)) return undefined;",
+    "replace": "",
+    "tests": [
+      "tests/unit/http-url.test.ts",
+      "tests/unit/http-hypotheses.test.ts",
+      "tests/scenarios/http-request.test.ts"
+    ]
+  },
+  {
+    "id": "domain-check",
+    "file": "src/input/parsers/url.ts",
+    "find": " || !isDomainName(url.hostname)) return undefined;",
+    "replace": ") return undefined;",
+    "tests": [
+      "tests/unit/http-url.test.ts",
+      "tests/unit/http-hypotheses.test.ts",
+      "tests/unit/input-url.test.ts"
+    ]
+  },
+  {
+    "id": "localhost-suffix",
+    "file": "src/http/url.ts",
+    "find": " || host.endsWith('.localhost')",
+    "replace": "",
+    "tests": [
+      "tests/unit/http-url.test.ts",
+      "tests/unit/http-hypotheses.test.ts",
+      "tests/scenarios/http-request.test.ts"
+    ]
+  },
+  {
+    "id": "literal-surrogate",
+    "file": "src/http/url.ts",
+    "find": "if (hasUnstorable(text) || hasHiddenChars(text)",
+    "replace": "if (hasHiddenChars(text)",
+    "tests": [
+      "tests/unit/http-url.test.ts",
+      "tests/scenarios/http-request.test.ts"
+    ]
+  },
+  {
+    "id": "url-prelength",
+    "file": "src/http/url.ts",
+    "find": "{ maxLength: MAX_URL_LENGTH, insert: encodeUrlValue }",
+    "replace": "{ insert: encodeUrlValue }",
+    "tests": [
+      "tests/unit/http-url.test.ts",
+      "tests/scenarios/http-request.test.ts"
+    ]
+  },
+  {
+    "id": "header-crlf",
+    "file": "src/http/request.ts",
+    "find": "if (code !== 0x20 && code !== 0x09 && (code < 0x21 || code > 0x7e)) return false;",
+    "replace": "if (code > 0x7e) return false;",
+    "tests": [
+      "tests/unit/http-request.test.ts",
+      "tests/scenarios/http-request.test.ts"
+    ]
+  },
+  {
+    "id": "header-token",
+    "file": "src/http/config.ts",
+    "find": "!TCHAR_SYMBOLS.includes(c)",
+    "replace": "!(TCHAR_SYMBOLS + ' ').includes(c)",
+    "tests": [
+      "tests/unit/http-config.test.ts",
+      "tests/scenarios/http-request.test.ts"
+    ]
+  },
+  {
+    "id": "header-dup",
+    "file": "src/http/config.ts",
+    "find": "const lower = lowerAscii(name);",
+    "replace": "const lower = name;",
+    "tests": [
+      "tests/unit/http-config.test.ts",
+      "tests/scenarios/http-request.test.ts"
+    ]
+  },
+  {
+    "id": "content-type-case",
+    "file": "src/http/request.ts",
+    "find": "header.name.toLowerCase() === 'content-type'",
+    "replace": "header.name === 'Content-Type'",
+    "tests": [
+      "tests/unit/http-request.test.ts",
+      "tests/scenarios/http-request.test.ts"
+    ]
+  },
+  {
+    "id": "get-body",
+    "file": "src/http/config.ts",
+    "find": "node.request.method === 'GET' && body !== undefined",
+    "replace": "false && body !== undefined",
+    "tests": [
+      "tests/unit/http-config.test.ts",
+      "tests/scenarios/http-request.test.ts"
+    ]
+  },
+  {
+    "id": "post-idempotent",
+    "file": "src/http/retry.ts",
+    "find": "  POST: false,",
+    "replace": "  POST: true,",
+    "tests": [
+      "tests/unit/http-retry.test.ts",
+      "tests/scenarios/http-result.test.ts"
+    ]
+  },
+  {
+    "id": "request-sent-default",
+    "file": "src/http/result.ts",
+    "find": "requestSent ?? true",
+    "replace": "requestSent ?? false",
+    "tests": [
+      "tests/unit/http-result.test.ts",
+      "tests/scenarios/http-result.test.ts"
+    ]
+  },
+  {
+    "id": "size-after-parse",
+    "file": "src/http/retry.ts",
+    "find": "body.length > MAX_RESPONSE_BODY_LENGTH",
+    "replace": "body.length < 0",
+    "tests": [
+      "tests/unit/http-retry.test.ts",
+      "tests/scenarios/http-result.test.ts"
+    ]
+  },
+  {
+    "id": "mapped-depth",
+    "file": "src/http/response-map.ts",
+    "find": "if (exceedsDepth(value, MAX_MAPPED_VALUE_DEPTH)) return undefined;",
+    "replace": "",
+    "tests": [
+      "tests/unit/http-hypotheses.test.ts",
+      "tests/unit/http-response-map.test.ts",
+      "tests/scenarios/http-result.test.ts"
+    ]
+  },
+  {
+    "id": "unstorable-keys",
+    "file": "src/http/response-map.ts",
+    "find": "if (hasUnstorable(key)) return true;",
+    "replace": "",
+    "tests": [
+      "tests/unit/http-response-map.test.ts",
+      "tests/scenarios/http-result.test.ts"
+    ]
+  },
+  {
+    "id": "pointer-leading-zero",
+    "file": "src/http/response-map.ts",
+    "find": "if (token.length === 0 || (token.length > 1 && token[0] === '0')) return undefined;",
+    "replace": "if (token.length === 0) return undefined;",
+    "tests": [
+      "tests/unit/http-response-map.test.ts",
+      "tests/scenarios/http-result.test.ts"
+    ]
+  },
+  {
+    "id": "pointer-inherited",
+    "file": "src/http/response-map.ts",
+    "find": "if (!Object.hasOwn(current, token)) return undefined;",
+    "replace": "if (!(token in current)) return undefined;",
+    "tests": [
+      "tests/unit/http-response-map.test.ts",
+      "tests/scenarios/http-result.test.ts"
+    ]
+  },
+  {
+    "id": "pii-body",
+    "file": "src/http/request.ts",
+    "find": "templates.push(value); // las plantillas de `containsPii`, recogidas en el mismo recorrido",
+    "replace": "",
+    "tests": [
+      "tests/unit/http-request.test.ts",
+      "tests/scenarios/http-privacy.test.ts"
+    ]
+  },
+  {
+    "id": "pii-closure",
+    "file": "src/http/request.ts",
+    "find": "      personal.add(target);\n      pending.push(target);\n",
+    "replace": "",
+    "tests": [
+      "tests/unit/http-request.test.ts",
+      "tests/scenarios/http-privacy.test.ts"
+    ]
+  },
+  {
+    "id": "body-retain",
+    "file": "src/http/request.ts",
+    "find": "if (state.retained > MAX_REQUEST_BODY_LENGTH) {",
+    "replace": "if (state.retained < 0) {",
+    "tests": [
+      "tests/unit/http-request.test.ts"
+    ]
+  },
+  {
+    "id": "host-error-leak",
+    "file": "src/nodes/http.ts",
+    "find": "if (result === null) return HOST_ERROR;",
+    "replace": "if (result === null) return fail('http_host_error', JSON.stringify(called.value));",
+    "tests": [
+      "tests/scenarios/http-privacy.test.ts"
+    ]
+  },
+  {
+    "id": "request-reuse",
+    "file": "src/http/request.ts",
+    "find": "return { ...prepared, headers: prepared.headers.map((header) => ({ ...header })), attempt };",
+    "replace": "return Object.assign(prepared, { attempt }) as unknown as HttpRequest;",
+    "tests": [
+      "tests/scenarios/http-request.test.ts"
+    ]
+  },
+  {
+    "id": "capability-per-attempt",
+    "file": "src/nodes/http.ts",
+    "find": "invokeHost(capability.call, ctx.host,",
+    "replace": "invokeHost((readHttpCapability(ctx.host) as { call: Function }).call, ctx.host,",
+    "tests": [
+      "tests/scenarios/http-host.test.ts"
+    ]
+  },
+  {
+    "id": "this-binding",
+    "file": "src/http/capability.ts",
+    "find": "Reflect.apply(call, host, [request])",
+    "replace": "Reflect.apply(call, undefined, [request])",
+    "tests": [
+      "tests/scenarios/http-host.test.ts"
+    ]
+  },
+  {
+    "id": "limit-first-only",
+    "file": "src/nodes/http.ts",
+    "find": "if (!ctx.reserveExternalCall()) {",
+    "replace": "if (attempts === 0 && !ctx.reserveExternalCall()) {",
+    "tests": [
+      "tests/scenarios/http-host.test.ts"
+    ]
+  },
+  {
+    "id": "limit-per-node",
+    "file": "src/nodes/http.ts",
+    "find": "if (!ctx.reserveExternalCall()) {",
+    "replace": "if (attempts >= 10) {",
+    "tests": [
+      "tests/scenarios/http-host.test.ts"
+    ]
+  },
+  {
+    "id": "all-or-nothing",
+    "file": "src/http/response-map.ts",
+    "find": "if (value === undefined) return { ok: false };",
+    "replace": "if (value === undefined) return { ok: true, assignments };",
+    "tests": [
+      "tests/scenarios/http-result.test.ts",
+      "tests/unit/http-response-map.test.ts"
+    ]
+  },
+  {
+    "id": "console-write",
+    "file": "src/nodes/http.ts",
+    "find": "export const executeHttp: NodeExecutor<'http'> = async (node, ctx) => {",
+    "replace": "export const executeHttp: NodeExecutor<'http'> = async (node, ctx) => {\n  console.log('http');",
+    "tests": [
+      "tests/scenarios/http-privacy.test.ts",
+      "tests/properties.test.ts"
+    ]
+  },
+  {
+    "id": "qa3-url-password",
+    "file": "src/input/parsers/url.ts",
+    "find": "if (url.username !== '' || url.password !== '' || !isDomainName(url.hostname)) return undefined;",
+    "replace": "if (url.username !== '' || !isDomainName(url.hostname)) return undefined;",
+    "tests": [
+      "tests/unit/http-ssrf-adversarial.test.ts"
+    ]
+  },
+  {
+    "id": "qa3-retry-425",
+    "file": "src/http/retry.ts",
+    "find": "const RETRY_ANY_METHOD = new Set([408, 429]);",
+    "replace": "const RETRY_ANY_METHOD = new Set([408, 429, 425]);",
+    "tests": [
+      "tests/scenarios/http-adversarial.test.ts"
+    ]
+  },
+  {
+    "id": "qa3-success-upper",
+    "file": "src/http/retry.ts",
+    "find": "if (status >= 200 && status <= 299) return { ok: true, status, body };",
+    "replace": "if (status >= 200 && status <= 300) return { ok: true, status, body };",
+    "tests": [
+      "tests/scenarios/http-adversarial.test.ts"
+    ]
+  },
+  {
+    "id": "qa3-budget-first-only",
+    "file": "src/nodes/http.ts",
+    "find": "if (attempts === 0) return fail('http_limit_exceeded'",
+    "replace": "if (attempts >= 0) return fail('http_limit_exceeded'",
+    "tests": [
+      "tests/scenarios/http-adversarial.test.ts"
+    ]
+  },
+  {
+    "id": "pii-eager",
+    "file": "src/run.ts",
+    "find": "  let personal: Set<string> | undefined;",
+    "replace": "  let personal: Set<string> | undefined = personalVariables(flow);",
+    "tests": [
+      "tests/unit/http-pii-closure.test.ts"
+    ]
+  },
+  {
+    "id": "pii-closure-calls",
+    "file": "src/http/request.ts",
+    "find": "for (const source of new Set(templateVariables(value))) {",
+    "replace": "for (const source of new Set([...templateVariables(value), ...templateVariables(value)])) {",
+    "tests": [
+      "tests/unit/http-pii-closure.test.ts"
+    ]
+  },
+  {
+    "id": "dot-query",
+    "file": "src/http/url.ts",
+    "find": "const end = query === -1 ? text.length : query;",
+    "replace": "const end = text.length;",
+    "tests": [
+      "tests/unit/http-ssrf-adversarial.test.ts",
+      "tests/unit/http-url.test.ts",
+      "tests/scenarios/http-request.test.ts"
+    ]
+  },
+  {
+    "id": "call-abort",
+    "file": "src/conformance/call.ts",
+    "find": "  stopWaiting.abort();\n",
+    "replace": "",
+    "tests": [
+      "tests/conformance.test.ts"
+    ]
+  }
+]

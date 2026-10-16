@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { converse } from './helpers/conversation.js';
+import { respond, scriptedHost, type Step } from './helpers/http-host.js';
 import { readExample, readFixture } from './helpers/files.js';
 import { startSession } from '../src/index.js';
 
@@ -51,5 +52,43 @@ describe('golden', () => {
   it('rechazo-contacto-invalido', async () => {
     const result = await startSession({ flow: readFixture('contacto'), contact: { email: NaN } });
     await expect(`${JSON.stringify(result, null, 2)}\n`).toMatchFileSnapshot('./golden/rechazo-contacto-invalido.json');
+  });
+});
+
+/** Conversaciones con un host falso: se congelan las peticiones que recibe (contrato con las features 6 y 8) y los resultados. */
+const httpConversations: [string, () => unknown, unknown[], Step[]][] = [
+  [
+    'http-captacion-leads-exito',
+    () => readExample('captacion-leads'),
+    [{ text: 'Ana' }, { text: 'ana@example.com' }, { choice: 'grande' }],
+    [respond(201)],
+  ],
+  [
+    'http-captacion-leads-error-post',
+    () => readExample('captacion-leads'),
+    [{ text: 'Ana' }, { text: 'ana@example.com' }, { choice: 'pequena' }],
+    [respond(500)],
+  ],
+  [
+    'http-captacion-leads-429',
+    () => readExample('captacion-leads'),
+    [{ text: 'Ana' }, { text: 'ana@example.com' }, { choice: 'mediana' }],
+    [respond(429), respond(429), respond(201)],
+  ],
+  [
+    'http-fixture-response-map',
+    () => readFixture('http-response-map'),
+    [],
+    [respond(200, '{"id":"T-1","a/b":"x","m~n":"y","lista":["z"],"cuenta":null}')],
+  ],
+];
+
+describe('golden con host http', () => {
+  it.each(httpConversations)('%s', async (name, flow, steps, script) => {
+    const host = scriptedHost(script, { repeatLast: true });
+    const results = await converse(flow(), steps, undefined, host.host);
+    expect(host.overrun).toBe(0);
+    const transcript = { requests: host.requests, results };
+    await expect(`${JSON.stringify(transcript, null, 2)}\n`).toMatchFileSnapshot(`./golden/${name}.json`);
   });
 });

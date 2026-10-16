@@ -15,6 +15,15 @@ export interface StepContext {
   readonly vars: VariableStore;
   readonly typingDelayMs: number;
   readonly host: EngineHost;
+  /** Variables personales (`pii`, directas o derivadas por `set`): alimentan `containsPii`. */
+  readonly piiVariables: ReadonlySet<string>;
+  /**
+   * Reserva una llamada externa al host del presupuesto de la operación (`MAX_EXTERNAL_CALLS_PER_ADVANCE`).
+   * Es **un solo presupuesto** para `http` y `llm`: no hay contadores por nodo.
+   *
+   * @returns `false` si el presupuesto está agotado.
+   */
+  reserveExternalCall(): boolean;
   emit(event: EngineEvent): void;
 }
 

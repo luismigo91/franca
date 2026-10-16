@@ -1,0 +1,70 @@
+{
+  "requests": [
+    {
+      "nodeId": "consultar",
+      "method": "GET",
+      "url": "https://api.example.com/users/Ana",
+      "headers": [
+        {
+          "name": "Authorization",
+          "secret": "API_TOKEN"
+        },
+        {
+          "name": "X-Cliente",
+          "value": "cliente Ana"
+        }
+      ],
+      "body": null,
+      "timeoutMs": 5000,
+      "containsPii": false,
+      "attempt": 1
+    }
+  ],
+  "results": [
+    {
+      "ok": true,
+      "status": "ended",
+      "events": [
+        {
+          "type": "http",
+          "nodeId": "consultar",
+          "attempts": 1,
+          "status": 200,
+          "error": null
+        },
+        {
+          "type": "message",
+          "nodeId": "fin-ok",
+          "content": [
+            {
+              "kind": "text",
+              "text": "Ticket T-1 (x, y, z) de "
+            }
+          ],
+          "typingDelayMs": 600
+        },
+        {
+          "type": "end",
+          "nodeId": "fin-ok",
+          "outcome": "consultado"
+        }
+      ],
+      "state": {
+        "stateVersion": 1,
+        "flowId": "http-response-map",
+        "status": "ended",
+        "nodeId": "fin-ok",
+        "variables": {
+          "nombre": "Ana",
+          "ticket": "T-1",
+          "ruta": "x",
+          "literal": "y",
+          "primero": "z"
+        },
+        "contact": {},
+        "outcome": "consultado",
+        "error": null
+      }
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+# Falsos positivos revisados a mano: marcadores de tests que comprueban que los secretos no se filtran.
+dbf62cade4925eb0329d4bb360d1a02f518248f8:packages/engine/tests/properties-http.test.ts:generic-api-key:12

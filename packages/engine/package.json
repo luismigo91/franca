@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.mts",
       "default": "./dist/index.mjs"
+    },
+    "./conformance": {
+      "types": "./dist/conformance.d.mts",
+      "default": "./dist/conformance.mjs"
     }
   },
   "files": [
@@ -18,7 +22,8 @@
     "build": "tsdown",
     "dev": "tsdown --watch --no-clean",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "mutate": "node scripts/mutate.mjs"
   },
   "dependencies": {
     "@franca/spec": "workspace:*"
