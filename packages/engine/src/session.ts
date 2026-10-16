@@ -1,7 +1,7 @@
 import { validateFlow } from '@franca/spec';
-import type { Flow } from '@franca/spec';
+import type { Flow, FlowIssue } from '@franca/spec';
 import { MAX_NESTING_DEPTH } from './constants.js';
-import { cloneJsonStrict, exceedsDepth, toJsonForm } from './json.js';
+import { cloneJsonWithinDepth, exceedsDepth, toJsonForm } from './json.js';
 import { run } from './run.js';
 import { parseState } from './state.js';
 import type {
@@ -16,17 +16,19 @@ import { createVariableStore } from './variables.js';
 
 type FlowCheck = { flow: Flow } | { rejection: Rejection };
 
+const invalidFlow = (issues: FlowIssue[]): FlowCheck => ({
+  rejection: { ok: false, code: 'invalid_flow', message: 'el flujo no es válido', issues },
+});
+
 /** Valida la forma JSON del flujo: lo validado es exactamente lo ejecutado. */
 function checkFlow(input: unknown): FlowCheck {
   // Antes de cualquier recursión (stringify, ajv): el límite no depende de la pila disponible.
   if (exceedsDepth(input, MAX_NESTING_DEPTH)) {
     const message = `el flujo supera la profundidad máxima de anidamiento (${MAX_NESTING_DEPTH})`;
-    const issues = [{ layer: 'shape' as const, path: '', message }];
-    return { rejection: { ok: false, code: 'invalid_flow', message: 'el flujo no es válido', issues } };
+    return invalidFlow([{ layer: 'shape', path: '', message }]);
   }
   const result = validateFlow(toJsonForm(input));
-  if (result.valid) return { flow: result.flow };
-  return { rejection: { ok: false, code: 'invalid_flow', message: 'el flujo no es válido', issues: result.issues } };
+  return result.valid ? { flow: result.flow } : invalidFlow(result.issues);
 }
 
 type ContactCheck = { values: Map<string, JsonValue> } | { rejection: Rejection };
@@ -47,7 +49,7 @@ function checkContact(contact: unknown, flow: Flow): ContactCheck {
   const declared = new Set((flow.variables ?? []).map((variable) => variable.name));
   const values = new Map<string, JsonValue>();
   for (const key of Object.keys(contact)) {
-    const copy = cloneJsonStrict((contact as Record<string, unknown>)[key]);
+    const copy = cloneJsonWithinDepth((contact as Record<string, unknown>)[key]);
     if (!copy.ok) {
       return reject(
         declared.has(key)

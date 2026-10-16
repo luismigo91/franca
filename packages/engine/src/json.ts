@@ -58,15 +58,12 @@ export function exceedsDepth(value: unknown, limit: number): boolean {
  */
 export function cloneJsonStrict(value: unknown): JsonCopy {
   if (exceedsDepth(value, MAX_NESTING_DEPTH)) return INVALID;
-  return cloneNode(value, new Set<object>());
+  return cloneJsonWithinDepth(value);
 }
 
-/**
- * @param value Valor a comprobar.
- * @returns `true` si el valor es JSON estricto (ver `cloneJsonStrict`).
- */
-export function checkJsonValue(value: unknown): value is JsonValue {
-  return cloneJsonStrict(value).ok;
+/** Como `cloneJsonStrict` para un valor cuya profundidad el llamador ya comprobó con `exceedsDepth`. */
+export function cloneJsonWithinDepth(value: unknown): JsonCopy {
+  return cloneNode(value, new Set<object>());
 }
 
 function cloneNode(value: unknown, ancestors: Set<object>): JsonCopy {

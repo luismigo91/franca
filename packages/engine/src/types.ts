@@ -81,5 +81,4 @@ export interface ContinueSessionRequest {
 }
 
 /** Capacidades que inyecta el host. Vacía en esta versión. */
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface EngineHost {}

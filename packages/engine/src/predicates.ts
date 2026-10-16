@@ -39,7 +39,7 @@ export function readNumber(value: unknown): number | undefined {
  * @param value `value` de la regla.
  * @returns `true` si son iguales según las coerciones de la spec.
  */
-export function valuesEqual(variable: VariableValue | undefined, value: JsonValue): boolean {
+function valuesEqual(variable: VariableValue | undefined, value: JsonValue): boolean {
   if (variable === undefined) return value === null;
   if (value === null) return false;
   if (typeof variable === 'string' && typeof value === 'string') return variable === value;

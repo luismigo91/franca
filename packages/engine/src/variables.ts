@@ -4,6 +4,12 @@ import type { JsonValue, VariableValue } from './types.js';
 
 type Scope = 'session' | 'contact';
 
+/** Variables sin repetir por nombre, en orden de declaración: la primera declaración manda. */
+function firstDeclarations(declared: readonly Variable[] | undefined): Variable[] {
+  const seen = new Set<string>();
+  return (declared ?? []).filter((variable) => !seen.has(variable.name) && seen.add(variable.name));
+}
+
 /**
  * Valores de las variables de una operación. Se apoya en `Map`, nunca en propiedades de objeto:
  * `constructor`, `toString` o `__proto__` son nombres normales. El almacén es propio de la
@@ -15,15 +21,9 @@ export class VariableStore {
 
   /** @param declared Variables del flujo (forma JSON), en orden de declaración. */
   constructor(declared: readonly Variable[] | undefined) {
-    for (const variable of declared ?? []) {
-      if (this.scopes.has(variable.name)) continue;
+    for (const variable of firstDeclarations(declared)) {
       this.scopes.set(variable.name, variable.scope === 'contact' ? 'contact' : 'session');
     }
-  }
-
-  /** @returns `true` si el flujo declara la variable. */
-  isDeclared(name: string): boolean {
-    return this.scopes.has(name);
   }
 
   /** @returns El valor actual, o `undefined` si no tiene. */
@@ -70,10 +70,7 @@ export function createVariableStore(
   contact: ReadonlyMap<string, JsonValue>,
 ): VariableStore {
   const store = new VariableStore(declared);
-  const seen = new Set<string>();
-  for (const variable of declared ?? []) {
-    if (seen.has(variable.name)) continue;
-    seen.add(variable.name);
+  for (const variable of firstDeclarations(declared)) {
     const injected = variable.scope === 'contact' ? contact.get(variable.name) : undefined;
     if (injected !== undefined && injected !== null) {
       store.set(variable.name, injected);
