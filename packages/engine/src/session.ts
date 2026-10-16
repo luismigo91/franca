@@ -2,8 +2,7 @@ import { validateFlow } from '@franca/spec';
 import type { Flow, FlowIssue, InputNode } from '@franca/spec';
 import { MAX_NESTING_DEPTH } from './constants.js';
 import { cloneJsonWithinDepth, exceedsDepth, toJsonForm } from './json.js';
-import { expectedKey, readUserInput } from './input/user-input.js';
-import { resumeInput } from './nodes/input.js';
+import { isWaitingNode, planResume, waitingTypeOf } from './resume.js';
 import { run } from './run.js';
 import { parseState } from './state.js';
 import type {
@@ -82,16 +81,10 @@ export async function startSession(request: StartSessionRequest, host?: EngineHo
   return run(flow, vars, flow.start, host ?? {});
 }
 
-const EXPECTED_SHAPE = {
-  text: 'la entrada debe ser {"text": string}',
-  choice: 'la entrada debe ser {"choice": id} con el id de una opción del nodo',
-  choices: 'la entrada debe ser {"choices": [id, …]} con ids de opciones del nodo, sin repetir',
-} as const;
-
 /**
  * Continúa una sesión en espera. Comprueba, en este orden: flujo válido, estado bien formado y de
- * versión conocida, mismo flujo con su nodo presente (y siendo un `input` si espera), sesión en
- * espera y entrada con la forma del nodo. Un rechazo no produce eventos ni estado.
+ * versión conocida, mismo flujo con su nodo presente (y siendo del tipo en que espera, `input` o
+ * `llm`), sesión en espera y entrada con la forma del nodo. Un rechazo no produce eventos ni estado.
  *
  * @param request Flujo, estado e `input` del usuario (sin tipar).
  * @param host Capacidades del host; omitido o `null` equivale a `{}`.
@@ -105,16 +98,15 @@ export async function continueSession(request: ContinueSessionRequest, host?: En
   const state = parseState(request.state);
   if (!state) return { ok: false, code: 'invalid_state', message: 'el estado no es válido o su versión no se reconoce' };
   const node = state.flowId === flow.id ? flow.nodes.find((candidate) => candidate.id === state.nodeId) : undefined;
-  if (!node || (state.status === 'waiting' && node.type !== 'input')) {
+  if (!node || (state.status === 'waiting' && node.type !== waitingTypeOf(state))) {
     return { ok: false, code: 'state_mismatch', message: 'el estado no corresponde a este flujo' };
   }
-  if (state.status !== 'waiting' || node.type !== 'input') {
+  if (state.status !== 'waiting' || !isWaitingNode(node)) {
     return { ok: false, code: 'session_not_active', message: 'la sesión no está activa' };
   }
-  const input = readUserInput(node, request.input);
-  if (!input) return { ok: false, code: 'invalid_input', message: EXPECTED_SHAPE[expectedKey(node)] };
-  const vars = restoreVariableStore(flow.variables, state);
   const language = (flow.locale ?? 'es').split('-')[0]!;
-  const attempt = state.attempt!;
-  return run(flow, vars, node.id, host ?? {}, (ctx) => resumeInput(node, ctx, { attempt, input, language }));
+  const plan = planResume(node, state, request.input, language);
+  if (plan.kind === 'rejected') return { ok: false, code: 'invalid_input', message: plan.message };
+  const vars = restoreVariableStore(flow.variables, state);
+  return run(flow, vars, node.id, host ?? {}, plan.step);
 }

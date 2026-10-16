@@ -52,6 +52,9 @@ export const SESSION_ERROR_CODES = [
   'missing_secret',
   'http_host_error',
   'http_limit_exceeded',
+  'llm_not_configured',
+  'llm_host_error',
+  'llm_limit_exceeded',
 ] as const;
 export type SessionErrorCode = (typeof SESSION_ERROR_CODES)[number];
 

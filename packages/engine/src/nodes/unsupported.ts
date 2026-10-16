@@ -1,6 +1,6 @@
 import type { StepOutcome } from './types.js';
 
-/** Ejecutor de los nodos que aún no se soportan (`input`, `http`, `llm`): la sesión falla. */
+/** Falla la sesión con `unsupported_node` cuando el host no ofrece la capacidad que pide un nodo (`http` o `llm`). */
 export const executeUnsupported = (node: { type: string }): StepOutcome => ({
   kind: 'fail',
   code: 'unsupported_node',

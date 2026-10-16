@@ -4,10 +4,10 @@ import { executeEnd } from './end.js';
 import { executeHttp } from './http.js';
 import { executeInput } from './input.js';
 import { executeJump } from './jump.js';
+import { executeLlm } from './llm.js';
 import { executeMessage } from './message.js';
 import { executeSet } from './set.js';
 import type { NodeExecutor } from './types.js';
-import { executeUnsupported } from './unsupported.js';
 
 /**
  * Un ejecutor por cada tipo de nodo de `@franca/spec`. El tipo mapeado hace que el compilador
@@ -21,5 +21,5 @@ export const EXECUTORS: { [K in Node['type']]: NodeExecutor<K> } = {
   end: executeEnd,
   input: executeInput,
   http: executeHttp,
-  llm: executeUnsupported,
+  llm: executeLlm,
 };
