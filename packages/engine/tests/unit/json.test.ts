@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkJsonValue, cloneJsonStrict, deepEqual, exceedsDepth, toJsonForm } from '../../src/json.js';
+import { cloneJsonStrict, deepEqual, exceedsDepth, toJsonForm } from '../../src/json.js';
 
 describe('toJsonForm', () => {
   it('copia sin compartir referencias', () => {
@@ -42,7 +42,9 @@ describe('toJsonForm', () => {
   });
 });
 
-describe('checkJsonValue (estricto)', () => {
+const checkJsonValue = (value: unknown): boolean => cloneJsonStrict(value).ok;
+
+describe('cloneJsonStrict (estricto)', () => {
   const cyclic: Record<string, unknown> = {};
   cyclic.self = cyclic;
   const cyclicArray: unknown[] = [];

@@ -59,7 +59,7 @@ describe('guarda estática de src/', () => {
     expect(tests.sort()).toEqual([
       'predicates.ts: text',
       'regex/match.ts: c',
-      'regex/match.ts: chars[pos]!',
+      'regex/match.ts: codePoint',
     ]);
   });
 

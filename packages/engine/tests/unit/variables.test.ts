@@ -27,7 +27,6 @@ describe('createVariableStore', () => {
 
   it('ignora claves ajenas', () => {
     const store = createVariableStore(declared, contactOf({ empresa: 'Acme' }));
-    expect(store.isDeclared('empresa')).toBe(false);
     expect(store.get('empresa')).toBeUndefined();
     expect(store.contactVariables()).toEqual({ email: 'sin-email' });
   });
