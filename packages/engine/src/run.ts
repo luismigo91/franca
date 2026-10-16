@@ -42,6 +42,10 @@ export async function run(flow: Flow, vars: VariableStore, startNodeId: string, 
       const state = buildState(flow, vars, { status: 'ended', nodeId, outcome: outcome.outcome, error: null });
       return { ok: true, status: 'ended', events, state };
     }
+    if (outcome.kind === 'wait') {
+      const state = buildState(flow, vars, { status: 'waiting', nodeId, outcome: null, error: null, attempt: outcome.attempt });
+      return { ok: true, status: 'waiting', events, state };
+    }
     events.push({ type: 'error', nodeId, code: outcome.code, message: outcome.message });
     const state = buildState(flow, vars, {
       status: 'failed',

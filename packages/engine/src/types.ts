@@ -1,5 +1,5 @@
-import type { FlowIssue } from '@franca/spec';
-import type { RejectionCode, SessionErrorCode, STATE_VERSION } from './constants.js';
+import type { FlowIssue, InputNode } from '@franca/spec';
+import type { InvalidAnswerReason, RejectionCode, SessionErrorCode, STATE_VERSION } from './constants.js';
 
 /** Valor JSON. */
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
@@ -31,9 +31,44 @@ export interface EngineErrorEvent {
   message: string;
 }
 
-export type EngineEvent = EngineMessageEvent | EngineEndEvent | EngineErrorEvent;
+/** Tipo de respuesta que pide un `input`; derivado de `@franca/spec`. */
+export type InputType = InputNode['inputType'];
 
-export type SessionStatus = 'ended' | 'failed';
+/** Entrada del usuario que acepta `continueSession`. El motor la comprueba siempre: llega como `unknown`. */
+export type UserInput = { text: string } | { choice: string } | { choices: string[] };
+
+export interface EngineChoice {
+  id: string;
+  label: string;
+  imageUrl?: string;
+}
+
+interface EngineInputEventBase {
+  type: 'input';
+  nodeId: string;
+  /** Número de intento: 1 la primera vez que se pregunta. */
+  attempt: number;
+  /** Motivo del rechazo de la respuesta anterior, o `null` si no lo hubo. */
+  reason: InvalidAnswerReason | null;
+  /** Solo si el flujo lo define; renderizado. */
+  placeholder?: string;
+}
+
+export interface EngineTextInputEvent extends EngineInputEventBase {
+  inputType: Exclude<InputType, 'choice'>;
+}
+
+export interface EngineChoiceInputEvent extends EngineInputEventBase {
+  inputType: 'choice';
+  multiple: boolean;
+  choices: EngineChoice[];
+}
+
+export type EngineInputEvent = EngineTextInputEvent | EngineChoiceInputEvent;
+
+export type EngineEvent = EngineMessageEvent | EngineInputEvent | EngineEndEvent | EngineErrorEvent;
+
+export type SessionStatus = 'ended' | 'failed' | 'waiting';
 
 export interface SessionError {
   code: SessionErrorCode;
@@ -54,6 +89,8 @@ export interface SessionState {
   outcome: string | null;
   /** Solo si `status === 'failed'`. */
   error: SessionError | null;
+  /** Solo si `status === 'waiting'`: número de intento de la pregunta pendiente (entero ≥ 1). */
+  attempt?: number;
 }
 
 export interface SessionResult {

@@ -1,5 +1,7 @@
 export {
   DEFAULT_TYPING_DELAY_MS,
+  INVALID_ANSWER_REASONS,
+  MAX_INPUT_LENGTH,
   MAX_NESTING_DEPTH,
   MAX_PATTERN_DEPTH,
   MAX_PATTERN_SIZE,
@@ -8,6 +10,7 @@ export {
   REJECTION_CODES,
   SESSION_ERROR_CODES,
   STATE_VERSION,
+  type InvalidAnswerReason,
   type RejectionCode,
   type SessionErrorCode,
 } from './constants.js';
@@ -15,11 +18,16 @@ export { continueSession, startSession } from './session.js';
 export type {
   AdvanceResult,
   ContinueSessionRequest,
+  EngineChoice,
+  EngineChoiceInputEvent,
   EngineEndEvent,
   EngineErrorEvent,
   EngineEvent,
   EngineHost,
+  EngineInputEvent,
   EngineMessageEvent,
+  EngineTextInputEvent,
+  InputType,
   JsonValue,
   RenderedContentItem,
   Rejection,
@@ -28,5 +36,6 @@ export type {
   SessionState,
   SessionStatus,
   StartSessionRequest,
+  UserInput,
   VariableValue,
 } from './types.js';

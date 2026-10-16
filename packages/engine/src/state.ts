@@ -15,7 +15,14 @@ import type { VariableStore } from './variables.js';
 export function buildState(
   flow: Flow,
   vars: VariableStore,
-  stop: { status: SessionStatus; nodeId: string; outcome: string | null; error: SessionError | null },
+  stop: {
+    status: SessionStatus;
+    nodeId: string;
+    outcome: string | null;
+    error: SessionError | null;
+    /** Solo en la parada `waiting`. */
+    attempt?: number;
+  },
 ): SessionState {
   const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
   return {
@@ -27,6 +34,7 @@ export function buildState(
     contact: copy(vars.contactVariables()),
     outcome: stop.outcome,
     error: stop.error,
+    ...(stop.attempt === undefined ? {} : { attempt: stop.attempt }),
   };
 }
 
@@ -46,7 +54,7 @@ export function parseState(input: unknown): SessionState | null {
   const s = json.value;
   if (s.stateVersion !== STATE_VERSION) return null;
   if (typeof s.flowId !== 'string' || typeof s.nodeId !== 'string') return null;
-  if (s.status !== 'ended' && s.status !== 'failed') return null;
+  if (s.status !== 'ended' && s.status !== 'failed' && s.status !== 'waiting') return null;
   if (!isRecord(s.variables) || !Object.values(s.variables).every((v) => v !== null)) return null;
   if (!isRecord(s.contact)) return null;
   const error = parseError(s.error);
@@ -54,6 +62,8 @@ export function parseState(input: unknown): SessionState | null {
   if (s.outcome !== null && typeof s.outcome !== 'string') return null;
   if (s.status === 'ended' && error !== null) return null;
   if (s.status === 'failed' && (error === null || s.outcome !== null)) return null;
+  const waiting = s.status === 'waiting';
+  if (waiting && (error !== null || s.outcome !== null || !isAttempt(s.attempt))) return null;
   return {
     stateVersion: STATE_VERSION,
     flowId: s.flowId,
@@ -63,8 +73,11 @@ export function parseState(input: unknown): SessionState | null {
     contact: s.contact as Record<string, VariableValue | null>,
     outcome: s.outcome,
     error,
+    ...(waiting ? { attempt: s.attempt as number } : {}),
   };
 }
+
+const isAttempt = (value: unknown): value is number => Number.isInteger(value) && (value as number) >= 1;
 
 /** @returns El error, `null` si no hay, `undefined` si la forma es inválida. */
 function parseError(value: unknown): SessionError | null | undefined {
