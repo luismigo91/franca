@@ -120,6 +120,25 @@ describe('scripts/mutate.mjs', { timeout: 30_000 }, () => {
     expect(source()).toBe(ORIGINAL);
   }, 20_000);
 
+  it('MUTATE_ROOT apunta el script a otro paquete: muta y restaura sus ficheros, no los del script', async () => {
+    const other = mkdtempSync(join(tmpdir(), 'mutate-root-'));
+    try {
+      for (const sub of ['src', 'tests']) mkdirSync(join(other, sub));
+      writeFileSync(join(other, 'src/a.js'), ORIGINAL);
+      writeFileSync(join(other, 'tests/a.test.js'), '');
+      writeFileSync(join(dir, 'src/a.js'), 'export const x = 5;\n'); // si mutara el paquete del script, la mutación no encontraría su «find»
+      const { code, out } = await launch([mutation('mata', 'x = 2')], { MUTATE_ROOT: other }).done;
+      expect(code, out).toBe(0);
+      expect(out).toContain('1/1 mutaciones muertas');
+      expect(readFileSync(join(other, 'src/a.js'), 'utf8')).toBe(ORIGINAL);
+      expect(source()).toBe('export const x = 5;\n');
+      expect(existsSync(join(other, '.mutate-backup'))).toBe(false);
+      expect(existsSync(join(dir, '.mutate-backup'))).toBe(false);
+    } finally {
+      rmSync(other, { recursive: true, force: true });
+    }
+  });
+
   it('un «find» que no aparece exactamente una vez aborta sin tocar nada', async () => {
     const { code, out } = await launch([{ ...mutation('obsoleta', 'x = 2'), find: 'NO EXISTE' }]).done;
     expect(code).toBe(1);

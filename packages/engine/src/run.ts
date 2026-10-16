@@ -4,7 +4,7 @@ import { personalVariables } from './http/request.js';
 import { EXECUTORS } from './nodes/index.js';
 import type { NodeExecutor, StepContext, StepOutcome } from './nodes/types.js';
 import { buildState } from './state.js';
-import type { EngineEvent, EngineHost, SessionResult } from './types.js';
+import type { EngineEvent, EngineHost, SessionResult, VariableType } from './types.js';
 import type { VariableStore } from './variables.js';
 
 /**
@@ -30,9 +30,16 @@ export async function run(
   let externalCalls = 0;
   // Perezoso y con memo por operación: solo un nodo que construye una petición necesita las variables personales.
   let personal: Set<string> | undefined;
+  // Perezoso y con memo por operación: solo un llm necesita los tipos declarados.
+  let types: Map<string, VariableType> | undefined;
   const ctx: StepContext = {
     vars,
     host,
+    locale: flow.locale ?? 'es',
+    get variableTypes() {
+      types ??= declaredTypes(flow);
+      return types;
+    },
     get piiVariables() {
       personal ??= personalVariables(flow);
       return personal;
@@ -66,7 +73,14 @@ export async function run(
       return { ok: true, status: 'ended', events, state };
     }
     if (outcome.kind === 'wait') {
-      const state = buildState(flow, vars, { status: 'waiting', nodeId, outcome: null, error: null, attempt: outcome.attempt });
+      const state = buildState(flow, vars, {
+        status: 'waiting',
+        nodeId,
+        outcome: null,
+        error: null,
+        attempt: outcome.attempt,
+        conversation: outcome.conversation,
+      });
       return { ok: true, status: 'waiting', events, state };
     }
     events.push({ type: 'error', nodeId, code: outcome.code, message: outcome.message });
@@ -84,4 +98,11 @@ async function execute(node: Node, ctx: StepContext): Promise<StepOutcome> {
   // Único punto donde se pierde la correlación tipo de nodo ↔ ejecutor; la tabla ya la garantiza.
   const executor = EXECUTORS[node.type] as NodeExecutor<Node['type']>;
   return executor(node as never, ctx);
+}
+
+/** Tipo declarado de cada variable: la primera declaración de un nombre repetido manda (como en `VariableStore`). */
+function declaredTypes(flow: Flow): Map<string, VariableType> {
+  const types = new Map<string, VariableType>();
+  for (const variable of flow.variables ?? []) if (!types.has(variable.name)) types.set(variable.name, variable.type);
+  return types;
 }

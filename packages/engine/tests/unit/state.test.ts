@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { buildState, parseState } from '../../src/state.js';
 import { VariableStore } from '../../src/variables.js';
 import type { Flow } from '@franca/spec';
+import { Conversation } from '../../src/llm/conversation.js';
 
 const ended = () => ({
   stateVersion: 1,
@@ -170,5 +171,127 @@ describe('parseState: profundidad por campo (D13)', () => {
 
   it('el propio objeto del estado no cuenta', () => {
     expect(parseState({ ...ended(), contact: { v: chain(999) }, variables: { w: chain(999) } })).not.toBeNull();
+  });
+});
+
+const conversation = () => ({
+  messages: [
+    { role: 'assistant', text: '¿Me das tu email?' },
+    { role: 'user', text: 'Hola' },
+    { role: 'assistant', text: '¿Cuál es?' },
+  ],
+  costUsd: 0.02,
+  collected: { email: 'ana@example.com' },
+});
+const waitingLlm = () => ({ ...waiting(), attempt: 1, conversation: conversation() });
+/** Mensajes que alternan empezando y terminando por el asistente. */
+const alternating = (count: number) =>
+  Array.from({ length: count }, (_, i) => ({ role: i % 2 === 0 ? 'assistant' : 'user', text: `m${i}` }));
+
+describe('parseState: conversación de un llm', () => {
+  it('acepta una espera con conversación y la devuelve como copia, tras attempt', () => {
+    const input = waitingLlm();
+    const parsed = parseState(input);
+    expect(parsed).toEqual(input);
+    expect(parsed?.conversation).not.toBe(input.conversation);
+    expect(parsed?.conversation?.messages).not.toBe(input.conversation.messages);
+    expect(Object.keys(parsed!).at(-1)).toBe('conversation');
+  });
+
+  it('99 mensajes se aceptan y 101 se rechazan; 100 (par) también', () => {
+    expect(parseState({ ...waitingLlm(), conversation: { ...conversation(), messages: alternating(99) } })).not.toBeNull();
+    expect(parseState({ ...waitingLlm(), conversation: { ...conversation(), messages: alternating(101) } })).toBeNull();
+    expect(parseState({ ...waitingLlm(), conversation: { ...conversation(), messages: alternating(100) } })).toBeNull();
+  });
+
+  it('una sola entrada del asistente es una conversación válida', () => {
+    expect(parseState({ ...waitingLlm(), conversation: { ...conversation(), messages: alternating(1) } })).not.toBeNull();
+  });
+
+  it.each([
+    ['sin mensajes', { messages: [] }],
+    ['el último es del usuario', { messages: alternating(2) }],
+    ['empieza por el usuario', { messages: alternating(3).map((m) => ({ ...m, role: m.role === 'user' ? 'assistant' : 'user' })) }],
+    ['dos del asistente seguidos', { messages: [{ role: 'assistant', text: 'a' }, { role: 'assistant', text: 'b' }, { role: 'assistant', text: 'c' }] }],
+    ['rol desconocido', { messages: [{ role: 'system', text: 'a' }] }],
+    ['texto vacío', { messages: [{ role: 'assistant', text: '' }] }],
+    ['texto de 4097', { messages: [{ role: 'assistant', text: 'a'.repeat(4097) }] }],
+    ['texto con U+0000', { messages: [{ role: 'assistant', text: 'a\u0000' }] }],
+    ['sustituto suelto', { messages: [{ role: 'assistant', text: 'a\ud800' }] }],
+    ['texto no string', { messages: [{ role: 'assistant', text: 5 }] }],
+    ['mensaje no objeto', { messages: ['hola'] }],
+    ['mensajes no array', { messages: { 0: { role: 'assistant', text: 'a' }, length: 1 } }],
+    ['coste -1', { costUsd: -1 }],
+    ['coste "0.01"', { costUsd: '0.01' }],
+    ['coste ausente', { costUsd: undefined }],
+    ['collected con null', { collected: { email: null } }],
+    ['collected array', { collected: [] }],
+    ['collected ausente', { collected: undefined }],
+  ])('conversación corrupta (%s) → null', (_name, patch) => {
+    expect(parseState({ ...waitingLlm(), conversation: { ...conversation(), ...patch } })).toBeNull();
+  });
+
+  it('un texto de 4096 se acepta', () => {
+    const messages = [{ role: 'assistant', text: 'a'.repeat(4096) }];
+    expect(parseState({ ...waitingLlm(), conversation: { ...conversation(), messages } })).not.toBeNull();
+  });
+
+  it('coste NaN o infinito (no son JSON) → null', () => {
+    for (const costUsd of [NaN, Infinity, -Infinity]) {
+      expect(parseState({ ...waitingLlm(), conversation: { ...conversation(), costUsd } })).toBeNull();
+    }
+  });
+
+  it('conversation: null es un estado corrupto, no «sin conversación»', () => {
+    expect(parseState({ ...waitingLlm(), conversation: null })).toBeNull();
+    expect(parseState({ ...waiting(), conversation: null })).toBeNull();
+  });
+
+  it.each([undefined, 'x', 3, [], true])('conversation %j → null', (value) => {
+    expect(parseState({ ...waitingLlm(), conversation: value })).toBeNull();
+  });
+
+  it('una conversación en ended o en failed → null', () => {
+    expect(parseState({ ...ended(), conversation: conversation() })).toBeNull();
+    expect(parseState({ ...failed(), conversation: conversation() })).toBeNull();
+  });
+
+  it('collected conserva __proto__ como propiedad propia y valores no string', () => {
+    const collected = JSON.parse('{"__proto__": "p", "n": 3.5, "ok": false, "datos": {"a": [1]}}');
+    const parsed = parseState({ ...waitingLlm(), conversation: { ...conversation(), collected } });
+    expect(Object.hasOwn(parsed!.conversation!.collected, '__proto__')).toBe(true);
+    expect(parsed!.conversation!.collected).toEqual(collected);
+  });
+
+  it('ignora las propiedades extra de un mensaje y de la conversación', () => {
+    const messages = [{ role: 'assistant', text: 'a', extra: 1 }];
+    const parsed = parseState({ ...waitingLlm(), conversation: { ...conversation(), messages, extra: 2 } });
+    expect(parsed!.conversation).toEqual({ messages: [{ role: 'assistant', text: 'a' }], costUsd: 0.02, collected: { email: 'ana@example.com' } });
+  });
+
+  it('un valor json de 100 niveles recogido pasa por JSON y se acepta', () => {
+    let datos: unknown = 1;
+    for (let i = 0; i < 100; i++) datos = [datos];
+    const state = JSON.parse(JSON.stringify({ ...waitingLlm(), conversation: { ...conversation(), collected: { datos } } }));
+    expect(parseState(state)).not.toBeNull();
+  });
+});
+
+describe('buildState: conversación', () => {
+  const flow = { id: 'f' } as Flow;
+  const store = new VariableStore([]);
+
+  it('escribe conversation al final solo si se da, como JSON independiente', () => {
+    const conv = Conversation.empty();
+    conv.pushAssistant('hola');
+    conv.addTurn(0.01);
+    conv.collect(new Map([['__proto__', 'p']]));
+    const state = buildState(flow, store, { status: 'waiting', nodeId: 'a', outcome: null, error: null, attempt: 1, conversation: conv });
+    expect(Object.keys(state).slice(-2)).toEqual(['attempt', 'conversation']);
+    expect(state.conversation).toEqual({ messages: [{ role: 'assistant', text: 'hola' }], costUsd: 0.01, collected: JSON.parse('{"__proto__":"p"}') });
+    expect(Object.hasOwn(state.conversation!.collected, '__proto__')).toBe(true);
+    expect(parseState(JSON.parse(JSON.stringify(state)))).toEqual(state);
+    const other = buildState(flow, store, { status: 'waiting', nodeId: 'p', outcome: null, error: null, attempt: 1 });
+    expect(other).not.toHaveProperty('conversation');
   });
 });

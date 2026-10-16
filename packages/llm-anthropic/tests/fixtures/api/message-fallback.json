@@ -1,0 +1,24 @@
+{
+  "id": "msg_01D9ay150c12fy0s",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-sonnet-5-5",
+  "content": [
+    { "type": "text", "text": "{\"text\":\"Lo sient" },
+    { "type": "fallback", "from_model": "claude-opus-5-5", "to_model": "claude-sonnet-5-5", "reason": "refusal" },
+    { "type": "text", "text": "{\"text\":\"Hola\",\"done\":false,\"slots\":{\"s0\":{\"found\":false,\"value\":false},\"s1\":{\"found\":false,\"value\":\"\"}}}" }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 2000,
+    "output_tokens": 550,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "service_tier": "standard",
+    "iterations": [
+      { "type": "message", "model": "claude-opus-5-5", "input_tokens": 1000, "output_tokens": 50, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0 },
+      { "type": "fallback_message", "model": "claude-sonnet-5-5", "input_tokens": 1000, "output_tokens": 500, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0 }
+    ]
+  }
+}

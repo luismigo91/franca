@@ -1,3 +1,6 @@
+import { llmFlow } from '../helpers/flows.js';
+import { alwaysLlm, turn } from '../helpers/llm-host.js';
+import { begin } from '../helpers/llm-run.js';
 import { validateFlow } from '@franca/spec';
 import { describe, expect, it } from 'vitest';
 import { condition, end, flowOf, jump, message, rule, setNode, start, startOk, variable, messageTexts } from '../helpers/flows.js';
@@ -90,5 +93,15 @@ describe('Forma JSON del flujo', () => {
     const flow = flowOf([end('fin')]);
     flow.dato = 1n;
     await expect(start(flow)).rejects.toThrow();
+  });
+});
+
+describe('Valores de variable y ausencia de valor: slots de un llm', () => {
+  it('Los slots sí se convierten', async () => {
+    const flow = llmFlow({ slots: [{ variable: 'edad', description: 'Edad' }] }, { variables: [variable('edad', { type: 'number' })] });
+    const result = await begin(flow, alwaysLlm(turn('Listo', { edad: 'abc' }, true)).host);
+    expect(result.status).toBe('waiting');
+    expect(result.state.variables).toEqual({});
+    expect(result.state.conversation?.collected).toEqual({});
   });
 });

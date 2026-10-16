@@ -1,0 +1,213 @@
+[
+  {
+    "id": "anth-temperature-sent",
+    "file": "src/provider.ts",
+    "find": "    messages: buildMessages(request),\n",
+    "replace": "    messages: buildMessages(request),\n    temperature: request.temperature,\n",
+    "tests": [
+      "tests/scenarios/request.test.ts",
+      "tests/golden.test.ts"
+    ]
+  },
+  {
+    "id": "anth-effort-missing",
+    "file": "src/provider.ts",
+    "find": "...(config.effort === null ? {} : { effort: config.effort }), ",
+    "replace": "",
+    "tests": [
+      "tests/scenarios/request.test.ts",
+      "tests/golden.test.ts"
+    ]
+  },
+  {
+    "id": "anth-string-content",
+    "file": "src/prompt.ts",
+    "find": "({ role: message.role, content: [block(message.text)] })",
+    "replace": "({ role: message.role, content: message.text as unknown as TextBlock[] })",
+    "tests": [
+      "tests/scenarios/request.test.ts",
+      "tests/unit/hypotheses.test.ts"
+    ]
+  },
+  {
+    "id": "anth-state-in-system",
+    "file": "src/prompt.ts",
+    "find": "`Configuration (JSON): ${configuration}`].join('\\n');",
+    "replace": "`Configuration (JSON): ${configuration}`, buildStateText(request)].join('\\n');",
+    "tests": [
+      "tests/scenarios/request.test.ts",
+      "tests/unit/hypotheses.test.ts",
+      "tests/unit/prompt.test.ts"
+    ]
+  },
+  {
+    "id": "anth-top-level-cache",
+    "file": "src/provider.ts",
+    "find": "    max_tokens: options.maxOutputTokens,\n",
+    "replace": "    max_tokens: options.maxOutputTokens,\n    cache_control: { type: 'ephemeral' },\n",
+    "tests": [
+      "tests/scenarios/request.test.ts",
+      "tests/golden.test.ts"
+    ]
+  },
+  {
+    "id": "anth-no-history-mark",
+    "file": "src/prompt.ts",
+    "find": "last.content = [{ ...last.content[0]!, cache_control: EPHEMERAL }, block(buildStateText(request))];",
+    "replace": "last.content = [last.content[0]!, block(buildStateText(request))];",
+    "tests": [
+      "tests/scenarios/request.test.ts",
+      "tests/unit/hypotheses.test.ts"
+    ]
+  },
+  {
+    "id": "anth-unknown-model-zero",
+    "file": "src/cost.ts",
+    "find": "if (model === undefined) return maxPrices;",
+    "replace": "if (model === undefined) return { inputUsdPerMTok: 0, outputUsdPerMTok: 0, cacheReadUsdPerMTok: 0, cacheWriteUsdPerMTok: 0 };",
+    "tests": [
+      "tests/scenarios/models-cost.test.ts",
+      "tests/unit/cost.test.ts"
+    ]
+  },
+  {
+    "id": "anth-threshold-inclusive",
+    "file": "src/cost.ts",
+    "find": "promptTokens > model.longPrompt.thresholdTokens",
+    "replace": "promptTokens >= model.longPrompt.thresholdTokens",
+    "tests": [
+      "tests/scenarios/models-cost.test.ts",
+      "tests/unit/cost.test.ts"
+    ]
+  },
+  {
+    "id": "anth-threshold-without-cache",
+    "file": "src/cost.ts",
+    "find": "input + cacheRead + cacheWrite, options.maxPrices",
+    "replace": "input, options.maxPrices",
+    "tests": [
+      "tests/scenarios/models-cost.test.ts",
+      "tests/unit/cost.test.ts"
+    ]
+  },
+  {
+    "id": "anth-format-legend",
+    "file": "src/prompt.ts",
+    "find": "return [INSTRUCTIONS, ...legend, ",
+    "replace": "return [INSTRUCTIONS, ",
+    "tests": [
+      "tests/scenarios/request.test.ts"
+    ]
+  },
+  {
+    "id": "anth-fallback-haiku",
+    "file": "src/provider.ts",
+    "find": "const useServerFallback = resolved.serverFallback && config.serverFallback;",
+    "replace": "const useServerFallback = resolved.serverFallback;",
+    "tests": [
+      "tests/scenarios/models-cost.test.ts"
+    ]
+  },
+  {
+    "id": "anth-iterations-ignored",
+    "file": "src/cost.ts",
+    "find": "const cost = Math.max(topLevel, summed);",
+    "replace": "const cost = topLevel;",
+    "tests": [
+      "tests/scenarios/models-cost.test.ts",
+      "tests/unit/cost.test.ts"
+    ]
+  },
+  {
+    "id": "anth-content-before-stop",
+    "file": "src/provider.ts",
+    "find": "  if (stopReason === 'refusal') return { kind: 'refusal', costUsd };",
+    "replace": "  if (readStructuredOutput(read(message, 'content'), request.slots) === null) return { kind: 'failed', costUsd };\n  if (stopReason === 'refusal') return { kind: 'refusal', costUsd };",
+    "tests": [
+      "tests/scenarios/response.test.ts"
+    ]
+  },
+  {
+    "id": "anth-error-message",
+    "file": "src/provider.ts",
+    "find": "      if (!settled.ok) return classifyError(settled.error) === 'not_configured' ? NOT_CONFIGURED : FAILED;",
+    "replace": "      if (!settled.ok) {\n        try {\n          resolved.onWarning?.({ code: 'temperature_ignored', nodeId: String((settled.error as { message?: unknown } | null)?.message), model });\n        } catch {\n          // sin efecto\n        }\n        return classifyError(settled.error) === 'not_configured' ? NOT_CONFIGURED : FAILED;\n      }",
+    "tests": [
+      "tests/scenarios/provider.test.ts"
+    ]
+  },
+  {
+    "id": "anth-no-race",
+    "file": "src/provider.ts",
+    "find": "const settled = await Promise.race([attempt(), expired]);",
+    "replace": "const settled = await attempt();",
+    "tests": [
+      "tests/scenarios/provider.test.ts"
+    ]
+  },
+  {
+    "id": "anth-user-in-system",
+    "file": "src/prompt.ts",
+    "find": "return [INSTRUCTIONS, ...legend, ",
+    "replace": "return [INSTRUCTIONS, ...legend, request.history.at(-1)?.text ?? '', ",
+    "tests": [
+      "tests/scenarios/request.test.ts"
+    ]
+  },
+  {
+    "id": "anth-model-inherited",
+    "file": "src/provider.ts",
+    "find": "const config = resolved.models.get(model);",
+    "replace": "const config = (Object.fromEntries(resolved.models) as Record<string, ResolvedModel>)[model];",
+    "tests": [
+      "tests/scenarios/models-cost.test.ts"
+    ]
+  },
+  {
+    "id": "anth-callback-unguarded",
+    "file": "src/provider.ts",
+    "find": "  try {\n    options.onWarning({ code: 'temperature_ignored', nodeId: request.nodeId, model });\n  } catch {\n    // Un callback defectuoso del host no debe tumbar el turno.\n  }",
+    "replace": "  options.onWarning({ code: 'temperature_ignored', nodeId: request.nodeId, model });",
+    "tests": [
+      "tests/scenarios/provider.test.ts"
+    ]
+  },
+  {
+    "id": "anth-log-level",
+    "file": "src/client.ts",
+    "find": "new Anthropic({ ...options, logLevel: 'off' })",
+    "replace": "new Anthropic({ ...options })",
+    "tests": [
+      "tests/scenarios/client.test.ts",
+      "tests/unit/errors-client.test.ts"
+    ]
+  },
+  {
+    "id": "anth-found-ignored",
+    "file": "src/output.ts",
+    "find": "    if (!slotOutput.found) return;\n",
+    "replace": "",
+    "tests": [
+      "tests/scenarios/response.test.ts"
+    ]
+  },
+  {
+    "id": "anth-union-schema",
+    "file": "src/output.ts",
+    "find": "      return z.number();",
+    "replace": "      return z.number().nullable();",
+    "tests": [
+      "tests/scenarios/request.test.ts"
+    ]
+  },
+  {
+    "id": "anth-content-mode",
+    "file": "src/client.ts",
+    "find": "  if (openTelemetry.traces.contentMode !== 'content') return client;\n",
+    "replace": "  return client;\n",
+    "tests": [
+      "tests/scenarios/client.test.ts",
+      "tests/unit/errors-client.test.ts"
+    ]
+  }
+]

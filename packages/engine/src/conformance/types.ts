@@ -1,4 +1,4 @@
-import type { HttpCapability } from '../types.js';
+import type { HttpCapability, LlmCapability, SessionStatus } from '../types.js';
 
 /** Comportamiento de un servidor que levanta el arnés. */
 export type ServerBehaviour =
@@ -43,6 +43,23 @@ export interface Connection {
 }
 
 /**
+ * La API de sesiones del host de producción, tal como la usa un cliente. El host custodia el estado en
+ * el servidor: el cliente solo conoce el `id` de la sesión. `status` es el de la sesión tras aplicar la continuación.
+ */
+export interface ConformanceSessions {
+  /** Arranca una sesión con `flow` y devuelve su identificador. */
+  start(flow: unknown): Promise<{ readonly id: string }>;
+  /**
+   * Continúa la sesión con el mensaje `{text}` de `input`. `clientState` es lo que un cliente malicioso
+   * añadiría a su petición (un estado propio): el host debe ignorarlo. Resuelve `conflict` si el estado
+   * ya estaba reclamado o ya se aplicó otra continuación, sin ejecutar el motor.
+   */
+  continue(id: string, input: unknown, clientState?: unknown): Promise<{ readonly kind: 'applied'; readonly status: SessionStatus } | { readonly kind: 'conflict' }>;
+  /** Hace caducar ahora las reclamaciones que no terminaron (el arnés fuerza el paso del tiempo). */
+  expireClaims(): Promise<void>;
+}
+
+/**
  * Lo que implementa quien ofrece el host de producción para pasar la suite: servidores locales
  * reales, un resolutor, una lista de permitidos por par dirección y puerto, un almacén de secretos
  * y un registro, todos inyectables. El motor solo define el contrato; no lo implementa.
@@ -60,6 +77,13 @@ export interface HostConformanceHarness {
   refusing(): Promise<{ readonly origin: string; readonly address: string; readonly port: number }>;
   /** Pares a los que el host intentó conectar desde el último `reset`. */
   connectionsTo(): Promise<readonly Connection[]>;
+  /**
+   * La capacidad `llm` del host de producción (su composición, su registro y su configuración) con
+   * `provider` en lugar del adaptador real para el proveedor `principal`.
+   */
+  llm(provider: LlmCapability): LlmCapability;
+  /** La API de sesiones del host de producción, con `provider` como proveedor `principal` de sus llm. */
+  sessions(provider: LlmCapability): ConformanceSessions;
   setSecret(name: string, value: string, origins: readonly string[], tenant?: string): Promise<void>;
   /** Líneas que el host registró desde el último `reset`. */
   logs(): Promise<readonly string[]>;

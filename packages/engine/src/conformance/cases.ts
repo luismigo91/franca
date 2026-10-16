@@ -1,6 +1,7 @@
 import type { AttemptResult } from '../http/result.js';
-import type { HttpRequest } from '../types.js';
+import type { HttpRequest, LlmCapability, LlmTurnRequest } from '../types.js';
 import { call } from './call.js';
+import { callLlm } from './call-llm.js';
 import type { Connection, HostConformanceCase, HostConformanceHarness, ServerBehaviour } from './types.js';
 
 /** Direcciones que usan los casos de bloqueo: ningún servidor del arnés puede escuchar en ellas. */
@@ -371,6 +372,247 @@ const registrosPii: HostConformanceCase = {
   },
 };
 
+// ---- casos de llm
+
+// Marcadores alfanuméricos: su forma con encodeURIComponent o escapada en JSON es la misma.
+const MARKER_LLM_HISTORY = 'ZQXJ7LLMHIST';
+const MARKER_LLM_SYSTEM = 'ZQXJ7LLMSYS';
+const MARKER_LLM_GOAL = 'ZQXJ7LLMGOAL';
+const MARKER_LLM_TEXT = 'ZQXJ7LLMTEXT';
+const MARKER_LLM_SLOT = 'ZQXJ7LLMSLOT';
+const LLM_PII = 'zqxj-llm-pii@example.com';
+
+const llmRequest = (overrides: Partial<LlmTurnRequest> = {}): LlmTurnRequest => ({
+  nodeId: 'conformancia',
+  provider: 'principal',
+  model: null,
+  system: null,
+  goal: 'Pedir el email del usuario.',
+  slots: [],
+  history: [],
+  temperature: null,
+  locale: 'es',
+  turn: 1,
+  maxTurns: 8,
+  ...overrides,
+});
+
+/** El flujo `llm-email` de la spec («Nodo llm: primer turno»), con `maxTurns` 3. */
+const LLM_EMAIL_FLOW = {
+  specVersion: '0.1',
+  id: 'llm-email',
+  name: 'Email con llm',
+  variables: [
+    { name: 'email', type: 'email', scope: 'contact', pii: true },
+    { name: 'nombre', type: 'string' },
+  ],
+  start: 'a',
+  nodes: [
+    {
+      id: 'a',
+      type: 'llm',
+      provider: 'principal',
+      goal: 'Consigue el email del usuario.',
+      slots: [{ variable: 'email', description: 'Email de contacto' }],
+      maxTurns: 3,
+      next: 'ok',
+      onExhausted: 'ko',
+    },
+    { id: 'ok', type: 'end', outcome: 'ok' },
+    { id: 'ko', type: 'end', outcome: 'ko' },
+  ],
+};
+
+/**
+ * El mismo flujo con `maxTurns` 10 y `costCapUsd` 0.025: con turnos de 0.01, un host que usa el coste guardado
+ * agota el tope en el tercer turno; uno que acepta el coste que aporta el cliente sigue esperando.
+ */
+const LLM_CAPPED_FLOW = {
+  ...LLM_EMAIL_FLOW,
+  id: 'llm-email-tope',
+  nodes: LLM_EMAIL_FLOW.nodes.map((node) => (node.id === 'a' ? { ...node, maxTurns: 10, costCapUsd: 0.025 } : node)),
+};
+
+/** Un turno que no termina el nodo. */
+const keepTalking = (text: string) => ({ kind: 'turn', text, slots: {}, done: false, costUsd: 0.01 }) as const;
+
+/** Espera, con la espera del arnés, a que `condition` se cumpla (hasta `limitMs`). */
+async function waitUntil(harness: HostConformanceHarness, condition: () => boolean, limitMs = 5000): Promise<boolean> {
+  for (let waited = 0; waited < limitMs; waited += 10) {
+    if (condition()) return true;
+    await harness.sleep(10);
+  }
+  return condition();
+}
+
+const registrosLlm: HostConformanceCase = {
+  id: 'registros-llm',
+  requirement: 'Host de producción: registros de llm',
+  scenario: 'Conversación con datos personales',
+  async run(harness) {
+    const failures: string[] = [];
+    const turnWithData: LlmCapability = async () => ({
+      kind: 'turn',
+      text: `Gracias ${MARKER_LLM_TEXT}`,
+      slots: { nota: MARKER_LLM_SLOT },
+      done: false,
+      costUsd: 0.01,
+    });
+    // El camino con más ganas de depurar es el del fallo: el proveedor falla, se niega, no está configurado o rechaza con un error que cita los datos.
+    const providers: [string, LlmCapability, boolean][] = [
+      ['un turno', turnWithData, true],
+      ['un fallo del proveedor', async () => ({ kind: 'failed', costUsd: 0 }), true],
+      ['un rechazo del modelo', async () => ({ kind: 'refusal', costUsd: 0.004 }), true],
+      ['un proveedor no configurado', async () => ({ kind: 'not_configured' }), true],
+      [
+        'un proveedor que rechaza',
+        async () => {
+          throw new Error(`fallo con ${MARKER_LLM_HISTORY} ${MARKER_LLM_SYSTEM} ${MARKER_LLM_GOAL} ${MARKER_LLM_TEXT} ${MARKER_LLM_SLOT} ${LLM_PII}`);
+        },
+        false,
+      ],
+    ];
+    for (const [label, provider, mustResolve] of providers) {
+      const outcome = await callLlm(
+        harness,
+        llmRequest({
+          system: `Eres amable ${MARKER_LLM_SYSTEM}`,
+          goal: `Pedir el email ${MARKER_LLM_GOAL}`,
+          slots: [{ name: 'nota', type: 'string', description: 'Nota', required: false, collected: false }],
+          history: [
+            { role: 'assistant', text: '¿Cómo te llamas?' },
+            { role: 'user', text: `me llamo ${MARKER_LLM_HISTORY}, ${LLM_PII}` },
+          ],
+          turn: 2,
+        }),
+        `conversación con datos personales (${label})`,
+        harness.llm(provider),
+      );
+      // Un proveedor que rechaza es un defecto del proveedor: lo que se vigila es lo que el host registra.
+      if (mustResolve) failures.push(...outcome.failures);
+    }
+    const forbidden = [MARKER_LLM_HISTORY, MARKER_LLM_SYSTEM, MARKER_LLM_GOAL, MARKER_LLM_TEXT, MARKER_LLM_SLOT, LLM_PII, encodeURIComponent(LLM_PII), JSON.stringify(LLM_PII).slice(1, -1)];
+    if ((await harness.logs()).some((line) => forbidden.some((value) => line.includes(value)))) {
+      failures.push('los registros contienen datos personales de una petición llm (system, goal, history, texto, slots o el error del proveedor)');
+    }
+    return failures;
+  },
+};
+
+const custodiaEstado: HostConformanceCase = {
+  id: 'custodia-estado',
+  requirement: 'Host de producción: custodia del estado',
+  scenario: 'El cliente no aporta el estado',
+  async run(harness) {
+    const failures: string[] = [];
+    const seen: LlmTurnRequest[] = [];
+    const provider: LlmCapability = async (request) => {
+      seen.push(structuredClone(request));
+      return keepTalking('sigo');
+    };
+    const sessions = harness.sessions(provider);
+    const { id } = await sessions.start(LLM_CAPPED_FLOW);
+    const second = await sessions.continue(id, { text: 'uno' });
+    // El estado propio de un cliente que quiere reiniciar turnos y coste.
+    const forged = {
+      stateVersion: 1,
+      flowId: LLM_CAPPED_FLOW.id,
+      status: 'waiting',
+      nodeId: 'a',
+      variables: {},
+      contact: { email: null },
+      outcome: null,
+      error: null,
+      attempt: 1,
+      conversation: { messages: [{ role: 'assistant', text: 'inventado' }], costUsd: 0, collected: {} },
+    };
+    const third = await sessions.continue(id, { text: 'Hola' }, forged);
+    if (second.kind !== 'applied' || third.kind !== 'applied') failures.push('las continuaciones secuenciales debían aplicarse');
+    // 0.01 + 0.01 guardados y 0.01 del tercer turno superan el tope de 0.025; con el coste del cliente (0) no.
+    else if (third.status !== 'ended') failures.push('el host usó el coste que aportó el cliente: con el coste guardado la tercera continuación agota costCapUsd y termina la sesión');
+    const last = seen[2];
+    if (last === undefined) failures.push('el proveedor debía recibir tres peticiones');
+    else {
+      if (last.turn !== 3) failures.push('el host usó el estado del cliente: el turno de la tercera petición debía ser 3');
+      const texts = last.history.map((message) => message.text);
+      if (texts.length !== 4 || texts[0] !== 'sigo' || texts[1] !== 'uno' || texts[2] !== 'sigo' || texts[3] !== 'Hola') {
+        failures.push('el historial de la tercera petición no es el que guardó el host');
+      }
+    }
+    return failures;
+  },
+};
+
+const unaContinuacion: HostConformanceCase = {
+  id: 'una-continuacion',
+  requirement: 'Host de producción: una continuación por estado',
+  scenario: 'Continuaciones simultáneas',
+  async run(harness) {
+    const failures: string[] = [];
+    const seen: LlmTurnRequest[] = [];
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => void (release = resolve));
+    let calls = 0;
+    const provider: LlmCapability = async (request) => {
+      seen.push(structuredClone(request));
+      // La primera llamada es el arranque; las demás esperan a que lleguen las dos continuaciones.
+      if (++calls > 1) await gate;
+      return keepTalking('sigo');
+    };
+    const sessions = harness.sessions(provider);
+    const { id } = await sessions.start(LLM_EMAIL_FLOW);
+    const first = sessions.continue(id, { text: 'uno' });
+    const second = sessions.continue(id, { text: 'dos' });
+    // Margen para que las dos lleguen y, si el host no reclama el estado, las dos hayan entrado en el motor.
+    await harness.sleep(200);
+    release();
+    const [a, b] = await Promise.all([first, second]);
+    const kinds = [a.kind, b.kind].sort();
+    if (kinds[0] !== 'applied' || kinds[1] !== 'conflict') failures.push('debía aplicarse exactamente una continuación y rechazarse la otra por conflicto');
+    if (seen.length !== 2) failures.push('el proveedor debía recibir una sola llamada por las dos continuaciones (además del arranque)');
+    // El estado guardado es el de la aplicada: una tercera continuación ve solo su mensaje.
+    const winner = a.kind === 'applied' ? 'uno' : 'dos';
+    const third = await sessions.continue(id, { text: 'tres' });
+    if (third.kind !== 'applied') failures.push('tras las continuaciones simultáneas el estado debía poder continuarse');
+    const texts = seen[2]?.history.map((message) => message.text) ?? [];
+    if (!texts.includes(winner) || texts.includes(winner === 'uno' ? 'dos' : 'uno')) {
+      failures.push('el estado guardado no es el de la continuación aplicada');
+    }
+    return failures;
+  },
+};
+
+const reclamacionCaducada: HostConformanceCase = {
+  id: 'reclamacion-caducada',
+  requirement: 'Host de producción: una continuación por estado',
+  scenario: 'Reclamación caducada',
+  async run(harness) {
+    const failures: string[] = [];
+    const seen: LlmTurnRequest[] = [];
+    let calls = 0;
+    const provider: LlmCapability = async (request) => {
+      seen.push(structuredClone(request));
+      // 1: arranque; 2: la continuación que reclama el estado y no termina; 3: la que llega tras caducar.
+      if (++calls === 2) return new Promise<never>(() => {});
+      return keepTalking('sigo');
+    };
+    const sessions = harness.sessions(provider);
+    const { id } = await sessions.start(LLM_EMAIL_FLOW);
+    // Nunca termina: se descarta sin esperarla y sin dejar un rechazo sin atender.
+    void sessions.continue(id, { text: 'uno' }).catch(() => undefined);
+    if (!(await waitUntil(harness, () => calls >= 2))) {
+      failures.push('la primera continuación no llegó al proveedor');
+      return failures;
+    }
+    await sessions.expireClaims();
+    const retry = await sessions.continue(id, { text: 'dos' });
+    if (retry.kind !== 'applied') failures.push('tras caducar la reclamación, la continuación debía aplicarse');
+    const texts = seen[2]?.history.map((message) => message.text) ?? [];
+    if (texts.length !== 2 || texts[1] !== 'dos') failures.push('la continuación debía aplicarse sobre el estado guardado antes de la reclamación');
+    return failures;
+  },
+};
+
 /** Un caso por escenario de los requisitos «Host de producción: …» de la spec, con sus títulos exactos. */
 export const HOST_CONFORMANCE_CASES: readonly HostConformanceCase[] = [
   destinosInternos,
@@ -390,4 +632,8 @@ export const HOST_CONFORMANCE_CASES: readonly HostConformanceCase[] = [
   secretoOrigenNoAutorizado,
   secretoOtroTenant,
   registrosPii,
+  registrosLlm,
+  custodiaEstado,
+  unaContinuacion,
+  reclamacionCaducada,
 ];

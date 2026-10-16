@@ -11,14 +11,15 @@
 // aborta y nunca cuenta como «muerta». SIGINT y SIGTERM restauran el fichero de forma síncrona.
 //
 // Uso: node scripts/mutate.mjs [--only id,id]   (código 1 si sobrevive alguna o algo falla; 130 si se interrumpe)
-// Variables de entorno (para probar el script): MUTATE_VITEST (ejecutable de Vitest),
+// Variables de entorno: MUTATE_ROOT (paquete que se muta; por defecto el del script, así lo reutiliza
+// @franca/llm-anthropic), y, para probar el script, MUTATE_VITEST (ejecutable de Vitest),
 // MUTATE_TIMEOUT_MS (por defecto 300000) y MUTATE_MUTATIONS (ruta del JSON de mutaciones).
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const root = process.env.MUTATE_ROOT ? resolve(process.env.MUTATE_ROOT) : resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const backupDir = join(root, '.mutate-backup');
 const vitest = process.env.MUTATE_VITEST ?? join(root, 'node_modules/.bin/vitest');
 const timeoutMs = Number(process.env.MUTATE_TIMEOUT_MS ?? 300_000);
@@ -72,6 +73,27 @@ function validate(mutations) {
   return problems;
 }
 
+const isWindows = process.platform === 'win32';
+
+/**
+ * Mata a Vitest **y a todo lo que lanzó** (los workers del pool `forks`). Vitest se lanza en su propio
+ * grupo de procesos (`detached`), así que `kill(-pid)` alcanza al árbol; sin esto, un mutante con un bucle
+ * infinito dejaba workers girando al 100 % de CPU tras agotar el tiempo. En Windows no hay grupos: se mata
+ * solo al proceso. Un `ESRCH` (el grupo ya no existe) no es un error.
+ */
+function killTree(child) {
+  if (!child || child.pid === undefined) return;
+  if (isWindows) {
+    child.kill('SIGKILL');
+    return;
+  }
+  try {
+    process.kill(-child.pid, 'SIGKILL');
+  } catch (error) {
+    if (error?.code !== 'ESRCH') child.kill('SIGKILL');
+  }
+}
+
 /**
  * Ejecuta Vitest sobre `tests`.
  * @returns `{ status }` con el código de salida; `{ timedOut: true }` si se agotó el tiempo; `{ error }` si el proceso no pudo ejecutarse.
@@ -85,14 +107,18 @@ function runTests(tests) {
       clearTimeout(timer);
       resolveRun(value);
     };
-    const child = spawn(vitest, ['run', ...tests], { cwd: root, stdio: 'ignore' });
+    const child = spawn(vitest, ['run', ...tests], { cwd: root, stdio: 'ignore', detached: !isWindows });
     currentChild = child;
     const timer = setTimeout(() => {
-      child.kill('SIGKILL');
+      killTree(child);
       settle({ timedOut: true });
     }, timeoutMs);
     child.on('error', (error) => settle({ error: error.message }));
-    child.on('close', (status, signal) => settle(signal ? { error: `terminado por la señal ${signal}` } : { status }));
+    child.on('close', (status, signal) => {
+      // Vitest terminó, pero algún worker podría seguir vivo: se barre su grupo.
+      killTree(child);
+      settle(signal ? { error: `terminado por la señal ${signal}` } : { status });
+    });
   });
 }
 
@@ -124,7 +150,8 @@ async function runOne(m) {
 }
 
 function onSignal() {
-  currentChild?.kill('SIGKILL');
+  // Con `detached`, Ctrl-C ya no llega a Vitest: hay que matar su grupo a mano.
+  killTree(currentChild);
   if (active) {
     // Síncrono: el proceso va a salir y no hay otra oportunidad de restaurar.
     writeFileSync(active.path, active.original);
@@ -140,6 +167,9 @@ if (recoverLeftovers()) {
   console.error('Se restauraron ficheros de una ejecución anterior: revisa el árbol de trabajo y vuelve a ejecutar.');
   process.exit(1);
 }
+// El candado de `scripts/guard-mutate.mjs` es este directorio: se crea ya antes de la línea base para que
+// un `pnpm check` o `pnpm build` que arranque mientras tanto no compile ni verifique a medias.
+mkdirSync(backupDir, { recursive: true });
 const mutations = loadMutations();
 const problems = validate(mutations);
 if (problems.length) fatal(`tests/mutations.json está obsoleto:\n  ${problems.join('\n  ')}`);

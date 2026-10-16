@@ -1,0 +1,5 @@
+{
+  "type": "error",
+  "error": { "type": "rate_limit_error", "message": "Number of request tokens has exceeded your per-minute rate limit MARCA-ERROR" },
+  "request_id": "req_011CSHoEeqs5C35K2UUqR7Fy"
+}

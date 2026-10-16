@@ -36,7 +36,8 @@
       "apps/web/src/**",
       "packages/spec/src/**",
       "packages/spec/flow.schema.json",
-      "packages/engine/src/**"
+      "packages/engine/src/**",
+      "packages/llm-anthropic/src/**"
     ],
     "testGlobs": [
       "**/*.test.*",
@@ -72,9 +73,10 @@
   "protectedFixtures": {
     "patterns": [
       "packages/spec/src/types.ts",
-      "packages/engine/tests/golden/**"
+      "packages/engine/tests/golden/**",
+      "packages/llm-anthropic/tests/golden/**"
     ],
-    "howToUpdate": "edita packages/spec/flow.schema.json y ejecuta `pnpm --filter @franca/spec generate`; golden del motor: `pnpm --filter @franca/engine test -u` y revisar el diff."
+    "howToUpdate": "edita packages/spec/flow.schema.json y ejecuta `pnpm --filter @franca/spec generate`; golden del motor: `pnpm --filter @franca/engine test -u`; golden del adaptador: `pnpm --filter @franca/llm-anthropic test -u`; y revisar el diff."
   },
   "docsGuard": {
     "enabled": false,

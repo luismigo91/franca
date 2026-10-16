@@ -1,0 +1,118 @@
+import type { JsonValue, LlmCapability, LlmTurnRequest, LlmTurnResult } from '@franca/engine';
+import { createAnthropicClient } from './client.js';
+import { messageCostUsd } from './cost.js';
+import { classifyError } from './errors.js';
+import { readProperty } from './read.js';
+import { buildOutputFormat, buildOutputSchema, readStructuredOutput, type OutputSchema } from './output.js';
+import { resolveOptions, type AnthropicProviderOptions, type ResolvedModel, type ResolvedOptions } from './options.js';
+import { buildMessages, buildSystem } from './prompt.js';
+
+/** Cabecera beta del fallback de rechazo en el servidor. */
+const SERVER_FALLBACK_BETA = 'server-side-fallback-2026-07-01';
+
+// Congelados: el mismo objeto se devuelve en cada turno y el host no debe poder mutarlo para los siguientes.
+const FAILED: LlmTurnResult = Object.freeze({ kind: 'failed', costUsd: 0 });
+const NOT_CONFIGURED: LlmTurnResult = Object.freeze({ kind: 'not_configured' });
+const EXPIRED = Symbol('turn-expired');
+
+/** Convierte una respuesta de la API en el resultado del turno: primero el coste, después `stop_reason`, y solo entonces el contenido. */
+function resultOf(message: unknown, request: LlmTurnRequest, options: ResolvedOptions, schema: OutputSchema): LlmTurnResult {
+  const costUsd = messageCostUsd(message, options);
+  const stopReason = readProperty(message, 'stop_reason');
+  if (stopReason === 'refusal') return { kind: 'refusal', costUsd };
+  if (stopReason !== 'end_turn') return { kind: 'failed', costUsd };
+  const output = readStructuredOutput(readProperty(message, 'content'), request.slots, schema);
+  if (output === null) return { kind: 'failed', costUsd };
+  return { kind: 'turn', text: output.text, slots: output.slots as Record<string, JsonValue>, done: output.done, costUsd };
+}
+
+/** El cuerpo de la petición, con el orden de claves que congela el golden. */
+function buildBody(request: LlmTurnRequest, model: string, config: ResolvedModel, options: ResolvedOptions, schema: OutputSchema) {
+  return {
+    model,
+    max_tokens: options.maxOutputTokens,
+    system: buildSystem(request),
+    messages: buildMessages(request),
+    output_config: { ...(config.effort === null ? {} : { effort: config.effort }), format: buildOutputFormat(request.slots, schema) },
+  };
+}
+
+/** Avisa de que la temperatura se ignora. Un `onWarning` que lanza no afecta al turno. */
+function warnTemperature(request: LlmTurnRequest, model: string, options: ResolvedOptions): void {
+  if (request.temperature === null || options.onWarning === null) return;
+  try {
+    options.onWarning({ code: 'temperature_ignored', nodeId: request.nodeId, model });
+  } catch {
+    // Un callback defectuoso del host no debe tumbar el turno.
+  }
+}
+
+/**
+ * Crea el proveedor de Claude: una función con la firma de la capacidad `llm` del motor
+ * (`createLlmCapability({ principal: createAnthropicProvider() })`). Hace como mucho una petición
+ * lógica a la API de Mensajes por turno, con salida estructurada, y **siempre resuelve** con un
+ * resultado del contrato: su promesa nunca se rechaza.
+ *
+ * - Un modelo que no está en la tabla da `not_configured` sin llamar a la API; un 401, 403 o 404, también.
+ * - Cualquier otro error (400, 429, 5xx, conexión, tiempo agotado, respuesta sin salida estructurada)
+ *   da `failed`. Los reintentos son del SDK (`maxRetries`); el turno entero, reintentos incluidos,
+ *   se acota a `turnTimeoutMs`.
+ * - El coste lo calcula el proveedor con la tabla de precios: ver `messageCostUsd`.
+ * - Ni el contenido de las peticiones o respuestas ni el de los errores salen del proveedor.
+ *
+ * @param options Cliente, tabla de modelos y límites. Sin `client`, `createAnthropicClient()`.
+ * @returns La capacidad `llm`.
+ * @throws {TypeError} Con un mensaje fijo si la tabla o alguna opción no se pueden aplicar.
+ */
+export function createAnthropicProvider(options: AnthropicProviderOptions = {}): LlmCapability {
+  const resolved = resolveOptions(options);
+  const client = options.client ?? createAnthropicClient();
+
+  const turn = async (request: LlmTurnRequest): Promise<LlmTurnResult> => {
+    const model = request.model ?? resolved.defaultModel;
+    const config = resolved.models.get(model);
+    if (config === undefined) return NOT_CONFIGURED;
+    warnTemperature(request, model, resolved);
+
+    // El esquema se construye una sola vez por turno: lo usan la petición y la lectura.
+    const schema = buildOutputSchema(request.slots);
+    const body = buildBody(request, model, config, resolved, schema);
+    const useServerFallback = resolved.serverFallback && config.serverFallback;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    // El SDK no resuelve nunca si el cliente ignora la señal de aborto: la carrera propia lo cubre.
+    const expired = new Promise<typeof EXPIRED>((resolve) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        resolve(EXPIRED);
+      }, resolved.turnTimeoutMs);
+    });
+    const attempt = async (): Promise<{ ok: true; message: unknown } | { ok: false; error: unknown }> => {
+      try {
+        const requestOptions = { maxRetries: resolved.maxRetries, timeout: resolved.turnTimeoutMs, signal: controller.signal };
+        const message: unknown = useServerFallback
+          ? await client.beta.messages.create({ ...body, betas: [SERVER_FALLBACK_BETA], fallbacks: 'default' }, requestOptions)
+          : await client.messages.create(body, requestOptions);
+        return { ok: true, message };
+      } catch (error) {
+        return { ok: false, error };
+      }
+    };
+    try {
+      const settled = await Promise.race([attempt(), expired]);
+      if (settled === EXPIRED) return FAILED;
+      if (!settled.ok) return classifyError(settled.error) === 'not_configured' ? NOT_CONFIGURED : FAILED;
+      return resultOf(settled.message, request, resolved, schema);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  return async (request) => {
+    try {
+      return await turn(request);
+    } catch {
+      return FAILED;
+    }
+  };
+}

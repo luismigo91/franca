@@ -8,13 +8,13 @@
   },
   "scripts": {
     "dev": "turbo run dev",
-    "build": "turbo run build",
+    "build": "node scripts/guard-mutate.mjs && turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "test:e2e": "turbo run test:e2e",
     "validate": "turbo run validate",
-    "check": "turbo run lint typecheck test",
+    "check": "node scripts/guard-mutate.mjs && turbo run lint typecheck test",
     "wiki:lint": "node scripts/wiki-lint.mjs --changed",
     "prepare": "git config core.hooksPath .githooks"
   },

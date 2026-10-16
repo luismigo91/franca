@@ -16,7 +16,7 @@ describe('@franca/engine/conformance como subruta del paquete', () => {
 
   it('exporta exactamente el catálogo, las direcciones internas y el margen de la espera límite', () => {
     expect(Object.keys(conformance).sort()).toEqual(['CALL_DEADLINE_MARGIN_MS', 'CONFORMANCE_INTERNAL_ADDRESSES', 'HOST_CONFORMANCE_CASES']);
-    expect(conformance.HOST_CONFORMANCE_CASES).toHaveLength(17);
+    expect(conformance.HOST_CONFORMANCE_CASES).toHaveLength(21);
     expect(Object.isFrozen(conformance.HOST_CONFORMANCE_CASES) || Array.isArray(conformance.HOST_CONFORMANCE_CASES)).toBe(true);
   });
 

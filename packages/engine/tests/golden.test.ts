@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { converse } from './helpers/conversation.js';
 import { respond, scriptedHost, type Step } from './helpers/http-host.js';
+import { refusal, scriptedLlm, turn, withHosts } from './helpers/llm-host.js';
 import { readExample, readFixture } from './helpers/files.js';
 import { startSession } from '../src/index.js';
 
@@ -90,5 +91,43 @@ describe('golden con host http', () => {
     expect(host.overrun).toBe(0);
     const transcript = { requests: host.requests, results };
     await expect(`${JSON.stringify(transcript, null, 2)}\n`).toMatchFileSnapshot(`./golden/${name}.json`);
+  });
+});
+
+/** Conversaciones de `faq-ia` con un host que ofrece `llm` y `http`: se congelan las peticiones de ambos, en orden (contrato con el adaptador y con las features 6 y 8), y los resultados. */
+const llmConversations: [string, unknown[], unknown[], Step[]][] = [
+  [
+    'llm-faq-ia-resuelta',
+    [{ text: '¿Cuánto cuesta el envío?' }, { text: 'Sí, gracias' }],
+    [
+      turn('¿En qué puedo ayudarte?', {}, false, 0.01),
+      turn('El envío cuesta 3 €. ¿Resuelto?', {}, false, 0.01),
+      turn('¡Perfecto!', { resuelto: true, motivo: 'precio del envío' }, true, 0.01),
+    ],
+    [respond(200)],
+  ],
+  [
+    'llm-faq-ia-agotada-ticket',
+    [{ text: '¿Cuánto cuesta el envío?' }, { text: 'ana@example.com' }],
+    [turn('¿En qué puedo ayudarte?', {}, false, 0.03), turn('Mira el precio en la web.', { motivo: 'precio del envío' }, false, 0.02)],
+    [respond(201, '{"id": "T-1"}')],
+  ],
+  [
+    'llm-faq-ia-rechazo',
+    [{ text: '¿Cuánto cuesta el envío?' }, { text: 'ana@example.com' }],
+    [turn('¿En qué puedo ayudarte?', {}, false, 0.01), refusal(0.004)],
+    [respond(201, '{"id": "T-2"}')],
+  ],
+];
+
+describe('golden con host llm', () => {
+  it.each(llmConversations)('%s', async (name, steps, llmScript, httpScript) => {
+    const llm = scriptedLlm(llmScript);
+    const http = scriptedHost(httpScript, { repeatLast: true });
+    const { host, calls } = withHosts(http.host, llm.host);
+    const results = await converse(readExample('faq-ia'), steps, undefined, host);
+    expect(llm.overrun).toBe(0);
+    expect(http.overrun).toBe(0);
+    await expect(`${JSON.stringify({ calls, results }, null, 2)}\n`).toMatchFileSnapshot(`./golden/${name}.json`);
   });
 });

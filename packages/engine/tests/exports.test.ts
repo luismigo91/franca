@@ -32,6 +32,7 @@ describe('constantes públicas', () => {
       'out_of_range',
       'pattern_mismatch',
     ]);
+    expect(engine.LLM_EXIT_REASONS).toEqual(['max_turns', 'cost_cap', 'refusal', 'provider_error', 'invalid_turn']);
     expect(engine.MAX_NESTING_DEPTH).toBe(1000);
     expect(engine.MAX_PATTERN_DEPTH).toBe(100);
     expect(engine.SESSION_ERROR_CODES).toEqual([
@@ -45,6 +46,9 @@ describe('constantes públicas', () => {
       'missing_secret',
       'http_host_error',
       'http_limit_exceeded',
+      'llm_not_configured',
+      'llm_host_error',
+      'llm_limit_exceeded',
     ]);
     expect(engine.REJECTION_CODES).toEqual([
       'invalid_flow',
@@ -68,6 +72,7 @@ describe('API pública', () => {
         'MAX_RESPONSE_BODY_LENGTH',
         'MAX_URL_LENGTH',
         'INVALID_ANSWER_REASONS',
+        'LLM_EXIT_REASONS',
         'MAX_INPUT_LENGTH',
         'MAX_NESTING_DEPTH',
         'MAX_PATTERN_DEPTH',
@@ -78,6 +83,7 @@ describe('API pública', () => {
         'SESSION_ERROR_CODES',
         'STATE_VERSION',
         'continueSession',
+        'createLlmCapability',
         'startSession',
       ].sort(),
     );

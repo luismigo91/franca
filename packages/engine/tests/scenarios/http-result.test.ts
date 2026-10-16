@@ -1,3 +1,6 @@
+import { llmFlow, llmNode } from '../helpers/flows.js';
+import { alwaysLlm, turn } from '../helpers/llm-host.js';
+import { begin } from '../helpers/llm-run.js';
 import { describe, expect, it } from 'vitest';
 import { startSession } from '../../src/index.js';
 import { condition, end, flowOf, httpNode, jump, message, messageTexts, rule, setNode, variable } from '../helpers/flows.js';
@@ -328,5 +331,13 @@ describe('Ejemplo de captación de leads con http', () => {
     const { flow, state } = await leadsAtSize();
     const result = await continueWith(flow, state, { choice: 'pequena' }, always(respond(201)).host);
     expect(result.ok && result.state.outcome).toBe('lead-pyme');
+  });
+});
+
+describe('Eventos de salida con llm', () => {
+  it('El evento llm no cierra la operación', async () => {
+    const flow = llmFlow({}, { nodes: [llmNode({ slots: undefined }), end('ok', { outcome: 'ok' }), end('ko', { outcome: 'ko' })] });
+    const result = await begin(flow, alwaysLlm(turn('Hecho', {}, true)).host);
+    expect(result.events.map((e) => e.type)).toEqual(['message', 'llm', 'end']);
   });
 });

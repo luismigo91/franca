@@ -18,6 +18,7 @@ Monorepo pnpm workspaces + Turborepo, Node 22+.
 | `@franca/web` | `apps/web` | Next.js 16 App Router, React 19, Tailwind 4, ESLint — skill `popi:stack-nextjs` | 3000 |
 | `@franca/spec` | `packages/spec` | JSON Schema 2020-12 + tipos generados + validador (ajv), tsdown, Vitest | — |
 | `@franca/engine` | `packages/engine` | TypeScript puro sin IO (motor de ejecución de flujos), tsdown, Vitest | — |
+| `@franca/llm-anthropic` | `packages/llm-anthropic` | Proveedor de Claude para el nodo `llm` (SDK oficial de Anthropic y zod), tsdown, Vitest | — |
 
 Las apps importan `@franca/spec` compilado (`dist/`); turbo lo construye antes (`^build`). Decisiones de diseño en `docs/rfcs/`.
 
@@ -29,6 +30,7 @@ Las apps importan `@franca/spec` compilado (`dist/`); turbo lo construye antes (
 | Verificación canónica (lint + typecheck + tests) | `pnpm check` |
 | Tests | `pnpm test` (unit) · `pnpm test:e2e` (api) · `pnpm validate` (ejemplos de la spec) |
 | Regenerar tipos de la spec | `pnpm --filter @franca/spec generate` |
+| Test en vivo del adaptador de Claude (opcional, gasta céntimos, nunca en CI) | `FRANCA_LIVE_ANTHROPIC=1 pnpm --filter @franca/llm-anthropic test:live` |
 | Lint de la wiki | `pnpm wiki:lint` |
 
 `pnpm check` es el **veredicto canónico**: se ejecuta en local (pre-push), en el Stop hook y su equivalente en CI. Informa solo de checks realmente ejecutados; nunca describas como pasado un check que no corriste.
@@ -66,3 +68,5 @@ Lista completa en `.claude/rules/always/gotchas.md`. Los imprescindibles:
 Solo nombres; los valores viven en ficheros de entorno locales que nunca se leen, copian ni versionan.
 
 - `PORT` (api, por defecto 3001)
+- `ANTHROPIC_API_KEY` (la lee el SDK de Anthropic en el cliente por defecto de `@franca/llm-anthropic`; solo para el test en vivo, exportada en la shell)
+- `FRANCA_LIVE_ANTHROPIC` (`1` activa el test en vivo del adaptador; con `CI` exige además `FRANCA_LIVE_ANTHROPIC_CI=1`)

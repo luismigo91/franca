@@ -12,7 +12,7 @@ export const MAX_RENDERED_LENGTH = 16384;
 /** Longitud máxima, en unidades de código UTF-16, de la respuesta de texto de un usuario (y de su valor guardado). */
 export const MAX_INPUT_LENGTH = 4096;
 
-/** Llamadas externas al host por operación (`http` hoy, `llm` después), reintentos incluidos. */
+/** Llamadas externas al host por operación (`http` y `llm`, un solo presupuesto), reintentos incluidos. */
 export const MAX_EXTERNAL_CALLS_PER_ADVANCE = 10;
 /** Longitud máxima, en unidades de código UTF-16, de la URL de una petición, antes y después de serializarla. */
 export const MAX_URL_LENGTH = 8192;
@@ -30,6 +30,10 @@ export const MAX_MAPPED_VALUE_DEPTH = 100;
 export const DEFAULT_HTTP_TIMEOUT_MS = 10000;
 /** Paridad con `schema.$defs.httpNode.properties.retries.default`. */
 export const DEFAULT_HTTP_RETRIES = 1;
+/** Paridad con `schema.$defs.llmNode.properties.maxTurns.default`. */
+export const DEFAULT_LLM_MAX_TURNS = 8;
+/** Mensajes máximos de una conversación llm: 2 × `maxTurns.maximum` (50) − 1. */
+export const MAX_CONVERSATION_MESSAGES = 99;
 
 /** Niveles máximos de array/objeto anidados en un flujo, un contacto o un estado recibidos. */
 export const MAX_NESTING_DEPTH = 1000;
@@ -48,8 +52,15 @@ export const SESSION_ERROR_CODES = [
   'missing_secret',
   'http_host_error',
   'http_limit_exceeded',
+  'llm_not_configured',
+  'llm_host_error',
+  'llm_limit_exceeded',
 ] as const;
 export type SessionErrorCode = (typeof SESSION_ERROR_CODES)[number];
+
+/** Por qué sale un `llm` por `onExhausted` (campo `reason` del evento `llm`). */
+export const LLM_EXIT_REASONS = ['max_turns', 'cost_cap', 'refusal', 'provider_error', 'invalid_turn'] as const;
+export type LlmExitReason = (typeof LLM_EXIT_REASONS)[number];
 
 /** Rechazos de una operación: no producen eventos ni estado. */
 export const REJECTION_CODES = [

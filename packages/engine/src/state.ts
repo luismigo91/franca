@@ -1,6 +1,7 @@
 import type { Flow } from '@franca/spec';
 import { MAX_NESTING_DEPTH, SESSION_ERROR_CODES, STATE_VERSION } from './constants.js';
-import { cloneJsonWithinDepth, exceedsDepth } from './json.js';
+import { cloneJsonWithinDepth, exceedsDepth, isRecord } from './json.js';
+import { parseConversation, type Conversation } from './llm/conversation.js';
 import type { SessionError, SessionState, SessionStatus, VariableValue } from './types.js';
 import type { VariableStore } from './variables.js';
 
@@ -22,6 +23,8 @@ export function buildState(
     error: SessionError | null;
     /** Solo en la parada `waiting`. */
     attempt?: number;
+    /** Solo en la parada `waiting` de un nodo `llm`: cualquier otra parada descarta la conversación. */
+    conversation?: Conversation;
   },
 ): SessionState {
   const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
@@ -35,6 +38,7 @@ export function buildState(
     outcome: stop.outcome,
     error: stop.error,
     ...(stop.attempt === undefined ? {} : { attempt: stop.attempt }),
+    ...(stop.conversation === undefined ? {} : { conversation: copy(stop.conversation.toState()) }),
   };
 }
 
@@ -46,9 +50,6 @@ export function buildState(
  * 999 niveles, aceptado al arrancar, daba un estado de 1001 que `parseState` rechazaba.
  */
 const STATE_MAX_DEPTH = MAX_NESTING_DEPTH + 1;
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /**
  * Lee un estado recibido del host.
@@ -75,6 +76,10 @@ export function parseState(input: unknown): SessionState | null {
   if (s.status === 'failed' && (error === null || s.outcome !== null)) return null;
   const waiting = s.status === 'waiting';
   if (waiting && (error !== null || s.outcome !== null || !isAttempt(s.attempt))) return null;
+  // Presencia por Object.hasOwn y no por veracidad: `conversation: null` es un estado corrupto, no «sin conversación».
+  const hasConversation = Object.hasOwn(s, 'conversation');
+  const conversation = hasConversation ? parseConversation(s.conversation) : undefined;
+  if (hasConversation && (!waiting || conversation === null)) return null;
   return {
     stateVersion: STATE_VERSION,
     flowId: s.flowId,
@@ -85,6 +90,7 @@ export function parseState(input: unknown): SessionState | null {
     outcome: s.outcome,
     error,
     ...(waiting ? { attempt: s.attempt as number } : {}),
+    ...(conversation ? { conversation } : {}),
   };
 }
 

@@ -1,0 +1,19 @@
+{
+  "id": "msg_01C8zx049b01ex9r",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-opus-5-5",
+  "content": [
+    { "type": "thinking", "thinking": "MARCA-PENSAMIENTO: el usuario quiere el precio del envío", "signature": "EqQBCgIYAhIM1gbcDa9GJwZA2b3hGgxBdjrkzLoky3dl1pkiMOYds" },
+    { "type": "text", "text": "{\"text\":\"Hola\",\"done\":false,\"slots\":{\"s0\":{\"found\":false,\"value\":false},\"s1\":{\"found\":false,\"value\":\"\"}}}" }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 1000,
+    "output_tokens": 200,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "service_tier": "standard"
+  }
+}

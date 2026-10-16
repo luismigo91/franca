@@ -2,21 +2,23 @@
 
 Motor de ejecución de flujos de Franca. TypeScript puro: sin IO, sin reloj, sin aleatoriedad y sin escribir en consola. Con el mismo flujo y las mismas entradas devuelve siempre el mismo resultado. Comportamiento vigente en `openspec/specs/flow-engine/spec.md` (y, mientras un cambio no se archiva, en su delta de `openspec/changes/`).
 
-Ejecuta flujos del formato de [`@franca/spec`](../spec): mensajes, `input`, `http`, `set`, `jump`, `condition` y `end`. El nodo `http` necesita que el host ofrezca `EngineHost.http` (sin ella, la sesión falla con `unsupported_node`); el nodo `llm` aún no está soportado.
+Ejecuta flujos del formato de [`@franca/spec`](../spec): mensajes, `input`, `http`, `llm`, `set`, `jump`, `condition` y `end`. Los nodos `http` y `llm` necesitan que el host ofrezca `EngineHost.http` y `EngineHost.llm` (sin la capacidad, la sesión falla con `unsupported_node`).
 
 ## API
 
 | Export | Qué es |
 |---|---|
 | `startSession(request, host?)` | Arranca una sesión con `{ flow, contact? }` y la ejecuta hasta que termina o falla. |
-| `continueSession(request, host?)` | Recibe `{ flow, state, input }` y continúa una sesión en espera: evalúa la respuesta al `input` y ejecuta hasta la siguiente detención. |
+| `continueSession(request, host?)` | Recibe `{ flow, state, input }` y continúa una sesión en espera: evalúa la respuesta al `input` (o el mensaje al `llm`) y ejecuta hasta la siguiente detención. |
+| `createLlmCapability(providers)` | Compone la capacidad `EngineHost.llm` a partir de los proveedores de la instalación (un objeto o un `Map` de nombre a función): cada petición va al de nombre exacto `request.provider`; si ninguno coincide, resuelve `not_configured`. |
 | `STATE_VERSION`, `MAX_STEPS_PER_ADVANCE`, `DEFAULT_TYPING_DELAY_MS`, `MAX_PATTERN_SIZE`, `MAX_RENDERED_LENGTH`, `MAX_NESTING_DEPTH`, `MAX_PATTERN_DEPTH`, `MAX_INPUT_LENGTH`, `MAX_EXTERNAL_CALLS_PER_ADVANCE`, `MAX_URL_LENGTH`, `MAX_REQUEST_BODY_LENGTH`, `MAX_RESPONSE_BODY_LENGTH` | Constantes del contrato. |
-| `SESSION_ERROR_CODES` | `unsupported_node`, `invalid_rule`, `step_limit_exceeded`, `value_too_large`, `invalid_validation`, `retries_exhausted`, `invalid_http_config`, `missing_secret`, `http_host_error`, `http_limit_exceeded`. |
+| `SESSION_ERROR_CODES` | `unsupported_node`, `invalid_rule`, `step_limit_exceeded`, `value_too_large`, `invalid_validation`, `retries_exhausted`, `invalid_http_config`, `missing_secret`, `http_host_error`, `http_limit_exceeded`, `llm_not_configured`, `llm_host_error`, `llm_limit_exceeded`. |
 | `REJECTION_CODES` | `invalid_flow`, `invalid_contact`, `invalid_state`, `state_mismatch`, `session_not_active`, `invalid_input`. |
 | `INVALID_ANSWER_REASONS` | Motivos de una respuesta inválida (`reason` del evento `input`): `too_long`, `required`, `invalid_format`, `out_of_range`, `pattern_mismatch`. |
+| `LLM_EXIT_REASONS` | Por qué un `llm` sale por `onExhausted` (`reason` del evento `llm`): `max_turns`, `cost_cap`, `refusal`, `provider_error`, `invalid_turn`. |
 | `HTTP_ERROR_REASONS` | Motivos de una llamada `http` que termina mal (`error` del evento `http`): `invalid_url`, `invalid_header_value`, `body_too_large`, `http_status`, `timeout`, `network_error`, `blocked`, `response_too_large`, `invalid_response`. |
-| `@franca/engine/conformance` | Suite de conformidad del host HTTP (ver más abajo). |
-| Tipos | `HttpRequest`, `HttpAttemptResult`, `HttpCapability`, `EngineHttpEvent`, `UserInput`, `InputType`, `EngineInputEvent` (unión por `inputType`), `EngineChoice`, `JsonValue`, `VariableValue`, `EngineEvent` (y sus variantes), `SessionState`, `SessionResult`, `Rejection`, `AdvanceResult`, `EngineHost`, etc. |
+| `@franca/engine/conformance` | Suite de conformidad del host de producción: `http` y `llm` (ver más abajo). |
+| Tipos | `HttpRequest`, `HttpAttemptResult`, `HttpCapability`, `EngineHttpEvent`, `LlmTurnRequest`, `LlmTurnResult`, `LlmCapability`, `LlmMessage`, `LlmSlotRequest`, `LlmConversation`, `EngineLlmEvent`, `VariableType`, `UserInput`, `InputType`, `EngineInputEvent` (unión por `inputType`), `EngineChoice`, `JsonValue`, `VariableValue`, `EngineEvent` (y sus variantes), `SessionState`, `SessionResult`, `Rejection`, `AdvanceResult`, `EngineHost`, etc. |
 
 ## Contrato
 
@@ -61,7 +63,7 @@ El motor no tiene red, reloj ni temporizadores: el host aporta `EngineHost.http`
 | `blocked`, `response_too_large` | sin reintento | ídem |
 | `missing_secret` | falla la sesión | ídem |
 
-Se hacen 1 + `retries` intentos (1 reintento por defecto) y, entre `http` y el futuro `llm`, **como mucho 10 llamadas externas por operación** (`MAX_EXTERNAL_CALLS_PER_ADVANCE`): un reintento que no cabe se recorta y un primer intento que no cabe falla con `http_limit_exceeded`. El evento `http` (`{ type, nodeId, attempts, status, error }`) cuenta lo ocurrido; un error de la llamada sigue por `onError` y un fallo de sesión (`missing_secret`, `http_host_error`…) no emite el evento. La respuesta solo llega al estado por los valores de `responseMap` (todo o nada, ≤ 100 niveles y ≤ 16384 unidades por valor).
+Se hacen 1 + `retries` intentos (1 reintento por defecto) y, entre `http` y `llm`, **como mucho 10 llamadas externas por operación** (`MAX_EXTERNAL_CALLS_PER_ADVANCE`): un reintento que no cabe se recorta y un primer intento que no cabe falla con `http_limit_exceeded`. El evento `http` (`{ type, nodeId, attempts, status, error }`) cuenta lo ocurrido; un error de la llamada sigue por `onError` y un fallo de sesión (`missing_secret`, `http_host_error`…) no emite el evento. La respuesta solo llega al estado por los valores de `responseMap` (todo o nada, ≤ 100 niveles y ≤ 16384 unidades por valor).
 
 Límites que el host debe respetar o conocer:
 
@@ -71,7 +73,27 @@ Límites que el host debe respetar o conocer:
 - **Coste de `responseMap`**: O(entradas × 1 MiB) en el peor caso (cada entrada puede medir y copiar un subárbol de hasta 1 MiB).
 - **`timeoutMs`** es un tope total del intento: el motor no lo mide, lo aplica el host.
 
-`EngineEvent` y `SessionErrorCode` crecen de forma aditiva: un `switch` exhaustivo del consumidor debe tener rama por defecto.
+`EngineEvent` y `SessionErrorCode` crecen de forma aditiva: un `switch` exhaustivo del consumidor debe tener rama por defecto (el evento `llm` y los códigos `llm_*` son aditivos).
+
+## Conversaciones con IA (`llm`)
+
+El motor no llama a ningún modelo: el host aporta `EngineHost.llm`, una función `(request: LlmTurnRequest) => Promise<LlmTurnResult>` que hace **un turno**, y el motor lleva la conversación, valida lo que devuelve y decide cuándo sale del nodo. `createLlmCapability({ principal, … })` enruta por `llm.provider`; el paquete `@franca/llm-anthropic` ofrece un proveedor de Claude. Un turno nunca se repite.
+
+**Petición** (objeto nuevo por turno): `{ nodeId, provider, model, system, goal, slots, history, temperature, locale, turn, maxTurns }`. `system` y `goal` van renderizados como plantillas; `slots` lista cada variable distinta del nodo con `{ name, type, description, required, collected }`; `history` lo mantiene el motor (lo que el host haga con la petición no lo altera).
+
+**Resultado**: `{ kind: 'turn', text, slots, done, costUsd }`, `{ kind: 'refusal', costUsd }`, `{ kind: 'failed', costUsd }` o `{ kind: 'not_configured' }`. `costUsd` es un number finito ≥ 0. Rechazar la promesa, lanzar o devolver otra forma es un defecto del host: la sesión falla con `llm_host_error`. `not_configured` falla con `llm_not_configured`; el turno que sería la llamada 11 de la operación, con `llm_limit_exceeded`.
+
+Lo que decide el modelo queda acotado por construcción: el **texto** (se emite tal cual, recortado y de ≤ 4096 unidades; nunca es una plantilla), los **slots declarados** por el nodo (solo se leen esos nombres; cada valor se convierte con las reglas de un `input` del tipo de su variable, y los de tipo `json` se copian en una pasada con tope de 100 niveles y 4096 unidades) y `done`, que solo termina el nodo con todos los slots obligatorios recogidos. Un texto inválido descarta el turno entero (`invalid_turn`).
+
+Tras cada turno que no termina el nodo, la operación emite el `message` del asistente y un `input` de texto, y espera. El usuario responde con `{ text }` (más de 4096 unidades, vacío o con caracteres que no se pueden guardar es un mensaje inválido: no llama al host ni cuenta como turno). El nodo sale por `next` al cumplirse el objetivo y por `onExhausted` al llegar a `maxTurns` (8 por defecto) o al alcanzar `costCapUsd` (un tope de parada: puede superarse como mucho en el coste de un turno), o por rechazo y fallo del proveedor. Al salir, guarda los slots recogidos en sus variables, emite el evento `{ type: 'llm', nodeId, turns, costUsd, reason }` (sin textos ni slots) y descarta la conversación. Un `next` hacia el propio nodo sigue en la misma conversación, con sus turnos y su coste.
+
+**Estado en espera.** El estado de una espera en un `llm` lleva `conversation` (mensajes, coste acumulado y slots recogidos): contiene lo que escribió el usuario, así que es un **dato personal** que el host persiste con retención y borrado. Tamaño máximo: 99 mensajes de ≤ 4096 unidades más ≤ 4096 unidades de forma textual por slot recogido. Qué tipo de espera tiene un estado lo dice el estado (hay `conversation` o no), no el flujo. `stateVersion` sigue en 1.
+
+**Custodia del estado (obligatoria en el host de producción).** `maxTurns` y `costCapUsd` solo se pueden verificar si la continuación parte del estado que devolvió el motor: un cliente que reenvía un estado anterior reinicia turnos y coste. El host de producción debe **guardar el estado en el servidor**, continuar solo con el guardado y **reclamarlo antes de ejecutar el motor** (compare-and-swap sobre su versión o concesión «en curso» con caducidad): una segunda continuación del mismo estado se rechaza por conflicto sin llamar al proveedor. La suite de conformidad lo comprueba (`custodia-estado`, `una-continuacion`, `reclamacion-caducada`, con `HostConformanceHarness.sessions`). Sin esto, un ciclo `llm` → `set` → `llm` también empieza conversaciones nuevas y reinicia `costCapUsd`; el presupuesto por sesión o tenant es del host.
+
+**Límite que el motor no puede cerrar.** `system` y `goal` son plantillas: si el autor inserta en ellos una variable que escribió el usuario (`{{nombre}}` de un `input`), ese texto llega al `system` del modelo. El adaptador de Claude lo encierra en JSON, pero lo decide quien escribe el flujo.
+
+**Registros.** El host de producción trata toda petición `llm` y su resultado como datos personales: no registra `system`, `goal`, `history`, textos ni slots (caso `registros-llm`).
 
 ## Desarrollo
 

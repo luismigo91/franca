@@ -1,3 +1,5 @@
+import { llmFlow, llmNode } from '../helpers/flows.js';
+import { alwaysLlm, turn, withHosts } from '../helpers/llm-host.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { startSession } from '../../src/index.js';
 import { condition, end, flowOf, httpNode, input, rule, setNode, variable } from '../helpers/flows.js';
@@ -253,5 +255,22 @@ describe('Límite de llamadas al host por avance', () => {
     const result = await runOk(flow, host.host);
     expectFailure(result, 'http_limit_exceeded', 'c');
     expect(httpEvents(result).map((e) => (e as { attempts: number }).attempts)).toEqual([6, 4]);
+  });
+});
+
+describe('Límite de llamadas con llm', () => {
+  it('Un llm consume del mismo presupuesto', async () => {
+    const nodes = [
+      llmNode({ slots: undefined, next: 'h0' }),
+      ...Array.from({ length: 10 }, (_, i) => httpNode(`h${i}`, {}, { retries: 0, next: i + 1 < 10 ? `h${i + 1}` : 'fin', onError: i + 1 < 10 ? `h${i + 1}` : 'fin' })),
+      end('fin', { outcome: 'ok' }),
+      end('ko', { outcome: 'ko' }),
+    ];
+    const http = always(respond(200));
+    const { host } = withHosts(http.host, alwaysLlm(turn('Hecho', {}, true)).host);
+    const result = await runOk(llmFlow({}, { nodes }), host);
+    expect(httpEvents(result)).toHaveLength(9);
+    expectFailure(result, 'http_limit_exceeded', 'h9');
+    expect(http.requests).toHaveLength(9);
   });
 });

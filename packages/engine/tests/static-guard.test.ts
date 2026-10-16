@@ -106,9 +106,37 @@ describe('guarda estática de src/', () => {
     }
   });
 
+  it('src/llm/ aplica las reglas de src/input/: nada de regex sobre lo que escribe el usuario o devuelve el modelo', () => {
+    const llmFiles = files.filter((f) => f.path.startsWith('llm/'));
+    expect(llmFiles.map((f) => f.path).sort()).toEqual([
+      'llm/capability.ts',
+      'llm/conversation.ts',
+      'llm/json-copy.ts',
+      'llm/providers.ts',
+      'llm/request.ts',
+      'llm/result.ts',
+      'llm/slots.ts',
+      'llm/text.ts',
+    ]);
+    for (const f of llmFiles) {
+      expect(f.code, `${f.path}: RegExp`).not.toMatch(/\bRegExp\b/);
+      expect(f.code, `${f.path}: exec/match/search`).not.toMatch(/\.(exec|match|matchAll|search)\(/);
+      expect(f.code, `${f.path}: regex literal`).not.toMatch(REGEX_LITERAL);
+      expect(f.code, `${f.path}: .test(`).not.toMatch(/\.test\(/);
+    }
+  });
+
+  it('el catch de src/llm/capability.ts no tiene variable: lo que lanza el host no se mira', () => {
+    const capability = files.find((f) => f.path === 'llm/capability.ts');
+    expect(capability, 'existe llm/capability.ts').toBeDefined();
+    const catches = [...capability!.code.matchAll(/\bcatch\b\s*(\(?)/g)];
+    expect(catches.length).toBeGreaterThanOrEqual(2);
+    for (const found of catches) expect(found[1], 'catch con variable').toBe('');
+  });
+
   it('src/conformance/ está cubierto por la guarda: sin reloj ni IO (usa harness.now y harness.sleep)', () => {
     const conformanceFiles = files.filter((f) => f.path.startsWith('conformance/'));
-    expect(conformanceFiles.map((f) => f.path).sort()).toEqual(['conformance/call.ts', 'conformance/cases.ts', 'conformance/index.ts', 'conformance/types.ts']);
+    expect(conformanceFiles.map((f) => f.path).sort()).toEqual(['conformance/call-llm.ts', 'conformance/call.ts', 'conformance/cases.ts', 'conformance/index.ts', 'conformance/types.ts']);
     for (const f of conformanceFiles) {
       expect(f.code, `${f.path}: reloj o temporizador`).not.toMatch(/\b(Date|performance|setTimeout|setInterval|setImmediate)\b/);
       expect(f.code, `${f.path}: IO`).not.toMatch(/\b(fetch|XMLHttpRequest|require)\b|['"`]node:/);

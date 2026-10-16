@@ -1,3 +1,6 @@
+import { llmFlow as llmReferenceFlow, llmNode } from '../helpers/flows.js';
+import { alwaysLlm, turn } from '../helpers/llm-host.js';
+import { begin } from '../helpers/llm-run.js';
 import { describe, expect, it } from 'vitest';
 import {
   condition,
@@ -186,5 +189,18 @@ describe('Ejecución hasta que la sesión se detiene', () => {
     const result = await startOk(flow);
     expect(result.status).toBe('ended');
     expect(result.events.map((e) => e.type)).toEqual(['message', 'end']);
+  });
+});
+
+describe('Ejecución hasta que la sesión se detiene en un llm', () => {
+  it('Detención en un llm', async () => {
+    const flow = llmReferenceFlow(
+      {},
+      { nodes: [message('m', 'Hola', 'a'), llmNode(), end('ok', { outcome: 'ok' }), end('ko', { outcome: 'ko' })] },
+    );
+    const result = await begin(flow, alwaysLlm(turn('¿Me das tu email?')).host);
+    expect(result.status).toBe('waiting');
+    expect(result.events.map((e) => e.type)).toEqual(['message', 'message', 'input']);
+    expect(result.events.some((e) => e.type === 'end')).toBe(false);
   });
 });

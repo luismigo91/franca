@@ -233,7 +233,8 @@ function semanticIssues(flow: Flow): FlowIssue[] {
     const path = `/nodes/${i}`;
     for (const t of targets(n)) {
       if (!byId.has(t.id)) add(path + t.pointer, `${t.key} apunta a un nodo inexistente: ${t.id}`, n.id);
-      else if (t.id === n.id && n.type !== 'llm') add(path + t.pointer, `${t.key} apunta a sí mismo`, n.id);
+      // Un llm puede volver a sí mismo por `next` (otra vuelta de la conversación); por `onExhausted` no (ciclo sin tope).
+      else if (t.id === n.id && (n.type !== 'llm' || t.key === 'onExhausted')) add(path + t.pointer, `${t.key} apunta a sí mismo`, n.id);
     }
 
     if (n.type === 'input' && n.inputType === 'choice' && n.choices) {

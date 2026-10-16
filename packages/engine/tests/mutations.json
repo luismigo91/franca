@@ -401,5 +401,307 @@
     "tests": [
       "tests/conformance.test.ts"
     ]
+  },
+  {
+    "id": "llm-foreign-slot",
+    "file": "src/llm/result.ts",
+    "find": "const declared = specs.filter((spec) => Object.hasOwn(slots, spec.name));",
+    "replace": "const declared = specs.filter((spec) => Object.keys(slots).includes(spec.name));",
+    "tests": [
+      "tests/unit/llm-result.test.ts"
+    ]
+  },
+  {
+    "id": "llm-inherited-slot",
+    "file": "src/llm/result.ts",
+    "find": "Object.hasOwn(slots, spec.name)",
+    "replace": "spec.name in slots",
+    "tests": [
+      "tests/unit/llm-result.test.ts"
+    ]
+  },
+  {
+    "id": "llm-convert-as-text",
+    "file": "src/llm/slots.ts",
+    "find": "checkTextAnswer(value, SLOT_INPUT_TYPES[type] as Exclude<InputType, 'choice'>, language, NO_RULES)",
+    "replace": "checkTextAnswer(value, 'text', language, NO_RULES)",
+    "tests": [
+      "tests/unit/llm-slots.test.ts"
+    ]
+  },
+  {
+    "id": "llm-json-depth-cut",
+    "file": "src/llm/json-copy.ts",
+    "find": "if (depth > MAX_MAPPED_VALUE_DEPTH || !add(2)) return undefined;",
+    "replace": "if (!add(2)) return undefined;",
+    "tests": [
+      "tests/unit/llm-json-copy.test.ts",
+      "tests/unit/llm-hypotheses.test.ts"
+    ]
+  },
+  {
+    "id": "llm-json-size-cut",
+    "file": "src/llm/json-copy.ts",
+    "find": "return size <= MAX_JSON_SLOT_LENGTH;",
+    "replace": "return true;",
+    "tests": [
+      "tests/unit/llm-hypotheses.test.ts"
+    ]
+  },
+  {
+    "id": "llm-json-reread",
+    "file": "src/llm/json-copy.ts",
+    "find": "child = scalar(read, false);",
+    "replace": "child = scalar((frame.source as Record<string | number, unknown>)[property], false);",
+    "tests": [
+      "tests/unit/llm-json-copy.test.ts",
+      "tests/unit/llm-hypotheses.test.ts"
+    ]
+  },
+  {
+    "id": "llm-json-throw-swallowed",
+    "file": "src/llm/result.ts",
+    "find": "const copy = copyJsonValue(value);",
+    "replace": "let copy: ReturnType<typeof copyJsonValue>;\n    try {\n      copy = copyJsonValue(value);\n    } catch {\n      copy = { ok: false };\n    }",
+    "tests": [
+      "tests/unit/llm-result.test.ts",
+      "tests/unit/llm-hypotheses.test.ts"
+    ]
+  },
+  {
+    "id": "llm-json-top-string-quotes",
+    "file": "src/llm/json-copy.ts",
+    "find": "acceptText(item, topLevel ? 0 : 2)",
+    "replace": "acceptText(item, 2)",
+    "tests": [
+      "tests/unit/llm-json-copy.test.ts"
+    ]
+  },
+  {
+    "id": "llm-json-scan-before-size",
+    "file": "src/llm/json-copy.ts",
+    "find": "add(text.length + overhead) && !hasUnstorable(text)",
+    "replace": "!hasUnstorable(text) && add(text.length + overhead)",
+    "tests": [
+      "tests/unit/llm-hypotheses.test.ts"
+    ]
+  },
+  {
+    "id": "llm-json-array-length",
+    "file": "src/llm/json-copy.ts",
+    "find": "if (length > MAX_JSON_SLOT_LENGTH) return undefined;",
+    "replace": "",
+    "tests": [
+      "tests/unit/llm-hypotheses.test.ts"
+    ]
+  },
+  {
+    "id": "llm-slot-type-scan",
+    "file": "src/llm/slots.ts",
+    "find": "type: variableTypes.get(slot.variable) ?? 'string',",
+    "replace": "type: (() => {\n        for (const [name, type] of variableTypes) if (name === slot.variable) return type;\n        return undefined;\n      })() ?? 'string',",
+    "tests": [
+      "tests/unit/llm-hypotheses.test.ts"
+    ]
+  },
+  {
+    "id": "llm-assistant-trim-after",
+    "file": "src/llm/text.ts",
+    "find": "text.length > MAX_INPUT_LENGTH",
+    "replace": "raw.length > MAX_INPUT_LENGTH",
+    "tests": [
+      "tests/unit/llm-text.test.ts"
+    ]
+  },
+  {
+    "id": "llm-state-alternation",
+    "file": "src/llm/conversation.ts",
+    "find": "item.role !== role || ",
+    "replace": "",
+    "tests": [
+      "tests/unit/state.test.ts"
+    ]
+  },
+  {
+    "id": "llm-conversation-null",
+    "file": "src/state.ts",
+    "find": "const hasConversation = Object.hasOwn(s, 'conversation');",
+    "replace": "const hasConversation = Boolean(s.conversation);",
+    "tests": [
+      "tests/unit/state.test.ts"
+    ]
+  },
+  {
+    "id": "providers-inherited",
+    "file": "src/llm/providers.ts",
+    "find": "const provider = routes.get(request.provider);",
+    "replace": "const provider = (Object.fromEntries(routes) as Record<string, LlmCapability | undefined>)[request.provider];",
+    "tests": [
+      "tests/unit/llm-providers.test.ts"
+    ]
+  },
+  {
+    "id": "llm-done-without-required",
+    "file": "src/nodes/llm.ts",
+    "find": "if (result.done && hasRequired(specs, conversation.collected)) {",
+    "replace": "if (result.done) {",
+    "tests": [
+      "tests/scenarios/llm-turns.test.ts",
+      "tests/scenarios/llm-state.test.ts"
+    ]
+  },
+  {
+    "id": "llm-selfjump-arrival",
+    "file": "src/nodes/llm.ts",
+    "find": "    if (node.next !== node.id) return exit(node, ctx, conversation, node.next, null);\n",
+    "replace": "    return exit(node, ctx, conversation, node.next, null);\n",
+    "tests": [
+      "tests/scenarios/llm-turns.test.ts"
+    ]
+  },
+  {
+    "id": "llm-selfjump-reset",
+    "file": "src/nodes/llm.ts",
+    "find": "    ctx.emit({ type: 'llm', nodeId: node.id, turns: conversation.turns, costUsd: conversation.costUsd, reason: null });\n    return waitForUser(node, ctx, conversation);",
+    "replace": "    ctx.emit({ type: 'llm', nodeId: node.id, turns: conversation.turns, costUsd: conversation.costUsd, reason: null });\n    return waitForUser(node, ctx, Conversation.empty());",
+    "tests": [
+      "tests/scenarios/llm-turns.test.ts"
+    ]
+  },
+  {
+    "id": "llm-cost-strict",
+    "file": "src/llm/conversation.ts",
+    "find": "conversation.costUsd >= node.costCapUsd",
+    "replace": "conversation.costUsd > node.costCapUsd",
+    "tests": [
+      "tests/scenarios/llm-turns.test.ts",
+      "tests/unit/llm-conversation.test.ts"
+    ]
+  },
+  {
+    "id": "llm-reason-order",
+    "file": "src/llm/conversation.ts",
+    "find": "  if (conversation.turns >= maxTurnsOf(node)) return 'max_turns';\n  if (node.costCapUsd !== undefined && conversation.costUsd >= node.costCapUsd) return 'cost_cap';",
+    "replace": "  if (node.costCapUsd !== undefined && conversation.costUsd >= node.costCapUsd) return 'cost_cap';\n  if (conversation.turns >= maxTurnsOf(node)) return 'max_turns';",
+    "tests": [
+      "tests/scenarios/llm-turns.test.ts",
+      "tests/unit/llm-conversation.test.ts"
+    ]
+  },
+  {
+    "id": "llm-history-kept",
+    "file": "src/session.ts",
+    "find": "  return run(flow, vars, node.id, host ?? {}, plan.step);",
+    "replace": "  const kept = await run(flow, vars, node.id, host ?? {}, plan.step);\n  if (kept.ok && kept.status === 'waiting' && state.conversation !== undefined) kept.state.conversation = state.conversation;\n  return kept;",
+    "tests": [
+      "tests/scenarios/llm-turns.test.ts",
+      "tests/properties-llm.test.ts"
+    ]
+  },
+  {
+    "id": "llm-no-reserve",
+    "file": "src/nodes/llm.ts",
+    "find": "  if (!ctx.reserveExternalCall()) return LIMIT_EXCEEDED;\n",
+    "replace": "",
+    "tests": [
+      "tests/scenarios/llm-turns.test.ts",
+      "tests/scenarios/http-host.test.ts"
+    ]
+  },
+  {
+    "id": "llm-collect-invalid-turn",
+    "file": "src/nodes/llm.ts",
+    "find": "  const text = readAssistantText(result.text);",
+    "replace": "  conversation.collect(collectSlots(result.values, specs, languageOf(ctx)));\n  const text = readAssistantText(result.text);",
+    "tests": [
+      "tests/scenarios/llm-turns.test.ts"
+    ]
+  },
+  {
+    "id": "llm-text-template",
+    "file": "src/nodes/llm.ts",
+    "find": "content: [{ kind: 'text', text }], typingDelayMs: ctx.typingDelayMs });",
+    "replace": "content: [{ kind: 'text', text: renderTemplate(text, (name) => ctx.vars.get(name)) }], typingDelayMs: ctx.typingDelayMs });",
+    "tests": [
+      "tests/scenarios/llm-turns.test.ts"
+    ]
+  },
+  {
+    "id": "llm-invalid-message-calls",
+    "file": "src/nodes/llm.ts",
+    "find": "  if (!check.ok) {",
+    "replace": "  if (!check.ok && Math.abs(0) > 1) {",
+    "tests": [
+      "tests/scenarios/llm-turns.test.ts"
+    ]
+  },
+  {
+    "id": "llm-cost-overflow",
+    "file": "src/llm/conversation.ts",
+    "find": "    if (!Number.isFinite(total)) return false;\n",
+    "replace": "",
+    "tests": [
+      "tests/scenarios/llm-host.test.ts",
+      "tests/unit/llm-conversation.test.ts"
+    ]
+  },
+  {
+    "id": "llm-request-reuse",
+    "file": "src/llm/conversation.ts",
+    "find": "    return this.list.map((m) => ({ role: m.role, text: m.text }));\n  }\n\n  pushUser",
+    "replace": "    return this.list;\n  }\n\n  pushUser",
+    "tests": [
+      "tests/scenarios/llm-request.test.ts",
+      "tests/scenarios/llm-state.test.ts",
+      "tests/unit/llm-request.test.ts"
+    ]
+  },
+  {
+    "id": "llm-this",
+    "file": "src/llm/capability.ts",
+    "find": "Reflect.apply(call, host, [request])",
+    "replace": "Reflect.apply(call, undefined, [request])",
+    "tests": [
+      "tests/scenarios/llm-host.test.ts",
+      "tests/unit/llm-result.test.ts"
+    ]
+  },
+  {
+    "id": "llm-catch-leak",
+    "file": "src/llm/capability.ts",
+    "find": "  } catch {\n    return { ok: false };",
+    "replace": "  } catch (error) {\n    return { ok: false };",
+    "tests": [
+      "tests/static-guard.test.ts"
+    ]
+  },
+  {
+    "id": "llm-resume-revalidate",
+    "file": "src/nodes/llm.ts",
+    "find": "revalidateCollected(pending.conversation.collected, specs, language)",
+    "replace": "new Map(Object.entries(pending.conversation.collected))",
+    "tests": [
+      "tests/scenarios/llm-slots.test.ts"
+    ]
+  },
+  {
+    "id": "llm-resume-exhausted",
+    "file": "src/nodes/llm.ts",
+    "find": "  if (exhausted !== null) return exit(node, ctx, conversation, node.onExhausted, exhausted);\n",
+    "replace": "",
+    "tests": [
+      "tests/scenarios/llm-turns.test.ts",
+      "tests/scenarios/llm-state.test.ts"
+    ]
+  },
+  {
+    "id": "resume-kind",
+    "file": "src/session.ts",
+    "find": "(state.status === 'waiting' && node.type !== waitingTypeOf(state))",
+    "replace": "(state.status === 'waiting' && false)",
+    "tests": [
+      "tests/scenarios/continue.test.ts",
+      "tests/scenarios/llm-state.test.ts"
+    ]
   }
 ]

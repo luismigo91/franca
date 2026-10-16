@@ -29,12 +29,14 @@
 ### Decisiones
 - [JSON Schema como fuente de verdad](../../wiki/decision-esquema-json-fuente-de-verdad.md) — por qué no Zod ni tipos TS a mano en packages/spec
 - [Un intento por llamada http](../../wiki/decision-http-un-intento-por-llamada.md) — por qué el host ejecuta un intento, el motor decide los reintentos y POST/PATCH no se reintentan tras un posible envío
+- [Coste y reintentos del llm en el adaptador](../../wiki/decision-llm-coste-y-reintentos-en-el-adaptador.md) — por qué el proveedor calcula el coste, el motor solo aplica el tope de parada y los reintentos son del SDK; lo facturado puede superar lo contabilizado
 - [matches con regex lineal propia](../../wiki/decision-matches-regex-lineal.md) — por qué no RegExp nativo, timeout ni RE2 en packages/engine
 
 ### Dominio
 - [Rechazos deliberados de input](../../wiki/domain-input-rechazos-deliberados.md) — por qué 1.500, más de 15 cifras o agotar reintentos se rechazan a propósito
-- [Solo el nodo llm puede saltar a sí mismo](../../wiki/domain-llm-puede-saltar-a-si-mismo.md) — no es un descuido; maxTurns y onExhausted lo acotan
+- [Solo el nodo llm puede saltar a sí mismo](../../wiki/domain-llm-puede-saltar-a-si-mismo.md) — solo con next, no con onExhausted; el motor conserva turnos y coste en el autosalto
 - [Flujos sin secretos](../../wiki/domain-flujos-sin-secretos.md) — secretos y proveedores por nombre, variables pii; implicaciones para api, editor y motor
 
 ### Harness e infra
+- [El Stop hook y mutate no pueden solaparse](../../wiki/harness-stop-hook-y-mutate.md) — pnpm check compilaba dist/ con un src/ mutado; candado guard-mutate y grupo de procesos de Vitest
 - [Falsos positivos de las guardas de entorno](../../wiki/harness-guard-env-falsos-positivos.md) — el deny de settings.json y guard_bash bloquean también el fichero de ejemplo y textos
