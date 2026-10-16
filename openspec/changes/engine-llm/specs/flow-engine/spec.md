@@ -203,7 +203,7 @@ Un `turn` cuyo `text`, recortado, está vacío, tiene más de 4096 unidades de c
 - **THEN** se emite un `message` con los 4096 caracteres y la sesión queda en `waiting`
 
 ### Requirement: Mensaje del usuario en un llm
-Al continuar una sesión que espera en un `llm`, la entrada SHALL ser `{text: string}`; si no, la operación se rechaza con `invalid_input`. Un `text` de más de 4096 unidades (`too_long`), vacío al recortarlo (`required`) o con U+0000 o un sustituto suelto (`invalid_format`) es inválido: no se llama al host, no cuenta como turno ni modifica la conversación, y el único evento es un `input` con `attempt` aumentado en 1 y ese `reason`. La sesión sigue en `waiting`. La conversación se devuelve tal como llegó, también sus slots recogidos: no se revalidan hasta el siguiente mensaje válido.
+Al continuar una sesión que espera en un `llm`, la entrada SHALL ser `{text: string}`; si no, la operación se rechaza con `invalid_input`. Un `text` de más de 4096 unidades (`too_long`), vacío al recortarlo (`required`) o con U+0000 o un sustituto suelto (`invalid_format`) es inválido: no se llama al host, no cuenta como turno ni modifica la conversación, y el único evento es un `input` con `attempt` aumentado en 1 y ese `reason`. La sesión sigue en `waiting`.
 
 #### Scenario: Formas incorrectas en un llm
 - **GIVEN** una sesión de `llm-email` esperando en `a`
@@ -214,6 +214,11 @@ Al continuar una sesión que espera en un `llm`, la entrada SHALL ser `{text: st
 - **GIVEN** una sesión de `llm-email` esperando en `a` con `attempt` 1
 - **WHEN** el host continúa por separado con 4097 caracteres `"a"`, con `{text: " \n "}` y con `{text: "Hola\u0000"}`
 - **THEN** cada operación emite solo `{type: "input", nodeId: "a", inputType: "text", attempt: 2, reason}` con `reason` respectivamente `too_long`, `required` e `invalid_format`, y `llm` no se ha llamado
+
+#### Scenario: Mensaje inválido con slots que el nodo ya no declara
+- **GIVEN** el estado de una sesión de `llm-email` esperando con `email` recogido, y una versión del flujo en la que `a` ya no tiene slots
+- **WHEN** el host continúa con `{text: "   "}`
+- **THEN** el estado devuelto conserva la conversación tal como llegó, también `email` recogido: no se revalidan los recogidos hasta el siguiente mensaje válido
 
 #### Scenario: Un mensaje válido tras uno inválido
 - **GIVEN** una sesión de `llm-email` esperando en `a` con `attempt` 2 tras un mensaje inválido

@@ -235,7 +235,7 @@ Cuando una petición trae `temperature` distinta de `null`, el proveedor SHALL i
 - **THEN** `onWarning` no se ha llamado
 
 ### Requirement: Salida estructurada
-El proveedor SHALL pedir la respuesta con salida estructurada: `messages.create` con `output_config.format`, el JSON Schema que genera `zodOutputFormat` a partir de un esquema zod con el texto de la respuesta, si el objetivo está cumplido y, por cada slot de la petición, identificado por su posición, un objeto requerido `{found, value}`: `found` (boolean) dice si el slot tiene valor y `value` tiene un tipo fijo (string para los textuales, number, boolean; un slot de una variable `json` se pide como string con texto JSON). El esquema no usa tipos unión ni propiedades opcionales (la API limita a 16 parámetros con tipo unión y a 24 opcionales por petición, y un nodo puede tener más slots que eso), y todos sus objetos son cerrados.
+El proveedor SHALL pedir la respuesta con salida estructurada: `messages.create` con `output_config.format`, el JSON Schema que genera `zodOutputFormat` a partir de un esquema zod con el texto de la respuesta, si el objetivo está cumplido y, por cada slot de la petición, identificado por su posición, un objeto requerido `{found, value}` con `value` de tipo fijo (un slot `json`, como string con texto JSON). El esquema no usa tipos unión ni propiedades opcionales, y todos sus objetos son cerrados.
 
 #### Scenario: Esquema de la petición
 - **GIVEN** una petición con los slots `resuelto` (`boolean`) y `motivo` (`string`)
@@ -248,12 +248,17 @@ El proveedor SHALL pedir la respuesta con salida estructurada: `messages.create`
 - **THEN** el esquema de `output_config.format` no tiene ningún tipo unión (`anyOf`, `oneOf` ni `type` como array), ninguna propiedad opcional y `additionalProperties` `false` en todos sus objetos
 
 ### Requirement: Lectura de la salida estructurada
-Con `stop_reason` `end_turn`, el proveedor SHALL unir los bloques `text` posteriores al último bloque `fallback` (o todos, si no hay), parsearlos como JSON y validarlos con el esquema zod. Si la salida es válida, resuelve un `turn` con ese `text` y ese `done`, y en `slots`, con el nombre de su variable, solo los slots con `found` `true`, también si se llaman `__proto__` o `constructor`; el `value` de un slot con `found` `false` se ignora. Un slot `json` se parsea y, si no es JSON o es `null`, no se incluye.
+Con `stop_reason` `end_turn`, el proveedor SHALL unir los bloques `text` posteriores al último bloque `fallback` (o todos, si no hay), parsearlos como JSON y validarlos con el esquema zod. Si la salida es válida, resuelve un `turn` con ese `text` y ese `done`, y en `slots`, con el nombre de su variable, solo los slots con `found` `true`, también si se llaman `__proto__` o `constructor`. Un slot `json` se parsea y, si no es JSON o es `null`, no se incluye.
 
 #### Scenario: Turno con slots
 - **GIVEN** una petición con los slots `resuelto` (`boolean`) y `motivo` (`string`), y una respuesta cuya salida estructurada da el texto `"¡Perfecto!"`, `done` `true`, `resuelto` con `found` `true` y valor `true`, y `motivo` con `found` `false` y un `value` cualquiera
 - **WHEN** el proveedor la convierte
 - **THEN** resuelve `{kind: "turn", text: "¡Perfecto!", slots: {resuelto: true}, done: true, costUsd}` con el coste de su `usage`
+
+#### Scenario: Slot sin valor
+- **GIVEN** una petición con el slot `motivo` (`string`) y una respuesta que lo da con `found` `false` y `value` `"MARCA-IGNORADO"`
+- **WHEN** el proveedor la convierte
+- **THEN** `slots` no incluye `motivo` y el resultado no contiene `"MARCA-IGNORADO"`
 
 #### Scenario: Slots con nombre de Object
 - **GIVEN** una petición con los slots `__proto__` y `constructor` (`string`) y una respuesta que da `"p"` y `"c"` para ellos
