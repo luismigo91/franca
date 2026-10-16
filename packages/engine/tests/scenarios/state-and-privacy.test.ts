@@ -1,3 +1,7 @@
+import { llmFlow } from '../helpers/flows.js';
+import { always as alwaysHttp, respond as respondHttp } from '../helpers/http-host.js';
+import { alwaysLlm, turn, withHosts } from '../helpers/llm-host.js';
+import { begin } from '../helpers/llm-run.js';
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { continueSession, startSession } from '../../src/index.js';
@@ -207,5 +211,26 @@ describe('Los errores no revelan valores de variables', () => {
     const result = await startOk(flow);
     expect(JSON.stringify(result.events)).not.toContain('SECRETO-123');
     expect(JSON.stringify(result.state.error)).not.toContain('SECRETO-123');
+  });
+});
+
+describe('Estado de sesión serializable con llm', () => {
+  it('Estado en espera en un llm', async () => {
+    const llm = alwaysLlm(turn('¿En qué puedo ayudarte?'));
+    const { host } = withHosts(alwaysHttp(respondHttp(200)).host, llm.host);
+    const result = await begin(example('faq-ia'), host);
+    expect(result.state).toMatchObject({ status: 'waiting', nodeId: 'asistente', outcome: null, error: null });
+  });
+
+  it('Continuación en un llm con entradas congeladas', async () => {
+    const flow = deepFreeze(llmFlow());
+    const first = await begin(flow, alwaysLlm(turn('¿Me das tu email?')).host);
+    const state = deepFreeze(structuredClone(first.state));
+    const input = deepFreeze({ text: 'Hola' });
+    const slots = deepFreeze({ email: 'ana@example.com' });
+    const before = [structuredClone(flow), structuredClone(state), structuredClone(input), structuredClone(slots)];
+    const result = await continueSession({ flow, state, input }, alwaysLlm(turn('Gracias', slots, true)).host);
+    expect(result.ok).toBe(true);
+    expect([flow, state, input, slots]).toEqual(before);
   });
 });

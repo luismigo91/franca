@@ -8,10 +8,14 @@ import { always, respond, scriptedHost, type Step } from './helpers/http-host.js
 import { httpFlow } from './helpers/http-flow.js';
 import { describe, expect, it } from 'vitest';
 import { INVALID_ANSWER_REASONS, REJECTION_CODES, SESSION_ERROR_CODES, continueSession, startSession } from '../src/index.js';
+import { DEFAULT_LLM_MAX_TURNS, MAX_CONVERSATION_MESSAGES, LLM_EXIT_REASONS } from '../src/constants.js';
+import { SLOT_INPUT_TYPES } from '../src/llm/slots.js';
 import { EXECUTORS } from '../src/nodes/index.js';
+import { RESUMERS } from '../src/resume.js';
 import { OPERATORS } from '../src/predicates.js';
 import { allFlows } from './helpers/files.js';
-import { deepFreeze, end, flowOf, http, httpNode, input, jump, message, variable } from './helpers/flows.js';
+import { deepFreeze, end, flowOf, http, httpNode, input, jump, llmFlow, message, variable } from './helpers/flows.js';
+import { alwaysLlm, failed, notConfigured, refusal, scriptedLlm, turn } from './helpers/llm-host.js';
 
 type Defs = Record<string, { properties?: { type?: { const?: string } } }>;
 const defs = schema.$defs as unknown as Defs;
@@ -66,6 +70,14 @@ describe('códigos emitidos', () => {
     results.push(await startSession({ flow: httpFlow() }, always({ kind: 'missing_secret' }).host));
     results.push(await startSession({ flow: httpFlow() }, always(null).host));
     results.push(await startSession({ flow: cycle }, okHost));
+    // códigos de llm: capacidad ausente (unsupported_node, ya cubierto), no configurada, fuera de contrato y límite de llamadas
+    results.push(await startSession({ flow: llmFlow() }, alwaysLlm(notConfigured).host));
+    results.push(await startSession({ flow: llmFlow() }, alwaysLlm(null).host));
+    const llmCycle = llmFlow(
+      { next: 'b' },
+      { nodes: [{ id: 'a', type: 'llm', provider: 'principal', goal: 'g', next: 'b', onExhausted: 'fin' }, jump('b', 'a'), end('fin')] },
+    );
+    results.push(await startSession({ flow: llmCycle }, alwaysLlm(turn('ok', {}, true)).host));
     for (const result of results) {
       if (result.ok) result.events.forEach((e) => e.type === 'error' && emitted.add(e.code));
     }
@@ -200,3 +212,74 @@ describe('paridad de http con flow.schema.json', () => {
   });
 });
 
+
+describe('paridad de llm con flow.schema.json', () => {
+  const llmProps = schema.$defs.llmNode.properties as unknown as {
+    maxTurns: { default: number; maximum: number };
+    slots: { items: { properties: { required: { default: boolean } } } };
+  };
+
+  it('el enum de variable.type son las claves de SLOT_INPUT_TYPES', () => {
+    const types = (schema.$defs.variable.properties as unknown as { type: { enum: string[] } }).type.enum;
+    expect(Object.keys(SLOT_INPUT_TYPES).sort()).toEqual([...types].sort());
+  });
+
+  it('maxTurns.default y maxTurns.maximum del esquema son las constantes del motor', () => {
+    expect(llmProps.maxTurns.default).toBe(DEFAULT_LLM_MAX_TURNS);
+    expect(2 * llmProps.maxTurns.maximum - 1).toBe(MAX_CONVERSATION_MESSAGES);
+  });
+
+  it('el motor aplica ese default: 8 turnos y no más', async () => {
+    const flow = llmFlow({ maxTurns: undefined });
+    const host = alwaysLlm(turn('sigue'));
+    let result = (await startSession({ flow }, host.host)) as SessionResult;
+    for (let i = 1; i < 8; i++) result = (await continueSession({ flow, state: result.state, input: { text: 'x' } }, host.host)) as SessionResult;
+    expect(host.requests).toHaveLength(8);
+    expect(result.events.find((e) => e.type === 'llm')).toMatchObject({ turns: 8, reason: 'max_turns' });
+  });
+
+  it('el default de required de un slot es true: sin required, el slot es obligatorio', async () => {
+    expect(llmProps.slots.items.properties.required.default).toBe(true);
+    const host = alwaysLlm(turn('listo', {}, true));
+    const result = (await startSession({ flow: llmFlow() }, host.host)) as SessionResult;
+    expect(result.status).toBe('waiting');
+  });
+
+  it('las claves de RESUMERS son exactamente los tipos de nodo que pueden dejar la sesión en espera', async () => {
+    const waitingTypes: string[] = [];
+    const flows: Record<string, unknown> = {
+      message: flowOf([message('n', 'x', 'fin'), end('fin')]),
+      set: flowOf([{ id: 'n', type: 'set', assignments: [{ variable: 'v', value: 1 }], next: 'fin' }, end('fin')], { variables: [variable('v')] }),
+      jump: flowOf([jump('n', 'fin'), end('fin')]),
+      condition: flowOf([{ id: 'n', type: 'condition', rules: [{ when: { variable: 'v', op: 'isSet' }, next: 'fin' }], else: 'fin' }, end('fin')], { variables: [variable('v')] }),
+      end: flowOf([end('n')]),
+      input: flowOf([input('n', 'v', 'text', 'fin'), end('fin')], { variables: [variable('v')] }),
+      http: flowOf([httpNode('n', {}, { next: 'fin', onError: 'fin' }), end('fin')]),
+      llm: llmFlow({ id: 'n' }, { nodes: [{ id: 'n', type: 'llm', provider: 'principal', goal: 'g', next: 'fin', onExhausted: 'fin' }, end('fin')] }),
+    };
+    const host = { ...always(respond(200)).host, ...scriptedLlm([turn('sigue')], { repeatLast: true }).host };
+    for (const type of Object.keys(EXECUTORS)) {
+      const result = await startSession({ flow: flows[type] }, host);
+      if (result.ok && result.status === 'waiting') waitingTypes.push(type);
+    }
+    expect(waitingTypes.sort()).toEqual(Object.keys(RESUMERS).sort());
+  });
+
+  it('cada motivo de LLM_EXIT_REASONS se emite y ninguno fuera de la lista', async () => {
+    const scripts: Record<string, unknown[]> = {
+      max_turns: [turn('uno')],
+      cost_cap: [turn('uno', {}, false, 1)],
+      refusal: [refusal()],
+      provider_error: [failed()],
+      invalid_turn: [turn('   ')],
+    };
+    const seen = new Set<string>();
+    for (const [reason, steps] of Object.entries(scripts)) {
+      const flow = llmFlow(reason === 'max_turns' ? { maxTurns: 1 } : reason === 'cost_cap' ? { costCapUsd: 0.5 } : {});
+      const result = (await startSession({ flow }, scriptedLlm(steps).host)) as SessionResult;
+      for (const event of result.events) if (event.type === 'llm' && event.reason !== null) seen.add(event.reason);
+      expect(result.events.find((e) => e.type === 'llm'), reason).toMatchObject({ reason });
+    }
+    expect([...seen].sort()).toEqual([...LLM_EXIT_REASONS].sort());
+  });
+});

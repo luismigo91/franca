@@ -1,0 +1,262 @@
+{
+  "calls": [
+    {
+      "capability": "llm",
+      "request": {
+        "nodeId": "asistente",
+        "provider": "principal",
+        "model": null,
+        "system": "Respondes solo sobre precios, horarios y envíos del servicio. Si no sabes algo, dilo y no inventes.",
+        "goal": "Resolver la duda del usuario. Cuando quede resuelta o pida hablar con una persona, termina.",
+        "slots": [
+          {
+            "name": "resuelto",
+            "type": "boolean",
+            "description": "true si el usuario confirma que su duda está resuelta",
+            "required": true,
+            "collected": false
+          },
+          {
+            "name": "motivo",
+            "type": "string",
+            "description": "Resumen en una frase de lo que necesita",
+            "required": false,
+            "collected": false
+          }
+        ],
+        "history": [],
+        "temperature": 0.2,
+        "locale": "es",
+        "turn": 1,
+        "maxTurns": 10
+      }
+    },
+    {
+      "capability": "llm",
+      "request": {
+        "nodeId": "asistente",
+        "provider": "principal",
+        "model": null,
+        "system": "Respondes solo sobre precios, horarios y envíos del servicio. Si no sabes algo, dilo y no inventes.",
+        "goal": "Resolver la duda del usuario. Cuando quede resuelta o pida hablar con una persona, termina.",
+        "slots": [
+          {
+            "name": "resuelto",
+            "type": "boolean",
+            "description": "true si el usuario confirma que su duda está resuelta",
+            "required": true,
+            "collected": false
+          },
+          {
+            "name": "motivo",
+            "type": "string",
+            "description": "Resumen en una frase de lo que necesita",
+            "required": false,
+            "collected": false
+          }
+        ],
+        "history": [
+          {
+            "role": "assistant",
+            "text": "¿En qué puedo ayudarte?"
+          },
+          {
+            "role": "user",
+            "text": "¿Cuánto cuesta el envío?"
+          }
+        ],
+        "temperature": 0.2,
+        "locale": "es",
+        "turn": 2,
+        "maxTurns": 10
+      }
+    },
+    {
+      "capability": "http",
+      "request": {
+        "nodeId": "crear-ticket",
+        "method": "POST",
+        "url": "https://soporte.example.com/api/tickets",
+        "headers": [
+          {
+            "name": "Authorization",
+            "secret": "SOPORTE_TOKEN"
+          },
+          {
+            "name": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": "{\"email\":\"ana@example.com\",\"subject\":\"precio del envío\"}",
+        "timeoutMs": 10000,
+        "containsPii": true,
+        "attempt": 1
+      }
+    }
+  ],
+  "results": [
+    {
+      "ok": true,
+      "status": "waiting",
+      "events": [
+        {
+          "type": "message",
+          "nodeId": "saludo",
+          "content": [
+            {
+              "kind": "text",
+              "text": "Hola, soy el asistente. Pregúntame lo que necesites sobre el servicio."
+            }
+          ],
+          "typingDelayMs": 400
+        },
+        {
+          "type": "message",
+          "nodeId": "asistente",
+          "content": [
+            {
+              "kind": "text",
+              "text": "¿En qué puedo ayudarte?"
+            }
+          ],
+          "typingDelayMs": 400
+        },
+        {
+          "type": "input",
+          "nodeId": "asistente",
+          "inputType": "text",
+          "attempt": 1,
+          "reason": null
+        }
+      ],
+      "state": {
+        "stateVersion": 1,
+        "flowId": "faq-ia",
+        "status": "waiting",
+        "nodeId": "asistente",
+        "variables": {
+          "resuelto": false
+        },
+        "contact": {
+          "email": null
+        },
+        "outcome": null,
+        "error": null,
+        "attempt": 1,
+        "conversation": {
+          "messages": [
+            {
+              "role": "assistant",
+              "text": "¿En qué puedo ayudarte?"
+            }
+          ],
+          "costUsd": 0.03,
+          "collected": {}
+        }
+      }
+    },
+    {
+      "ok": true,
+      "status": "waiting",
+      "events": [
+        {
+          "type": "message",
+          "nodeId": "asistente",
+          "content": [
+            {
+              "kind": "text",
+              "text": "Mira el precio en la web."
+            }
+          ],
+          "typingDelayMs": 400
+        },
+        {
+          "type": "llm",
+          "nodeId": "asistente",
+          "turns": 2,
+          "costUsd": 0.05,
+          "reason": "cost_cap"
+        },
+        {
+          "type": "message",
+          "nodeId": "pedir-email",
+          "content": [
+            {
+              "kind": "text",
+              "text": "Te paso con una persona. ¿A qué email te contestamos?"
+            }
+          ],
+          "typingDelayMs": 400
+        },
+        {
+          "type": "input",
+          "nodeId": "pedir-email",
+          "inputType": "email",
+          "attempt": 1,
+          "reason": null
+        }
+      ],
+      "state": {
+        "stateVersion": 1,
+        "flowId": "faq-ia",
+        "status": "waiting",
+        "nodeId": "pedir-email",
+        "variables": {
+          "resuelto": false,
+          "motivo": "precio del envío"
+        },
+        "contact": {
+          "email": null
+        },
+        "outcome": null,
+        "error": null,
+        "attempt": 1
+      }
+    },
+    {
+      "ok": true,
+      "status": "ended",
+      "events": [
+        {
+          "type": "http",
+          "nodeId": "crear-ticket",
+          "attempts": 1,
+          "status": 201,
+          "error": null
+        },
+        {
+          "type": "message",
+          "nodeId": "fin-escalado",
+          "content": [
+            {
+              "kind": "text",
+              "text": "Hecho. Te escribiremos a ana@example.com lo antes posible."
+            }
+          ],
+          "typingDelayMs": 400
+        },
+        {
+          "type": "end",
+          "nodeId": "fin-escalado",
+          "outcome": "escalado"
+        }
+      ],
+      "state": {
+        "stateVersion": 1,
+        "flowId": "faq-ia",
+        "status": "ended",
+        "nodeId": "fin-escalado",
+        "variables": {
+          "resuelto": false,
+          "motivo": "precio del envío",
+          "ticket": "T-1"
+        },
+        "contact": {
+          "email": "ana@example.com"
+        },
+        "outcome": "escalado",
+        "error": null
+      }
+    }
+  ]
+}

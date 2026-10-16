@@ -1,3 +1,7 @@
+import { llmFlow, llmNode } from '../helpers/flows.js';
+import { always, respond } from '../helpers/http-host.js';
+import { alwaysLlm, expectLlmScript, scriptedLlm, turn } from '../helpers/llm-host.js';
+import { begin, proceed } from '../helpers/llm-run.js';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { MAX_STEPS_PER_ADVANCE } from '../../src/index.js';
@@ -136,6 +140,49 @@ describe('Límite de pasos con input', () => {
     const overResult = await replyOk(over, (await waiting(over)).state, { text: 'hola' });
     expect(overResult.status).toBe('failed');
     expect(overResult.events).toEqual([
+      { type: 'error', nodeId: 'fin', code: 'step_limit_exceeded', message: expect.any(String) },
+    ]);
+  });
+});
+
+describe('Nodos aún no soportados: llm', () => {
+  it('Nodo llm tras un set', async () => {
+    const flow = llmFlow({}, { nodes: [setNode('s', [['nombre', 'hecho']], 'a'), llmNode(), end('ok', { outcome: 'ok' }), end('ko', { outcome: 'ko' })] });
+    const result = await begin(flow, always(respond(200)).host);
+    expect(result.events).toEqual([{ type: 'error', nodeId: 'a', code: 'unsupported_node', message: expect.stringContaining('llm') }]);
+    expect(result.state.variables).toEqual({ nombre: 'hecho' });
+    expect(result.state.error).toEqual({ code: 'unsupported_node', nodeId: 'a' });
+  });
+});
+
+describe('Límite de pasos con llm', () => {
+  it.each(['set', 'jump'] as const)('El límite gana a un llm (%s)', async (kind) => {
+    const flow = chainFlow(MAX_STEPS_PER_ADVANCE, kind, llmNode({ slots: undefined, id: 'asistente', next: 'fin', onExhausted: 'fin' }), [end('fin')]);
+    const llm = alwaysLlm(turn('Hola'));
+    const result = await begin(flow, llm.host);
+    expect(result.events).toEqual([{ type: 'error', nodeId: 'asistente', code: 'step_limit_exceeded', message: expect.any(String) }]);
+    expectLlmScript(llm, 0);
+  });
+
+  it('Al continuar cuenta el llm', async () => {
+    const build = (n: number) => {
+      const nodes = [llmNode({ slots: undefined, next: n ? 'n0' : 'fin', onExhausted: 'fin' })];
+      for (let i = 0; i < n; i++) nodes.push(i % 2 ? jump(`n${i}`, i + 1 < n ? `n${i + 1}` : 'fin') : setNode(`n${i}`, [['x', i]], i + 1 < n ? `n${i + 1}` : 'fin'));
+      return flowOf([...nodes, end('fin')], { variables: [variable('x')] });
+    };
+    const run = async (n: number) => {
+      const flow = build(n);
+      const llm = scriptedLlm([turn('uno'), turn('listo', {}, true)]);
+      const first = await begin(flow, llm.host);
+      expect(first.status).toBe('waiting');
+      return proceed(flow, first.state, 'hola', llm.host);
+    };
+    expect((await run(198)).status).toBe('ended');
+    const over = await run(199);
+    expect(over.status).toBe('failed');
+    expect(over.events).toEqual([
+      { type: 'message', nodeId: 'a', content: [{ kind: 'text', text: 'listo' }], typingDelayMs: 600 },
+      { type: 'llm', nodeId: 'a', turns: 2, costUsd: 0.02, reason: null },
       { type: 'error', nodeId: 'fin', code: 'step_limit_exceeded', message: expect.any(String) },
     ]);
   });

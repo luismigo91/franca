@@ -1,0 +1,297 @@
+{
+  "calls": [
+    {
+      "capability": "llm",
+      "request": {
+        "nodeId": "asistente",
+        "provider": "principal",
+        "model": null,
+        "system": "Respondes solo sobre precios, horarios y envíos del servicio. Si no sabes algo, dilo y no inventes.",
+        "goal": "Resolver la duda del usuario. Cuando quede resuelta o pida hablar con una persona, termina.",
+        "slots": [
+          {
+            "name": "resuelto",
+            "type": "boolean",
+            "description": "true si el usuario confirma que su duda está resuelta",
+            "required": true,
+            "collected": false
+          },
+          {
+            "name": "motivo",
+            "type": "string",
+            "description": "Resumen en una frase de lo que necesita",
+            "required": false,
+            "collected": false
+          }
+        ],
+        "history": [],
+        "temperature": 0.2,
+        "locale": "es",
+        "turn": 1,
+        "maxTurns": 10
+      }
+    },
+    {
+      "capability": "llm",
+      "request": {
+        "nodeId": "asistente",
+        "provider": "principal",
+        "model": null,
+        "system": "Respondes solo sobre precios, horarios y envíos del servicio. Si no sabes algo, dilo y no inventes.",
+        "goal": "Resolver la duda del usuario. Cuando quede resuelta o pida hablar con una persona, termina.",
+        "slots": [
+          {
+            "name": "resuelto",
+            "type": "boolean",
+            "description": "true si el usuario confirma que su duda está resuelta",
+            "required": true,
+            "collected": false
+          },
+          {
+            "name": "motivo",
+            "type": "string",
+            "description": "Resumen en una frase de lo que necesita",
+            "required": false,
+            "collected": false
+          }
+        ],
+        "history": [
+          {
+            "role": "assistant",
+            "text": "¿En qué puedo ayudarte?"
+          },
+          {
+            "role": "user",
+            "text": "¿Cuánto cuesta el envío?"
+          }
+        ],
+        "temperature": 0.2,
+        "locale": "es",
+        "turn": 2,
+        "maxTurns": 10
+      }
+    },
+    {
+      "capability": "llm",
+      "request": {
+        "nodeId": "asistente",
+        "provider": "principal",
+        "model": null,
+        "system": "Respondes solo sobre precios, horarios y envíos del servicio. Si no sabes algo, dilo y no inventes.",
+        "goal": "Resolver la duda del usuario. Cuando quede resuelta o pida hablar con una persona, termina.",
+        "slots": [
+          {
+            "name": "resuelto",
+            "type": "boolean",
+            "description": "true si el usuario confirma que su duda está resuelta",
+            "required": true,
+            "collected": false
+          },
+          {
+            "name": "motivo",
+            "type": "string",
+            "description": "Resumen en una frase de lo que necesita",
+            "required": false,
+            "collected": false
+          }
+        ],
+        "history": [
+          {
+            "role": "assistant",
+            "text": "¿En qué puedo ayudarte?"
+          },
+          {
+            "role": "user",
+            "text": "¿Cuánto cuesta el envío?"
+          },
+          {
+            "role": "assistant",
+            "text": "El envío cuesta 3 €. ¿Resuelto?"
+          },
+          {
+            "role": "user",
+            "text": "Sí, gracias"
+          }
+        ],
+        "temperature": 0.2,
+        "locale": "es",
+        "turn": 3,
+        "maxTurns": 10
+      }
+    }
+  ],
+  "results": [
+    {
+      "ok": true,
+      "status": "waiting",
+      "events": [
+        {
+          "type": "message",
+          "nodeId": "saludo",
+          "content": [
+            {
+              "kind": "text",
+              "text": "Hola, soy el asistente. Pregúntame lo que necesites sobre el servicio."
+            }
+          ],
+          "typingDelayMs": 400
+        },
+        {
+          "type": "message",
+          "nodeId": "asistente",
+          "content": [
+            {
+              "kind": "text",
+              "text": "¿En qué puedo ayudarte?"
+            }
+          ],
+          "typingDelayMs": 400
+        },
+        {
+          "type": "input",
+          "nodeId": "asistente",
+          "inputType": "text",
+          "attempt": 1,
+          "reason": null
+        }
+      ],
+      "state": {
+        "stateVersion": 1,
+        "flowId": "faq-ia",
+        "status": "waiting",
+        "nodeId": "asistente",
+        "variables": {
+          "resuelto": false
+        },
+        "contact": {
+          "email": null
+        },
+        "outcome": null,
+        "error": null,
+        "attempt": 1,
+        "conversation": {
+          "messages": [
+            {
+              "role": "assistant",
+              "text": "¿En qué puedo ayudarte?"
+            }
+          ],
+          "costUsd": 0.01,
+          "collected": {}
+        }
+      }
+    },
+    {
+      "ok": true,
+      "status": "waiting",
+      "events": [
+        {
+          "type": "message",
+          "nodeId": "asistente",
+          "content": [
+            {
+              "kind": "text",
+              "text": "El envío cuesta 3 €. ¿Resuelto?"
+            }
+          ],
+          "typingDelayMs": 400
+        },
+        {
+          "type": "input",
+          "nodeId": "asistente",
+          "inputType": "text",
+          "attempt": 1,
+          "reason": null
+        }
+      ],
+      "state": {
+        "stateVersion": 1,
+        "flowId": "faq-ia",
+        "status": "waiting",
+        "nodeId": "asistente",
+        "variables": {
+          "resuelto": false
+        },
+        "contact": {
+          "email": null
+        },
+        "outcome": null,
+        "error": null,
+        "attempt": 1,
+        "conversation": {
+          "messages": [
+            {
+              "role": "assistant",
+              "text": "¿En qué puedo ayudarte?"
+            },
+            {
+              "role": "user",
+              "text": "¿Cuánto cuesta el envío?"
+            },
+            {
+              "role": "assistant",
+              "text": "El envío cuesta 3 €. ¿Resuelto?"
+            }
+          ],
+          "costUsd": 0.02,
+          "collected": {}
+        }
+      }
+    },
+    {
+      "ok": true,
+      "status": "ended",
+      "events": [
+        {
+          "type": "message",
+          "nodeId": "asistente",
+          "content": [
+            {
+              "kind": "text",
+              "text": "¡Perfecto!"
+            }
+          ],
+          "typingDelayMs": 400
+        },
+        {
+          "type": "llm",
+          "nodeId": "asistente",
+          "turns": 3,
+          "costUsd": 0.03,
+          "reason": null
+        },
+        {
+          "type": "message",
+          "nodeId": "fin-resuelto",
+          "content": [
+            {
+              "kind": "text",
+              "text": "¡Perfecto! Aquí estoy si necesitas algo más."
+            }
+          ],
+          "typingDelayMs": 400
+        },
+        {
+          "type": "end",
+          "nodeId": "fin-resuelto",
+          "outcome": "resuelto"
+        }
+      ],
+      "state": {
+        "stateVersion": 1,
+        "flowId": "faq-ia",
+        "status": "ended",
+        "nodeId": "fin-resuelto",
+        "variables": {
+          "resuelto": true,
+          "motivo": "precio del envío"
+        },
+        "contact": {
+          "email": null
+        },
+        "outcome": "resuelto",
+        "error": null
+      }
+    }
+  ]
+}

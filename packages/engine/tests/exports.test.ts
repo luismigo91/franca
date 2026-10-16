@@ -46,6 +46,9 @@ describe('constantes públicas', () => {
       'missing_secret',
       'http_host_error',
       'http_limit_exceeded',
+      'llm_not_configured',
+      'llm_host_error',
+      'llm_limit_exceeded',
     ]);
     expect(engine.REJECTION_CODES).toEqual([
       'invalid_flow',

@@ -1,3 +1,6 @@
+import { readExample } from '../helpers/files.js';
+import { alwaysLlm, turn } from '../helpers/llm-host.js';
+import { begin } from '../helpers/llm-run.js';
 import { describe, expect, it } from 'vitest';
 import { continueSession, type SessionState } from '../../src/index.js';
 import { deepFreeze, end, flowOf, http, input, message, startOk, variable } from '../helpers/flows.js';
@@ -81,5 +84,31 @@ describe('Continuar una sesión', () => {
   it('el estado se comprueba antes que la coincidencia de flujo', async () => {
     const result = await continueSession({ flow: flowA(), state: { flowId: 'otro' } as unknown as SessionState, input: 1 });
     expect(result).toMatchObject({ ok: false, code: 'invalid_state' });
+  });
+});
+
+describe('Continuar una sesión entre input y llm', () => {
+  it('El nodo en espera cambió entre input y llm', async () => {
+    // captacion-leads con pedir-nombre convertido en un llm: el estado espera en un input.
+    const leads = readExample('captacion-leads') as { nodes: Record<string, unknown>[] };
+    const waiting = await begin(leads);
+    expect(waiting.state.nodeId).toBe('pedir-nombre');
+    const asLlm = structuredClone(leads);
+    asLlm.nodes = asLlm.nodes.map((node) =>
+      node.id === 'pedir-nombre' ? { id: 'pedir-nombre', type: 'llm', provider: 'principal', goal: 'g', next: 'pedir-email', onExhausted: 'pedir-email' } : node,
+    );
+    expect(await continueSession({ flow: asLlm, state: waiting.state, input: { text: 'Ana' } }, alwaysLlm(turn('x')).host)).toMatchObject({ ok: false, code: 'state_mismatch' });
+
+    // faq-ia con asistente convertido en un input de texto sobre motivo: el estado espera en un llm.
+    const faq = readExample('faq-ia') as { nodes: Record<string, unknown>[] };
+    const asking = await begin(faq, alwaysLlm(turn('¿En qué puedo ayudarte?')).host);
+    expect(asking.state.nodeId).toBe('asistente');
+    const asInput = structuredClone(faq);
+    asInput.nodes = asInput.nodes.map((node) =>
+      node.id === 'asistente'
+        ? { id: 'asistente', type: 'input', inputType: 'text', variable: 'motivo', prompt: [{ kind: 'text', text: '¿Qué necesitas?' }], next: 'comprobar' }
+        : node,
+    );
+    expect(await continueSession({ flow: asInput, state: asking.state, input: { text: 'Ana' } })).toMatchObject({ ok: false, code: 'state_mismatch' });
   });
 });

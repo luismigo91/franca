@@ -1,3 +1,4 @@
+import { validateFlow } from '@franca/spec';
 import { expect } from 'vitest';
 import {
   startSession,
@@ -135,3 +136,39 @@ export const httpNode = (id: string, request: Obj = {}, extra: Obj = {}): Obj =>
   onError: 'fin',
   ...extra,
 });
+
+/**
+ * Nodo `llm` de `llm-email` (spec «Nodo llm: primer turno»): provider `principal`, el slot `email`,
+ * `maxTurns` 3, `next` `ok` y `onExhausted` `ko`. `extra` sustituye propiedades; una propiedad con
+ * valor `undefined` se quita.
+ */
+export const llmNode = (extra: Obj = {}, id = 'a'): Obj => ({
+  id,
+  type: 'llm',
+  provider: 'principal',
+  goal: 'Consigue el email del usuario.',
+  slots: [{ variable: 'email', description: 'Email de contacto' }],
+  maxTurns: 3,
+  next: 'ok',
+  onExhausted: 'ko',
+  ...extra,
+});
+
+/**
+ * El flujo `llm-email` con el nodo `a` personalizable: variables `email` (`email`, `contact`, `pii`) y
+ * `nombre` (`string`), y los `end` `ok` y `ko`. **Exige que el flujo sea válido** antes de devolverlo
+ * (lección de las features 1-3: un escenario con un flujo inválido prueba otra cosa); los flujos
+ * inválidos a propósito se construyen con `flowOf` y un comentario.
+ *
+ * @param nodeExtra Propiedades del nodo `a`.
+ * @param options `variables` sustituye a las dos de serie; `nodes` sustituye a `[a, ok, ko]`; `start`, `settings` y `extra` van al flujo.
+ */
+export function llmFlow(nodeExtra: Obj = {}, options: { variables?: Obj[]; nodes?: Obj[]; start?: string; settings?: Obj; extra?: Obj } = {}): Obj {
+  const nodes = options.nodes ?? [llmNode(nodeExtra), end('ok', { outcome: 'ok' }), end('ko', { outcome: 'ko' })];
+  const variables = options.variables ?? [variable('email', { type: 'email', scope: 'contact', pii: true }), variable('nombre')];
+  // Ida y vuelta por JSON: una propiedad `undefined` (para quitar un valor de serie) desaparece como lo haría en el cable.
+  const flow = JSON.parse(JSON.stringify(flowOf(nodes, { id: 'llm-email', variables, settings: options.settings, start: options.start, extra: options.extra }))) as Obj;
+  const validation = validateFlow(flow);
+  expect(validation.valid, JSON.stringify(validation)).toBe(true);
+  return flow;
+}

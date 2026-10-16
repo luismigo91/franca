@@ -539,5 +539,169 @@
     "tests": [
       "tests/unit/llm-providers.test.ts"
     ]
+  },
+  {
+    "id": "llm-done-without-required",
+    "file": "src/nodes/llm.ts",
+    "find": "if (result.done && hasRequired(specs, conversation.collected)) {",
+    "replace": "if (result.done) {",
+    "tests": [
+      "tests/scenarios/llm-turns.test.ts",
+      "tests/scenarios/llm-state.test.ts"
+    ]
+  },
+  {
+    "id": "llm-selfjump-arrival",
+    "file": "src/nodes/llm.ts",
+    "find": "    if (node.next !== node.id) return exit(node, ctx, conversation, node.next, null);\n",
+    "replace": "    return exit(node, ctx, conversation, node.next, null);\n",
+    "tests": [
+      "tests/scenarios/llm-turns.test.ts"
+    ]
+  },
+  {
+    "id": "llm-selfjump-reset",
+    "file": "src/nodes/llm.ts",
+    "find": "    ctx.emit({ type: 'llm', nodeId: node.id, turns: conversation.turns, costUsd: conversation.costUsd, reason: null });\n    return waitForUser(node, ctx, conversation);",
+    "replace": "    ctx.emit({ type: 'llm', nodeId: node.id, turns: conversation.turns, costUsd: conversation.costUsd, reason: null });\n    return waitForUser(node, ctx, Conversation.empty());",
+    "tests": [
+      "tests/scenarios/llm-turns.test.ts"
+    ]
+  },
+  {
+    "id": "llm-cost-strict",
+    "file": "src/llm/conversation.ts",
+    "find": "conversation.costUsd >= node.costCapUsd",
+    "replace": "conversation.costUsd > node.costCapUsd",
+    "tests": [
+      "tests/scenarios/llm-turns.test.ts",
+      "tests/unit/llm-conversation.test.ts"
+    ]
+  },
+  {
+    "id": "llm-reason-order",
+    "file": "src/llm/conversation.ts",
+    "find": "  if (conversation.turns >= maxTurnsOf(node)) return 'max_turns';\n  if (node.costCapUsd !== undefined && conversation.costUsd >= node.costCapUsd) return 'cost_cap';",
+    "replace": "  if (node.costCapUsd !== undefined && conversation.costUsd >= node.costCapUsd) return 'cost_cap';\n  if (conversation.turns >= maxTurnsOf(node)) return 'max_turns';",
+    "tests": [
+      "tests/scenarios/llm-turns.test.ts",
+      "tests/unit/llm-conversation.test.ts"
+    ]
+  },
+  {
+    "id": "llm-history-kept",
+    "file": "src/session.ts",
+    "find": "  return run(flow, vars, node.id, host ?? {}, plan.step);",
+    "replace": "  const kept = await run(flow, vars, node.id, host ?? {}, plan.step);\n  if (kept.ok && kept.status === 'waiting' && state.conversation !== undefined) kept.state.conversation = state.conversation;\n  return kept;",
+    "tests": [
+      "tests/scenarios/llm-turns.test.ts",
+      "tests/properties-llm.test.ts"
+    ]
+  },
+  {
+    "id": "llm-no-reserve",
+    "file": "src/nodes/llm.ts",
+    "find": "  if (!ctx.reserveExternalCall()) return LIMIT_EXCEEDED;\n",
+    "replace": "",
+    "tests": [
+      "tests/scenarios/llm-turns.test.ts",
+      "tests/scenarios/http-host.test.ts"
+    ]
+  },
+  {
+    "id": "llm-collect-invalid-turn",
+    "file": "src/nodes/llm.ts",
+    "find": "  const text = readAssistantText(result.text);",
+    "replace": "  conversation.collect(collectSlots(result.values, specs, languageOf(ctx)));\n  const text = readAssistantText(result.text);",
+    "tests": [
+      "tests/scenarios/llm-turns.test.ts"
+    ]
+  },
+  {
+    "id": "llm-text-template",
+    "file": "src/nodes/llm.ts",
+    "find": "content: [{ kind: 'text', text }], typingDelayMs: ctx.typingDelayMs });",
+    "replace": "content: [{ kind: 'text', text: renderTemplate(text, (name) => ctx.vars.get(name)) }], typingDelayMs: ctx.typingDelayMs });",
+    "tests": [
+      "tests/scenarios/llm-turns.test.ts"
+    ]
+  },
+  {
+    "id": "llm-invalid-message-calls",
+    "file": "src/nodes/llm.ts",
+    "find": "  if (!check.ok) {",
+    "replace": "  if (!check.ok && Math.abs(0) > 1) {",
+    "tests": [
+      "tests/scenarios/llm-turns.test.ts"
+    ]
+  },
+  {
+    "id": "llm-cost-overflow",
+    "file": "src/llm/conversation.ts",
+    "find": "    if (!Number.isFinite(total)) return false;\n",
+    "replace": "",
+    "tests": [
+      "tests/scenarios/llm-host.test.ts",
+      "tests/unit/llm-conversation.test.ts"
+    ]
+  },
+  {
+    "id": "llm-request-reuse",
+    "file": "src/llm/conversation.ts",
+    "find": "    return this.list.map((m) => ({ role: m.role, text: m.text }));\n  }\n\n  pushUser",
+    "replace": "    return this.list;\n  }\n\n  pushUser",
+    "tests": [
+      "tests/scenarios/llm-request.test.ts",
+      "tests/scenarios/llm-state.test.ts",
+      "tests/unit/llm-request.test.ts"
+    ]
+  },
+  {
+    "id": "llm-this",
+    "file": "src/llm/capability.ts",
+    "find": "Reflect.apply(call, host, [request])",
+    "replace": "Reflect.apply(call, undefined, [request])",
+    "tests": [
+      "tests/scenarios/llm-host.test.ts",
+      "tests/unit/llm-result.test.ts"
+    ]
+  },
+  {
+    "id": "llm-catch-leak",
+    "file": "src/llm/capability.ts",
+    "find": "  } catch {\n    return { ok: false };",
+    "replace": "  } catch (error) {\n    return { ok: false };",
+    "tests": [
+      "tests/static-guard.test.ts"
+    ]
+  },
+  {
+    "id": "llm-resume-revalidate",
+    "file": "src/nodes/llm.ts",
+    "find": "revalidateCollected(pending.conversation.collected, specs, language)",
+    "replace": "new Map(Object.entries(pending.conversation.collected))",
+    "tests": [
+      "tests/scenarios/llm-slots.test.ts"
+    ]
+  },
+  {
+    "id": "llm-resume-exhausted",
+    "file": "src/nodes/llm.ts",
+    "find": "  if (exhausted !== null) return exit(node, ctx, conversation, node.onExhausted, exhausted);\n",
+    "replace": "",
+    "tests": [
+      "tests/scenarios/llm-turns.test.ts",
+      "tests/scenarios/llm-state.test.ts"
+    ]
+  },
+  {
+    "id": "resume-kind",
+    "file": "src/session.ts",
+    "find": "(state.status === 'waiting' && node.type !== waitingTypeOf(state))",
+    "replace": "(state.status === 'waiting' && false)",
+    "tests": [
+      "tests/scenarios/continue.test.ts",
+      "tests/scenarios/llm-state.test.ts"
+    ]
   }
 ]

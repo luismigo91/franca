@@ -1,37 +1,17 @@
-import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { call } from '../src/conformance/call.js';
 import { CALL_DEADLINE_MARGIN_MS, CONFORMANCE_INTERNAL_ADDRESSES, HOST_CONFORMANCE_CASES } from '../src/conformance/index.js';
 import type { HostConformanceHarness } from '../src/conformance/types.js';
 import type { HttpCapability, HttpRequest } from '../src/index.js';
+import { effectiveSpec } from './helpers/spec-text.js';
 
-const CHANGE_SPEC = new URL('../../../openspec/changes/engine-http/specs/flow-engine/spec.md', import.meta.url);
-const MAIN_SPEC = new URL('../../../openspec/specs/flow-engine/spec.md', import.meta.url);
-// Mientras el cambio no se archiva, el catálogo se liga al delta; después, a la spec vigente.
-const specText = readFileSync(existsSync(CHANGE_SPEC) ? CHANGE_SPEC : MAIN_SPEC, 'utf8');
-
-/** requisito → escenarios, en el orden de la spec. */
-function parseSpec(text: string): Map<string, string[]> {
-  const requirements = new Map<string, string[]>();
-  let current: string[] | undefined;
-  for (const line of text.split('\n')) {
-    const requirement = /^### Requirement: (.+)$/.exec(line);
-    if (requirement) {
-      current = [];
-      requirements.set(requirement[1]!, current);
-      continue;
-    }
-    const scenario = /^#### Scenario: (.+)$/.exec(line);
-    if (scenario && current) current.push(scenario[1]!);
-  }
-  return requirements;
-}
-
-const spec = parseSpec(specText);
+// La spec tal como queda con los cambios activos aplicados: el test vale antes de archivar (el requisito solo
+// está en el delta) y después (ya está en la vigente).
+const { requirements: spec, text: specText } = effectiveSpec('flow-engine');
 
 describe('catálogo ↔ spec', () => {
-  it('hay 17 casos con id único en kebab-case', () => {
-    expect(HOST_CONFORMANCE_CASES).toHaveLength(17);
+  it('hay 21 casos con id único en kebab-case', () => {
+    expect(HOST_CONFORMANCE_CASES).toHaveLength(21);
     const ids = HOST_CONFORMANCE_CASES.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
     for (const id of ids) expect(id).toMatch(/^[a-z]+(-[a-z]+)*$/);

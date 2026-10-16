@@ -1,3 +1,6 @@
+import { llmFlow } from '../helpers/flows.js';
+import { alwaysLlm, failed, rejectingLlm, scriptedLlm, throwingLlm, turn, withHosts } from '../helpers/llm-host.js';
+import { begin, chat } from '../helpers/llm-run.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { continueSession } from '../../src/index.js';
 import { flowOf, httpNode, setNode, variable } from '../helpers/flows.js';
@@ -136,6 +139,12 @@ describe('Ejecución determinista con host', () => {
     await runOk(flow, throwingHost().host); // host que lanza
     await runOk(flow, always({ kind: 'missing_secret' }).host);
     await runOk(httpFlow({ url: 'http://localhost/' }), always(respond(200)).host); // petición no construida
+    // conversaciones con llm: hasta cumplir el objetivo, hasta agotarse y con un host que lanza o rechaza
+    await begin(llmFlow(), alwaysLlm(turn('Listo', { email: 'ana@example.com' }, true)).host);
+    await chat(llmFlow(), alwaysLlm(turn('sigo')).host, ['uno', 'dos']);
+    await begin(llmFlow(), alwaysLlm(failed(0)).host);
+    await begin(llmFlow(), throwingLlm().host);
+    await begin(llmFlow(), rejectingLlm(new Error('MARCA')).host);
     expect(spies.length).toBeGreaterThan(5);
     for (const spy of spies) expect(spy).not.toHaveBeenCalled();
   });
@@ -148,5 +157,25 @@ describe('Ejecución determinista con host', () => {
       { type: 'error', nodeId: 'asistente', code: 'unsupported_node', message: expect.any(String) },
     ]);
     expect(host.requests).toHaveLength(0);
+  });
+});
+
+describe('Ejecución determinista con llm', () => {
+  it('Dos conversaciones con el mismo guion de llm', async () => {
+    const script = () => ({
+      llm: scriptedLlm([turn('¿En qué puedo ayudarte?', {}, false, 0.03), turn('Mira el precio en la web.', { motivo: 'precio del envío' }, false, 0.02)]),
+      http: scriptedHost([respond(201, '{"id": "T-1"}')], { repeatLast: true }),
+    });
+    const hosts = [script(), script()];
+    const conversations = [];
+    for (const { llm, http } of hosts) {
+      const { host } = withHosts(http.host, llm.host);
+      conversations.push(await chat(faq(), host, [{ text: '¿Cuánto cuesta el envío?' }, { text: 'ana@example.com' }]));
+    }
+    expect(conversations[0]).toEqual(conversations[1]);
+    expect(hosts[0]!.llm.requests).toEqual(hosts[1]!.llm.requests);
+    expect(hosts[0]!.http.requests).toEqual(hosts[1]!.http.requests);
+    expect(hosts[0]!.llm.requests).toHaveLength(2);
+    expect(hosts[0]!.http.requests).toHaveLength(1);
   });
 });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { HOST_CONFORMANCE_CASES } from '../src/conformance/index.js';
 import type {
+  ConformanceSessions,
   Connection,
   ConformanceServer,
   HostConformanceHarness,
@@ -8,12 +9,21 @@ import type {
   ServeOptions,
   ServerBehaviour,
 } from '../src/conformance/types.js';
-import type { HttpAttemptResult, HttpCapability, HttpRequest } from '../src/index.js';
+import {
+  continueSession,
+  createLlmCapability,
+  startSession,
+  type HttpAttemptResult,
+  type HttpCapability,
+  type HttpRequest,
+  type LlmCapability,
+  type SessionState,
+} from '../src/index.js';
 
 /**
  * Un host y un arnés en memoria, sin red ni reloj simulado, que cumplen el contrato «Host de producción».
  * Sirven para dos cosas que el catálogo no prueba por sí solo: que cada caso se puede satisfacer (un
- * host conforme pasa los 17) y que cada caso discrimina (cada defecto de `Defects` hace fallar al
+ * host conforme pasa los 21) y que cada caso discrimina (cada defecto de `Defects` hace fallar al
  * caso que lo vigila). El host falso decide con la lista de pares permitidos, como el real.
  */
 type Defect =
@@ -34,7 +44,11 @@ type Defect =
   | 'late-timeout'
   | 'early-timeout'
   | 'result-has-secret'
-  | 'reject-on-error';
+  | 'reject-on-error'
+  | 'log-llm'
+  | 'trust-client-state'
+  | 'no-claim'
+  | 'claim-never-expires';
 
 const TOLERANCE = 300;
 const MIB = 1048576;
@@ -48,6 +62,8 @@ class FakeNetwork {
   connections: Connection[] = [];
   logLines: string[] = [];
   private next = 1;
+  private nextSession = 1;
+  private sessionStore = new Map<string, { flow: unknown; state: SessionState; claimed: boolean }>();
   readonly blockedPort = 9;
 
   constructor(private readonly defect?: Defect) {}
@@ -91,6 +107,8 @@ class FakeNetwork {
       async connectionsTo() {
         return net.connections;
       },
+      llm: (provider) => net.llm(provider),
+      sessions: (provider) => net.sessions(provider),
       async setSecret(name, value, origins, tenant = 'default') {
         net.secrets.set(`${tenant}|${name}`, { value, origins: [...origins] });
       },
@@ -103,6 +121,50 @@ class FakeNetwork {
       async reset() {
         net.connections = [];
         net.logLines = [];
+      },
+    };
+  }
+
+  /** La capacidad llm del host: enruta por nombre y registra sin datos (o con ellos, con el defecto `log-llm`). */
+  private llm(provider: LlmCapability): LlmCapability {
+    const route = createLlmCapability({ principal: provider });
+    return async (request) => {
+      if (this.defect === 'log-llm') this.logLines.push(`llm ${JSON.stringify(request)}`);
+      else this.logLines.push(`llm ${request.nodeId} ${request.provider} ${request.model ?? '-'} turn ${request.turn}`);
+      const result = await route(request);
+      if (this.defect === 'log-llm') this.logLines.push(`llm resultado ${JSON.stringify(result)}`);
+      else this.logLines.push(`llm resultado ${result.kind}`);
+      return result;
+    };
+  }
+
+  /** La API de sesiones del host: custodia el estado y reclama antes de ejecutar el motor, salvo los defectos. */
+  private sessions(provider: LlmCapability): ConformanceSessions {
+    const host = { llm: this.llm(provider) };
+    return {
+      start: async (flow) => {
+        const result = await startSession({ flow }, host);
+        if (!result.ok) throw new Error('el flujo de la suite debe ser válido');
+        const id = `sesion-${this.nextSession++}`;
+        this.sessionStore.set(id, { flow, state: result.state, claimed: false });
+        return { id };
+      },
+      continue: async (id, input, clientState) => {
+        const entry = this.sessionStore.get(id)!;
+        if (this.defect !== 'no-claim') {
+          if (entry.claimed) return { kind: 'conflict' };
+          entry.claimed = true;
+        }
+        const state = this.defect === 'trust-client-state' && clientState !== undefined ? clientState : entry.state;
+        const result = await continueSession({ flow: entry.flow, state, input }, host);
+        if (!result.ok) throw new Error('la continuación de la suite debe aceptarse');
+        entry.state = result.state;
+        entry.claimed = false;
+        return { kind: 'applied' };
+      },
+      expireClaims: async () => {
+        if (this.defect === 'claim-never-expires') return;
+        for (const entry of this.sessionStore.values()) entry.claimed = false;
       },
     };
   }
@@ -209,7 +271,7 @@ async function run(id: string, defect?: Defect): Promise<string[]> {
   return CASE(id).run(net.harness());
 }
 
-describe('un host conforme pasa los 17 casos (cada caso se puede satisfacer)', () => {
+describe('un host conforme pasa los 21 casos (cada caso se puede satisfacer)', () => {
   it.each(FAST.map((c) => [c.id] as const))('%s', async (id) => {
     expect(await run(id)).toEqual([]);
   });
@@ -236,6 +298,10 @@ describe('cada defecto de un host hace fallar al caso que lo vigila (los casos d
     ['no-body-limit', 'cuerpo-sin-fin'],
     ['no-body-limit', 'cuerpo-comprimido-sin-fin'],
     ['wire-limit-only', 'bomba-descompresion'],
+    ['log-llm', 'registros-llm'],
+    ['trust-client-state', 'custodia-estado'],
+    ['no-claim', 'una-continuacion'],
+    ['claim-never-expires', 'reclamacion-caducada'],
   ])('%s → %s', async (defect, id) => {
     const failures = await run(id, defect);
     expect(failures.length, `${defect} debía hacer fallar a ${id}`).toBeGreaterThan(0);
@@ -255,3 +321,32 @@ describe('cada defecto de un host hace fallar al caso que lo vigila (los casos d
     }
   });
 });
+
+describe('los casos de llm', () => {
+  it('los fallos no incluyen los marcadores ni los datos personales del arnés', async () => {
+    const all = [
+      ...(await run('registros-llm', 'log-llm')),
+      ...(await run('custodia-estado', 'trust-client-state')),
+      ...(await run('una-continuacion', 'no-claim')),
+      ...(await run('reclamacion-caducada', 'claim-never-expires')),
+    ];
+    expect(all.length).toBeGreaterThanOrEqual(4);
+    for (const failure of all) {
+      expect(failure).not.toContain('ZQXJ7LLM');
+      expect(failure.toLowerCase()).not.toContain('zqxj-llm-pii');
+    }
+  });
+
+  it('un proveedor que se rechaza o devuelve algo fuera de contrato anota un fallo y el caso no rechaza', async () => {
+    const net = new FakeNetwork();
+    const harness = net.harness();
+    const rejecting = { ...harness, llm: () => (async () => Promise.reject(new Error('ZQXJ7LLMHIST'))) as unknown as LlmCapability };
+    const malformed = { ...harness, llm: () => (async () => ({ kind: 'otro' })) as unknown as LlmCapability };
+    for (const broken of [rejecting, malformed]) {
+      const failures = await CASE('registros-llm').run(broken);
+      expect(failures.length).toBeGreaterThan(0);
+      expect(failures.join()).not.toContain('ZQXJ7LLMHIST');
+    }
+  });
+});
+
