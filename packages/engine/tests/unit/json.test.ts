@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkJsonValue, cloneJsonStrict, deepEqual, toJsonForm } from '../../src/json.js';
+import { checkJsonValue, cloneJsonStrict, deepEqual, exceedsDepth, toJsonForm } from '../../src/json.js';
 
 describe('toJsonForm', () => {
   it('copia sin compartir referencias', () => {
@@ -118,5 +118,48 @@ describe('deepEqual', () => {
 
   it('distingue claves distintas con el mismo número de claves', () => {
     expect(deepEqual({ a: 1 }, { b: 1 })).toBe(false);
+  });
+});
+
+describe('exceedsDepth', () => {
+  const nest = (n: number): unknown => {
+    let v: unknown = 1;
+    for (let i = 0; i < n; i++) v = [v];
+    return v;
+  };
+
+  it('un escalar vale 0 y [[1]] vale 2', () => {
+    expect(exceedsDepth(1, 0)).toBe(false);
+    expect(exceedsDepth(null, 0)).toBe(false);
+    expect(exceedsDepth({}, 0)).toBe(true);
+    expect(exceedsDepth(nest(2), 2)).toBe(false);
+    expect(exceedsDepth(nest(2), 1)).toBe(true);
+  });
+
+  it('no recursa: 1 000 000 de niveles sin desbordar', () => {
+    expect(exceedsDepth(nest(1_000_000), 1000)).toBe(true);
+  });
+
+  it('un ciclo cuenta como demasiado profundo', () => {
+    const a: Record<string, unknown> = {};
+    a.self = a;
+    expect(exceedsDepth(a, 1000)).toBe(true);
+  });
+
+  it('un grafo compartido no es exponencial', () => {
+    let v: unknown = { leaf: 1 };
+    for (let i = 0; i < 60; i++) v = { a: v, b: v };
+    expect(exceedsDepth(v, 1000)).toBe(false);
+  });
+
+  it('un array disperso enorme es barato', () => {
+    const sparse: unknown[] = [];
+    sparse[2 ** 31] = [1];
+    expect(exceedsDepth(sparse, 1000)).toBe(false);
+  });
+
+  it('cloneJsonStrict lo rechaza sin recursar', () => {
+    expect(cloneJsonStrict(nest(1001)).ok).toBe(false);
+    expect(cloneJsonStrict(nest(1000)).ok).toBe(true);
   });
 });

@@ -8,6 +8,8 @@ describe('constantes públicas', () => {
     expect(engine.DEFAULT_TYPING_DELAY_MS).toBe(600);
     expect(engine.MAX_PATTERN_SIZE).toBe(1000);
     expect(engine.MAX_RENDERED_LENGTH).toBe(16384);
+    expect(engine.MAX_NESTING_DEPTH).toBe(1000);
+    expect(engine.MAX_PATTERN_DEPTH).toBe(100);
     expect(engine.SESSION_ERROR_CODES).toEqual([
       'unsupported_node',
       'invalid_rule',
@@ -29,6 +31,8 @@ describe('API pública', () => {
     expect(Object.keys(engine).sort()).toEqual(
       [
         'DEFAULT_TYPING_DELAY_MS',
+        'MAX_NESTING_DEPTH',
+        'MAX_PATTERN_DEPTH',
         'MAX_PATTERN_SIZE',
         'MAX_RENDERED_LENGTH',
         'MAX_STEPS_PER_ADVANCE',

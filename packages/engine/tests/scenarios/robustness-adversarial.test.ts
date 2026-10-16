@@ -37,6 +37,38 @@ describe('Multimedia: alt definido pero vacío', () => {
   });
 });
 
+describe('Profundidad máxima de anidamiento del patrón de matches', () => {
+  const withPattern = (pattern: string) =>
+    startOk(
+      flowOf([condition('c', [[rule('v', 'matches', pattern), 'si']], 'no'), end('si', { outcome: 'si' }), end('no', { outcome: 'no' })], {
+        variables: [variable('v', { default: 'a' })],
+      }),
+    );
+  const groups = (n: number) => '(?:'.repeat(n) + 'a' + ')'.repeat(n);
+
+  it('Patrón demasiado anidado', async () => {
+    expect((await withPattern(groups(100))).state.outcome).toBe('si');
+    for (const n of [101, 5000, 100000]) {
+      const result = await withPattern(groups(n));
+      expect(result.state.error, String(n)).toEqual({ code: 'invalid_rule', nodeId: 'c' });
+    }
+  });
+
+  it('Paréntesis que no abren grupo', async () => {
+    const result = await startOk(
+      flowOf(
+        [
+          condition('c1', [[rule('v', 'matches', '\\('.repeat(150)), 'x']], 'c2'),
+          condition('c2', [[rule('v', 'matches', '[' + '('.repeat(150) + ']'), 'x']], 'x'),
+          end('x'),
+        ],
+        { variables: [variable('v', { default: '(' })] },
+      ),
+    );
+    expect(result.status).toBe('ended');
+  });
+});
+
 describe('Patrones de matches demasiado anidados en una sesión', () => {
   it('100000 grupos anidados fallan la sesión con invalid_rule, sin lanzar', async () => {
     const pattern = '(?:'.repeat(100000) + 'a' + ')'.repeat(100000);
@@ -49,47 +81,76 @@ describe('Patrones de matches demasiado anidados en una sesión', () => {
   });
 });
 
-/**
- * BUG (Medium): la spec exige que un flujo no válido se rechace con `invalid_flow`, y los
- * predicados `all`/`any` "pueden anidarse a cualquier profundidad". Con ~1500 niveles de anidamiento
- * `validateFlow` (@franca/spec, recursión de ajv) lanza `RangeError: Maximum call stack size exceeded`
- * y `startSession` rechaza su promesa en lugar de devolver `invalid_flow` o ejecutar el flujo.
- * Origen: packages/engine/src/session.ts (checkFlow, sin captura) sobre packages/spec/src/validate.ts.
- */
-describe('Robustez ante anidamiento extremo (defectos conocidos)', () => {
+describe('Profundidad máxima de anidamiento', () => {
   const deepPredicate = (depth: number): Obj => nest<Obj>(depth, rule('v', 'isSet'), (inner) => ({ all: [inner] }));
   const deepFlow = (depth: number): Obj =>
     flowOf([condition('c', [[deepPredicate(depth), 'fin']], 'fin'), end('fin')], { variables: [variable('v')] });
+  const flowWithDefault = (levels: number): Obj =>
+    flowOf([end('fin')], { variables: [variable('v', { type: 'json', default: nest<unknown>(levels, 1, (i) => [i]) })] });
+  const contactFlow = () => flowOf([end('fin')], { variables: [variable('v', { type: 'json', scope: 'contact' })] });
 
-  it('1000 niveles de predicado anidado se ejecutan', async () => {
-    const result = await startOk(deepFlow(1000));
-    expect(result.status).toBe('ended');
+  it('400 niveles de predicado anidado se ejecutan', async () => {
+    expect((await startOk(deepFlow(400))).status).toBe('ended');
   });
 
-  it.fails('BUG: 5000 niveles de predicado anidado no deben hacer lanzar a startSession (invalid_flow o ejecución)', async () => {
-    const result = await startSession({ flow: deepFlow(5000) });
-    expect(typeof result.ok).toBe('boolean');
+  it('Predicado demasiado anidado', async () => {
+    for (const depth of [1000, 5000]) {
+      const result = await startSession({ flow: deepFlow(depth) });
+      expect(result, String(depth)).toMatchObject({ ok: false, code: 'invalid_flow' });
+    }
   });
 
-  it.fails('BUG: un contacto con 100000 niveles de anidamiento no debe hacer lanzar a startSession', async () => {
-    const flow = flowOf([end('fin')], { variables: [variable('v', { type: 'json', scope: 'contact' })] });
-    const result = await startSession({ flow, contact: { v: nest<unknown>(100000, 1, (inner) => [inner]) } });
-    expect(typeof result.ok).toBe('boolean');
+  it('Flujo demasiado anidado', async () => {
+    const flow = flowWithDefault(5000);
+    for (const result of [
+      await startSession({ flow }),
+      await continueSession({ flow, state: {}, input: 'x' }),
+    ]) {
+      expect(result).toMatchObject({ ok: false, code: 'invalid_flow' });
+      expect('issues' in result && result.issues).toEqual([
+        { layer: 'shape', path: '', message: expect.stringContaining('1000') },
+      ]);
+    }
   });
 
-  it.fails('BUG: un estado con 100000 niveles de anidamiento no debe hacer lanzar a continueSession (invalid_state)', async () => {
+  it('un default con 100000 niveles se rechaza sin lanzar', async () => {
+    expect(await startSession({ flow: flowWithDefault(100000) })).toMatchObject({ ok: false, code: 'invalid_flow' });
+  });
+
+  it('Flujo justo en el límite de anidamiento', async () => {
+    // variables (2) + variable (3) + default de n niveles = profundidad 3 + n
+    expect((await startOk(flowWithDefault(997))).status).toBe('ended');
+    expect(await startSession({ flow: flowWithDefault(998) })).toMatchObject({ ok: false, code: 'invalid_flow' });
+  });
+
+  it('un ciclo en memoria se rechaza como demasiado anidado, sin colgarse ni lanzar', async () => {
+    const flow = flowOf([end('fin')]);
+    flow.self = flow;
+    expect(await startSession({ flow })).toMatchObject({ ok: false, code: 'invalid_flow' });
+  });
+
+  it('Contacto demasiado anidado', async () => {
+    const flow = contactFlow();
+    for (const levels of [100000, 1000]) {
+      const result = await startSession({ flow, contact: { v: nest<unknown>(levels, 1, (i) => [i]) } });
+      expect(result, String(levels)).toMatchObject({ ok: false, code: 'invalid_contact' });
+    }
+    // contacto (1) + 999 arrays = profundidad 1000
+    const ok = await startSession({ flow, contact: { v: nest<unknown>(999, 1, (i) => [i]) } });
+    expect(ok.ok).toBe(true);
+  });
+
+  it('Estado demasiado anidado', async () => {
     const flow = flowOf([end('fin')], { id: 'a' });
     const { state } = await startOk(flow);
     const hostil = { ...state, variables: { v: nest<unknown>(100000, 1, (inner) => [inner]) } };
-    const result = await continueSession({ flow, state: hostil, input: 'x' });
-    expect(result).toMatchObject({ ok: false });
+    expect(await continueSession({ flow, state: hostil, input: 'x' })).toMatchObject({ ok: false, code: 'invalid_state' });
   });
 
-  it('el mismo resultado en dos ejecuciones: 1000 niveles en el contacto se aceptan de forma estable', async () => {
-    const flow = flowOf([end('fin')], { variables: [variable('v', { type: 'json', scope: 'contact' })] });
-    const contact = { v: nest<unknown>(1000, 1, (inner) => [inner]) };
-    const a = await startOk(flow, contact);
-    const b = await startOk(flow, contact);
+  it('el mismo resultado en dos ejecuciones: 900 niveles en el contacto se aceptan de forma estable', async () => {
+    const contact = { v: nest<unknown>(900, 1, (inner) => [inner]) };
+    const a = await startOk(contactFlow(), contact);
+    const b = await startOk(contactFlow(), contact);
     expect(a).toEqual(b);
   });
 });

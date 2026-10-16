@@ -197,8 +197,9 @@ describe('Anidamiento extremo del patrón', () => {
     }
   });
 
-  it('1000 grupos anidados siguen siendo válidos', () => {
-    expect(matchPattern('('.repeat(1000) + 'a' + ')'.repeat(1000), 'a')).toBe(true);
+  it('100 grupos anidados son válidos y 101 se rechazan con un resultado fijo', () => {
+    expect(matchPattern('('.repeat(100) + 'a' + ')'.repeat(100), 'a')).toBe(true);
+    expect(() => matchPattern('('.repeat(101) + 'a' + ')'.repeat(101), 'a')).toThrow(PatternError);
   });
 });
 

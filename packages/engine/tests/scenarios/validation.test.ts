@@ -88,7 +88,7 @@ describe('Forma JSON del flujo', () => {
 
   it('un flujo que no se puede serializar rechaza la promesa (defecto del host)', async () => {
     const flow = flowOf([end('fin')]);
-    flow.self = flow;
+    flow.dato = 1n;
     await expect(start(flow)).rejects.toThrow();
   });
 });
