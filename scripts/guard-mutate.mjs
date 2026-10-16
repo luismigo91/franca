@@ -11,6 +11,9 @@ const packages = join(root, 'packages');
 const running = existsSync(packages) ? readdirSync(packages).filter((name) => existsSync(join(packages, name, '.mutate-backup'))) : [];
 
 if (running.length > 0) {
-  console.error(`mutación en curso: espera a que termine \`mutate\` (copias en packages/${running.join(', packages/')}/.mutate-backup/)`);
+  console.error(
+    `mutación en curso: espera a que termine \`mutate\` (copias en packages/${running.join(', packages/')}/.mutate-backup/). ` +
+      'Si ya no se está ejecutando (se mató a medias), vuelve a lanzar `mutate` en ese paquete: restaura los ficheros y quita el candado.',
+  );
   process.exit(1);
 }

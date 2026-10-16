@@ -167,6 +167,9 @@ if (recoverLeftovers()) {
   console.error('Se restauraron ficheros de una ejecución anterior: revisa el árbol de trabajo y vuelve a ejecutar.');
   process.exit(1);
 }
+// El candado de `scripts/guard-mutate.mjs` es este directorio: se crea ya antes de la línea base para que
+// un `pnpm check` o `pnpm build` que arranque mientras tanto no compile ni verifique a medias.
+mkdirSync(backupDir, { recursive: true });
 const mutations = loadMutations();
 const problems = validate(mutations);
 if (problems.length) fatal(`tests/mutations.json está obsoleto:\n  ${problems.join('\n  ')}`);

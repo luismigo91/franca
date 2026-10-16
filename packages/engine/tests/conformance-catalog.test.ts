@@ -50,7 +50,10 @@ type Defect =
   | 'no-claim'
   | 'claim-never-expires';
 
-const TOLERANCE = 300;
+// Margen holgado: con 300 ms, `servidor-muy-lento` fallaba de vez en cuando bajo la carga de `pnpm check`.
+// Los defectos que vigilan estos casos son cualitativos (un timeout de inactividad nunca corta), así que el margen
+// no les resta capacidad de detección.
+const TOLERANCE = 1500;
 const MIB = 1048576;
 
 class FakeNetwork {

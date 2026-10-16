@@ -73,8 +73,9 @@ describe('scripts/mutate.mjs: procesos que lanza Vitest', { timeout: 30_000 }, (
     expect(out).toContain('muerta (timeout)');
     expect(existsSync(join(dir, 'worker.pid'))).toBe(true);
     worker = Number(readFileSync(join(dir, 'worker.pid'), 'utf8'));
-    // El mismo margen que da el sistema a una señal sobre el padre.
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    // Bajo carga el sistema tarda en entregar el SIGKILL al grupo: se espera hasta 5 s a que muera, en vez de un
+    // margen fijo que daba falsos rojos. Un huérfano de verdad sigue vivo indefinidamente, así que no se pierde nada.
+    for (let waited = 0; waited < 5000 && isAlive(worker); waited += 100) await new Promise((resolve) => setTimeout(resolve, 100));
     return worker;
   }
 

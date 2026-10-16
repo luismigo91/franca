@@ -12,6 +12,7 @@ metadata:
 
 **Cómo se evita:**
 - `scripts/guard-mutate.mjs` (raíz) sale con error «mutación en curso» si existe `packages/*/.mutate-backup/`. Es el primer paso de los scripts `check` y `build` del `package.json` raíz. No se puso como tarea previa de `turbo` porque turbo no tiene un hook global antes de `build` sin añadir una tarea a cada paquete; `check` y `build` cubren el camino del Stop hook y de la CI. Quien ejecute `turbo run` o el `build` de un paquete a mano se salta el candado.
+- `mutate.mjs` crea `.mutate-backup/` (el candado) antes de la línea base, no en la primera mutación: así un `check` que arranque durante la línea base también se detiene. Un `check` que ya estaba en marcha antes de lanzar `mutate` no se entera: no lances `mutate` con otro `check` corriendo. Si `mutate` muere con SIGKILL el candado se queda (con `src/` mutado): vuelve a lanzar `mutate` en ese paquete, que restaura y lo quita.
 - El envoltorio `packages/llm-anthropic/scripts/mutate.mjs` recompila `@franca/engine` antes de su línea base.
 - Tras cualquier mutación del motor, recompila `packages/engine` antes de confiar en su `dist/` (y compara su hash con una compilación limpia).
 
