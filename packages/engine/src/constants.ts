@@ -9,6 +9,11 @@ export const MAX_PATTERN_SIZE = 1000;
 /** Longitud máxima, en unidades de código UTF-16, de un texto renderizado. */
 export const MAX_RENDERED_LENGTH = 16384;
 
+/** Niveles máximos de array/objeto anidados en un flujo, un contacto o un estado recibidos. */
+export const MAX_NESTING_DEPTH = 1000;
+/** Grupos anidados máximos en un patrón de `matches`. */
+export const MAX_PATTERN_DEPTH = 100;
+
 /** Errores que dejan la sesión en `failed`. */
 export const SESSION_ERROR_CODES = [
   'unsupported_node',

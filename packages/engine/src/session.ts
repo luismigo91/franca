@@ -1,6 +1,7 @@
 import { validateFlow } from '@franca/spec';
 import type { Flow } from '@franca/spec';
-import { cloneJsonStrict, toJsonForm } from './json.js';
+import { MAX_NESTING_DEPTH } from './constants.js';
+import { cloneJsonStrict, exceedsDepth, toJsonForm } from './json.js';
 import { run } from './run.js';
 import { parseState } from './state.js';
 import type {
@@ -17,6 +18,12 @@ type FlowCheck = { flow: Flow } | { rejection: Rejection };
 
 /** Valida la forma JSON del flujo: lo validado es exactamente lo ejecutado. */
 function checkFlow(input: unknown): FlowCheck {
+  // Antes de cualquier recursión (stringify, ajv): el límite no depende de la pila disponible.
+  if (exceedsDepth(input, MAX_NESTING_DEPTH)) {
+    const message = `el flujo supera la profundidad máxima de anidamiento (${MAX_NESTING_DEPTH})`;
+    const issues = [{ layer: 'shape' as const, path: '', message }];
+    return { rejection: { ok: false, code: 'invalid_flow', message: 'el flujo no es válido', issues } };
+  }
   const result = validateFlow(toJsonForm(input));
   if (result.valid) return { flow: result.flow };
   return { rejection: { ok: false, code: 'invalid_flow', message: 'el flujo no es válido', issues: result.issues } };
@@ -31,6 +38,9 @@ type ContactCheck = { values: Map<string, JsonValue> } | { rejection: Rejection 
 function checkContact(contact: unknown, flow: Flow): ContactCheck {
   const reject = (message: string): ContactCheck => ({ rejection: { ok: false, code: 'invalid_contact', message } });
   if (contact === undefined || contact === null) return { values: new Map() };
+  if (exceedsDepth(contact, MAX_NESTING_DEPTH)) {
+    return reject(`los valores de contacto superan la profundidad máxima de anidamiento (${MAX_NESTING_DEPTH})`);
+  }
   if (typeof contact !== 'object' || Array.isArray(contact)) return reject('los valores de contacto deben ser un objeto');
   const proto = Object.getPrototypeOf(contact);
   if (proto !== Object.prototype && proto !== null) return reject('los valores de contacto deben ser un objeto plano');

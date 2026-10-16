@@ -1,3 +1,4 @@
+import { MAX_NESTING_DEPTH } from './constants.js';
 import type { JsonValue } from './types.js';
 
 /**
@@ -18,6 +19,34 @@ export type JsonCopy = { ok: true; value: JsonValue } | { ok: false };
 const INVALID: JsonCopy = { ok: false };
 
 /**
+ * Dice si la estructura de un valor anida más de `limit` niveles de array/objeto (un escalar vale
+ * 0, `[[1]]` vale 2). Es iterativa, así que su resultado no depende de la pila disponible; un
+ * ciclo sube hasta el límite y cuenta como demasiado profundo. Sigue `Object.keys`, por lo que
+ * un array disperso enorme no cuesta, y no ejecuta `toJSON`.
+ *
+ * @param value Valor a medir.
+ * @param limit Profundidad máxima admitida.
+ * @returns `true` si supera `limit`.
+ */
+export function exceedsDepth(value: unknown, limit: number): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  const deepest = new Map<object, number>();
+  const stack: [object, number][] = [[value, 1]];
+  while (stack.length) {
+    const [node, depth] = stack.pop()!;
+    if (depth > limit) return true;
+    const seen = deepest.get(node);
+    if (seen !== undefined && seen >= depth) continue;
+    deepest.set(node, depth);
+    for (const key of Object.keys(node)) {
+      const child = (node as Record<string, unknown>)[key];
+      if (typeof child === 'object' && child !== null) stack.push([child, depth + 1]);
+    }
+  }
+  return false;
+}
+
+/**
  * Comprueba de forma estricta que un valor es JSON y devuelve una copia profunda.
  * Rechaza `NaN`, `±Infinity`, `undefined`, funciones, símbolos, `bigint`, objetos que no
  * son planos (prototipo distinto de `Object.prototype` o `null`; arrays con otro prototipo),
@@ -28,6 +57,7 @@ const INVALID: JsonCopy = { ok: false };
  * @returns La copia, o `{ ok: false }` si no es JSON estricto.
  */
 export function cloneJsonStrict(value: unknown): JsonCopy {
+  if (exceedsDepth(value, MAX_NESTING_DEPTH)) return INVALID;
   return cloneNode(value, new Set<object>());
 }
 

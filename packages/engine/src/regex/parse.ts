@@ -4,6 +4,8 @@
  * aserciones `^`, `$`, `\b` y `\B`. Convierte el patrón en un AST; no lo ejecuta.
  */
 
+import { MAX_PATTERN_DEPTH } from '../constants.js';
+
 export type Assertion = 'start' | 'end' | 'wordBoundary' | 'notWordBoundary';
 
 export type RegexNode =
@@ -30,6 +32,24 @@ export class PatternError extends Error {
 }
 
 /**
+ * Recorre el patrón sin recursión y falla si anida más de `MAX_PATTERN_DEPTH` grupos. Los
+ * paréntesis escapados y los de una clase `[...]` no abren grupo.
+ */
+function assertShallow(pattern: string): void {
+  let depth = 0;
+  let inClass = false;
+  for (let i = 0; i < pattern.length; i++) {
+    const c = pattern[i];
+    if (c === '\\') i++;
+    else if (inClass) inClass = c !== ']';
+    else if (c === '[') inClass = true;
+    else if (c === '(' && ++depth > MAX_PATTERN_DEPTH) {
+      throw new PatternError('too_large', `el patrón anida más de ${MAX_PATTERN_DEPTH} grupos`);
+    } else if (c === ')' && depth > 0) depth--;
+  }
+}
+
+/**
  * Convierte un patrón en su AST. El motor nativo solo **compila** el patrón (nunca lo ejecuta
  * contra un texto) para validar la sintaxis: si el parser acepta, el nativo compila.
  *
@@ -38,6 +58,7 @@ export class PatternError extends Error {
  * @throws {PatternError} Si la sintaxis es inválida o usa una construcción no admitida.
  */
 export function parsePattern(pattern: string): RegexNode {
+  assertShallow(pattern);
   try {
     new RegExp(pattern, 'u');
   } catch {
@@ -56,6 +77,7 @@ export function parsePattern(pattern: string): RegexNode {
  * @throws {PatternError} Si usa una construcción no admitida.
  */
 export function parseAssumingValid(pattern: string): RegexNode {
+  assertShallow(pattern);
   return new Parser(pattern).parse();
 }
 
