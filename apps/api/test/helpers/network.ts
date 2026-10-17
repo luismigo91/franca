@@ -32,6 +32,8 @@ export async function startMuteServer(): Promise<MuteServer> {
   };
 }
 
-/** Cadena de conexión a un puerto local con una contraseña que no debe aparecer en ninguna salida. */
-export const urlTo = (port: number): string => `postgresql://franca:no-mostrar-1234@127.0.0.1:${port}/franca`;
-export const SECRET_PASSWORD = 'no-mostrar-1234';
+/** Contraseña falsa de los tests: no debe aparecer en ninguna respuesta ni salida de la API. */
+export const SECRET_PASSWORD = 'no-mostrar-1234'; // gitleaks:allow
+
+/** Cadena de conexión a un puerto local con esa contraseña. */
+export const urlTo = (port: number): string => `postgresql://franca:${SECRET_PASSWORD}@127.0.0.1:${port}/franca`;

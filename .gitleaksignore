@@ -1,3 +1,5 @@
-# Falsos positivos revisados a mano: marcadores de tests que comprueban que los secretos no se filtran.
-dbf62cade4925eb0329d4bb360d1a02f518248f8:packages/engine/tests/properties-http.test.ts:generic-api-key:12
+# Falsos positivos del historial. Ninguno es un secreto real.
+# Contraseña falsa de los tests de privacidad (apps/api/test/helpers/network.ts): hoy lleva gitleaks:allow; esta entrada cubre el commit donde se creó sin el marcador.
+fa9893f697a2d0e68716868b490af7de883ef8c3:apps/api/test/helpers/network.ts:generic-api-key:37
+# Insignia pública de CircleCI del README de ejemplo de NestJS (apps/api/README.md), anterior a esta rama.
 4cd2f618fe751f031e08f814d85ac225b47931dd:apps/api/README.md:generic-api-key:5
