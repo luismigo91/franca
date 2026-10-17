@@ -441,7 +441,7 @@ La web SHALL conocer todos los códigos de `API_ERROR_CODES` de la API con una l
 - **THEN** el chat muestra el mensaje genérico de error, la respuesta sigue en su campo y la página no contiene `MARCA-MENSAJE`
 
 ### Requirement: Accesibilidad del chat
-El chat SHALL poderse usar solo con teclado: el foco va a la pregunta pendiente cuando aparece, los mensajes nuevos se anuncian a los lectores de pantalla (una región de registro), cada campo, botón y casilla tiene un nombre accesible y cada imagen su `alt` (vacío si es decorativa). Se usa desde 320 px de ancho sin desplazamiento horizontal.
+El chat SHALL poderse usar solo con teclado: el foco va a la pregunta pendiente cuando aparece, los mensajes nuevos se anuncian a los lectores de pantalla (una región de registro), cada campo, botón y casilla tiene un nombre accesible y cada imagen su `alt` (vacío si es decorativa). Se usa desde 320 px de ancho sin desplazamiento horizontal. El foco no se pierde: mientras se envía, o si el envío falla, sigue en el campo o en el botón de la pregunta con su texto intacto, y al terminar la conversación pasa al aviso de fin.
 
 #### Scenario: Solo con teclado
 - **GIVEN** `captacion-leads` publicado
