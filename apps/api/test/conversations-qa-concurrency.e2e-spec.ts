@@ -24,7 +24,7 @@ function run(test: Test): Promise<Response> {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-describe('qa6: concurrencia y reclamación (e2e)', () => {
+describe('QA: concurrencia y reclamación (e2e)', () => {
   let ctx: ConversationsContext;
   let repository: HookedConversationsRepository;
 

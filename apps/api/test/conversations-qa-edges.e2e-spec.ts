@@ -43,7 +43,7 @@ function contactFlow(id: string, type: string, assignment: unknown): any {
   };
 }
 
-describe('qa6: contactos, entradas y caducidad en los bordes (e2e)', () => {
+describe('QA: contactos, entradas y caducidad en los bordes (e2e)', () => {
   let ctx: ConversationsContext;
   const output = captureOutput();
 

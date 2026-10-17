@@ -24,7 +24,7 @@ const STATE_MARKS = [
 ];
 const EMAIL = 'qa6-pii@example.com';
 
-describe('qa6: el estado del motor no sale por ninguna ruta, error ni registro (e2e)', () => {
+describe('QA: el estado del motor no sale por ninguna ruta, error ni registro (e2e)', () => {
   let ctx: ConversationsContext;
   const output = captureOutput();
 

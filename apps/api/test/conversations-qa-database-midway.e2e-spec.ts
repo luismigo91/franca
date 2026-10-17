@@ -21,7 +21,7 @@ import {
 import {
   startDatabaseProxy,
   type DatabaseProxy,
-} from './helpers/qa6-db-proxy.js';
+} from './helpers/db-proxy.js';
 import { captureOutput } from './helpers/output.js';
 
 function run(test: Test): Promise<Response> {
@@ -33,7 +33,7 @@ const UNAVAILABLE = {
   error: 'database_unavailable',
 };
 
-describe('qa6: Postgres que cae o enmudece a mitad de un avance (e2e, con un proxy TCP)', () => {
+describe('QA: Postgres que cae o enmudece a mitad de un avance (e2e, con un proxy TCP)', () => {
   let proxy: DatabaseProxy;
   let ctx: ConversationsContext;
   const output = captureOutput();

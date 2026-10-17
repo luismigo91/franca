@@ -7,7 +7,7 @@ import { startApi, type RunningApi } from './helpers/process.js';
 import { rawRequest } from './helpers/raw.js';
 
 const PRELOAD = pathToFileURL(
-  new URL('./helpers/qa6-fetch-capture.mjs', import.meta.url).pathname,
+  new URL('./helpers/fetch-capture.mjs', import.meta.url).pathname,
 ).href;
 const FRANCA_KEY = 'qa6-franca-key-0001'; // gitleaks:allow
 const SENTINELS = [
@@ -39,7 +39,7 @@ const captured = (output: string): Captured[] =>
     .filter((line) => line.startsWith('QA6-FETCH '))
     .map((line) => JSON.parse(line.slice('QA6-FETCH '.length)) as Captured);
 
-describe('qa6: proceso real con claves del SDK en la shell y una clave de Franca', () => {
+describe('QA: proceso real con claves del SDK en la shell y una clave de Franca', () => {
   const running: RunningApi[] = [];
   afterEach(async () => {
     await Promise.all(running.splice(0).map((api) => api.stop()));
