@@ -85,9 +85,9 @@
   },
   {
     "id": "ignoreTimeout",
-    "file": "src/http-host/http-host.ts",
-    "find": "const timer = setTimeout(() => controller.abort(), budgetMs);",
-    "replace": "const timer = setTimeout(() => undefined, budgetMs);",
+    "file": "src/http-host/attempt-budget.ts",
+    "find": "      else controller.abort();",
+    "replace": "      else void 0;",
     "tests": [
       "test/conversations-conformance.e2e-spec.ts",
       "test/http-host-tls-timing.e2e-spec.ts"
@@ -390,6 +390,91 @@
     "tests": [
       "test/http-host-requests.e2e-spec.ts",
       "test/http-host-seam.e2e-spec.ts"
+    ]
+  },
+  {
+    "id": "localNameAnySuffix",
+    "file": "src/http-host/local-names.ts",
+    "find": "if (!name.endsWith(LOCAL_SUFFIX) || name.length === LOCAL_SUFFIX.length) return false;",
+    "replace": "if (name.length === 0) return false;",
+    "tests": [
+      "src/http-host/local-names.spec.ts"
+    ]
+  },
+  {
+    "id": "localNameNotSerialized",
+    "file": "src/http-host/local-names.ts",
+    "find": "return serialized === origin && (await isNodeUrlOrigin(origin));",
+    "replace": "return serialized.length > 0 && (await isNodeUrlOrigin(origin));",
+    "tests": [
+      "src/http-host/local-names.spec.ts"
+    ]
+  },
+  {
+    "id": "localNameAnyIpv4",
+    "file": "src/http-host/local-names.ts",
+    "find": "if (octets.length !== 4 || octets[0] !== '127') return null;",
+    "replace": "if (octets.length !== 4) return null;",
+    "tests": [
+      "src/http-host/local-names.spec.ts"
+    ]
+  },
+  {
+    "id": "localNameAnyIpv6",
+    "file": "src/http-host/local-names.ts",
+    "find": "if (text === '[::1]') return { display: text, address: '::1', family: 6 };",
+    "replace": "if (text.startsWith('[') && text.endsWith(']')) return { display: text, address: text.slice(1, -1), family: 6 };",
+    "tests": [
+      "src/http-host/local-names.spec.ts"
+    ]
+  },
+  {
+    "id": "localNameSkipsPolicy",
+    "file": "src/http-host/http-host.ts",
+    "find": "const decision = decideDestination({ entries: resolution.entries, port: portOf(url), secure: url.protocol === 'https:', allowed: deps.allowed });",
+    "replace": "const decision: DestinationDecision = deps.localNames?.lookup(url.hostname) !== undefined ? { kind: 'connect', targets: resolution.entries.map((entry) => ({ address: String(entry.address), family: (entry.family === 6 ? 6 : 4) as 4 | 6 })) } : decideDestination({ entries: resolution.entries, port: portOf(url), secure: url.protocol === 'https:', allowed: deps.allowed });",
+    "tests": [
+      "test/http-host-local-names.e2e-spec.ts",
+      "src/http-host/local-names.spec.ts"
+    ]
+  },
+  {
+    "id": "localNameAlsoResolves",
+    "file": "src/http-host/http-host.ts",
+    "find": "if (local !== undefined) return { kind: 'entries', entries: local };",
+    "replace": "if (local !== undefined) {\n    void network.resolver.lookup(url.hostname).catch(() => undefined);\n    return { kind: 'entries', entries: local };\n  }",
+    "tests": [
+      "test/http-host-local-names.e2e-spec.ts",
+      "src/http-host/local-names.spec.ts"
+    ]
+  },
+  {
+    "id": "localNameFirstAddressOnly",
+    "file": "src/http-host/local-names.ts",
+    "find": "entry.addresses.map(({ address, family }) => ({ address, family }))",
+    "replace": "entry.addresses.slice(0, 1).map(({ address, family }) => ({ address, family }))",
+    "tests": [
+      "test/http-host-local-names.e2e-spec.ts",
+      "src/http-host/local-names.spec.ts"
+    ]
+  },
+  {
+    "id": "localNameMatchesAnyTest",
+    "file": "src/http-host/local-names.ts",
+    "find": "return { lookup: (hostname) => byName.get(hostname) };",
+    "replace": "return { lookup: (hostname) => (hostname.endsWith('.test') ? [...byName.values()][0] : byName.get(hostname)) };",
+    "tests": [
+      "test/http-host-local-names.e2e-spec.ts",
+      "src/http-host/local-names.spec.ts"
+    ]
+  },
+  {
+    "id": "localNamesNotWired",
+    "file": "src/http-host/http-host.module.ts",
+    "find": "          localNames: createLocalNames(config.localNames),\n",
+    "replace": "",
+    "tests": [
+      "test/http-host-local-names.e2e-spec.ts"
     ]
   }
 ]

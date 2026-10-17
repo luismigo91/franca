@@ -2,6 +2,7 @@ import { Inject, Logger, Module, type OnApplicationBootstrap } from '@nestjs/com
 import { createAllowedDestinations } from './destination-policy.js';
 import { describeHttpHostConfig, loadHttpHostConfig, type HttpHostConfig } from './http-host-config.js';
 import { createHttpHost, type HttpHost } from './http-host.js';
+import { createLocalNames } from './local-names.js';
 import { systemNetwork, type HttpNetwork } from './network.js';
 import { createLoggerNotices } from './notices.js';
 import { createSecretStore } from './secrets.js';
@@ -29,6 +30,7 @@ export const HTTP_HOST = Symbol('HTTP_HOST');
           secrets: createSecretStore(config.secrets),
           allowed: createAllowedDestinations(config.allowedDestinations),
           network,
+          localNames: createLocalNames(config.localNames),
           notices: createLoggerNotices(new Logger('HttpHost')),
         }),
       inject: [HTTP_HOST_CONFIG, HTTP_NETWORK],
@@ -39,7 +41,7 @@ export const HTTP_HOST = Symbol('HTTP_HOST');
 export class HttpHostModule implements OnApplicationBootstrap {
   constructor(@Inject(HTTP_HOST_CONFIG) private readonly config: HttpHostConfig) {}
 
-  /** Línea de arranque: qué secretos hay con sus orígenes, cuáles se ignoran y qué destinos se permiten. Nunca un valor. */
+  /** Línea de arranque: qué secretos hay con sus orígenes, cuáles se ignoran, qué destinos se permiten y qué nombres locales hay. Nunca un valor. */
   onApplicationBootstrap(): void {
     new Logger('HttpHost').log(describeHttpHostConfig(this.config));
   }

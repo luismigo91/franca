@@ -27,6 +27,7 @@
         "FRANCA_SECRET_*",
         "FRANCA_HTTP_SECRET_ORIGINS",
         "FRANCA_HTTP_ALLOWED_DESTINATIONS",
+        "FRANCA_HTTP_LOCAL_NAMES",
         "NODE_EXTRA_CA_CERTS"
       ]
     },
@@ -44,6 +45,23 @@
     },
     "test": {
       "dependsOn": ["^build", "db:generate"]
+    },
+    "@franca/api#lint": {
+      "dependsOn": ["^build", "db:generate"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/apps/web/src/server/config/api-url.mjs"]
+    },
+    "@franca/api#typecheck": {
+      "dependsOn": ["^build", "db:generate"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/apps/web/src/server/config/api-url.mjs"]
+    },
+    "@franca/api#test": {
+      "dependsOn": ["^build", "db:generate"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/apps/web/src/server/config/api-url.mjs",
+        "$TURBO_ROOT$/openspec/**",
+        "$TURBO_ROOT$/packages/engine/tests/helpers/spec-text.ts"
+      ]
     },
     "@franca/web#test": {
       "dependsOn": ["^build"],
