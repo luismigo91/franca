@@ -3,7 +3,7 @@ name: gotcha-node-http-createconnection-y-proxy
 description: Trampas de node:http al enviar una petición sobre un socket ya conectado (agent false ignora createConnection, keep-alive y chunked por defecto, 101 sin response, status 600) y de las variables de TLS y de proxy del entorno
 metadata:
   type: project
-  enforcement: apps/api/src/http-host/static-guard.spec.ts
+  enforcement: apps/api/src/http-host/static-guard.spec.ts, apps/api/test/http-host-requests.e2e-spec.ts, apps/api/test/http-host-environment.e2e-spec.ts
 ---
 
 # `node:http` sobre un socket propio: lo que muerde (medido en Node 22.23.3)
