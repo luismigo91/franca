@@ -68,3 +68,54 @@ describe('ConversationsRepository: transcripción', () => {
     });
   });
 });
+
+describe('ConversationsRepository: valores de contacto', () => {
+  /** Un `tx` falso que cuenta las llamadas: la regresión es de número de sentencias, no de tiempo. */
+  function fakeTransaction() {
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValueOnce([{ epoch: 'e1' }]).mockResolvedValueOnce([{ deleted: false }]),
+      $executeRaw: vi.fn().mockResolvedValue(0),
+      conversation: { create: vi.fn().mockResolvedValue({}), findUniqueOrThrow: vi.fn().mockResolvedValue({ id: 'x' }) },
+      conversationEntry: { createMany: vi.fn().mockResolvedValue({}) },
+      contactValue: { upsert: vi.fn(), deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+    };
+    const prisma = { $transaction: vi.fn((fn: (client: typeof tx) => unknown) => fn(tx)) };
+    return { tx, repository: new ConversationsRepository(prisma as unknown as PrismaService) };
+  }
+
+  const write = (changes: number) => ({
+    status: 'ended' as const,
+    state: null,
+    pendingInputJson: null,
+    outcome: null,
+    errorCode: null,
+    errorNodeId: null,
+    costUsd: 0,
+    costLimitReached: false,
+    expiresAt: null,
+    entries: [],
+    contactUpserts: Array.from({ length: changes }, (_, index) => [`v${index}`, String(index)] as [string, string]),
+    contactDeletes: Array.from({ length: changes }, (_, index) => `d${index}`),
+  });
+
+  it('con 1000 cambios hace una sola escritura por lote y ningún upsert fila a fila', async () => {
+    const { tx, repository } = fakeTransaction();
+    const result = await repository.insertConversation({ id: 'i', flowId: 'f', version: 1, contactId: 'c-1', contactEpoch: 'e1', now: NOW, write: write(1000) });
+    expect(result.kind).toBe('created');
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(tx.contactValue.upsert).not.toHaveBeenCalled();
+    expect(tx.contactValue.deleteMany).toHaveBeenCalledTimes(1);
+    // Los 1000 nombres y valores viajan como dos arrays, no como 1000 parámetros.
+    const values = tx.$executeRaw.mock.calls[0]!.slice(1) as unknown[];
+    expect(values).toHaveLength(3);
+    expect((values[1] as string[]).length).toBe(1000);
+    expect((values[2] as string[]).length).toBe(1000);
+  });
+
+  it('sin cambios no escribe nada', async () => {
+    const { tx, repository } = fakeTransaction();
+    await repository.insertConversation({ id: 'i', flowId: 'f', version: 1, contactId: 'c-1', contactEpoch: 'e1', now: NOW, write: write(0) });
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+    expect(tx.contactValue.deleteMany).not.toHaveBeenCalled();
+  });
+});
