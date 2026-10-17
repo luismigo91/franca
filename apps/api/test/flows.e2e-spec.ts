@@ -1,43 +1,69 @@
-import { readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
-import { Test } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { App } from 'supertest/types.js';
-import { AppModule } from './../src/app.module.js';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createTestApp, type TestApp } from './helpers/app.js';
+import { HTTP_NODE, leads } from './helpers/examples.js';
 
-const specDir = dirname(createRequire(import.meta.url).resolve('@franca/spec/flow.schema.json'));
-const example = (name: string) => JSON.parse(readFileSync(join(specDir, name), 'utf8'));
+describe('POST /flows/validate (e2e)', () => {
+  let testApp: TestApp;
 
-describe('FlowsController (e2e)', () => {
-  let app: INestApplication<App>;
-
-  beforeEach(async () => {
-    const moduleFixture = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    app = moduleFixture.createNestApplication();
-    await app.init();
+  beforeAll(async () => {
+    testApp = await createTestApp();
   });
 
-  afterEach(async () => {
-    await app.close();
+  afterAll(async () => {
+    await testApp.close();
   });
 
-  it('POST /flows/validate acepta un flujo válido', () => {
-    return request(app.getHttpServer())
-      .post('/flows/validate')
-      .send(example('examples/captacion-leads.json'))
-      .expect(200)
-      .expect({ valid: true, issues: [] });
+  const validate = (body: unknown) => request(testApp.server).post('/flows/validate').send(body as object);
+
+  it('Flujo válido', async () => {
+    const res = await validate(leads()).expect(200);
+    expect(res.body).toEqual({ valid: true, issues: [], warnings: [] });
   });
 
-  it('POST /flows/validate devuelve los problemas de un flujo roto', async () => {
-    const flow = example('examples/captacion-leads.json');
+  it('Flujo roto', async () => {
+    const flow = leads();
     flow.nodes[0].color = 'rojo';
-    const res = await request(app.getHttpServer()).post('/flows/validate').send(flow).expect(200);
+    const res = await validate(flow).expect(200);
     expect(res.body).toEqual({
       valid: false,
       issues: [{ layer: 'shape', path: '/nodes/0', nodeId: 'bienvenida', message: "propiedad no permitida 'color'" }],
+      warnings: [],
+    });
+  });
+
+  it('Flujo válido con avisos', async () => {
+    const flow = leads();
+    flow.nodes[HTTP_NODE].request.url = 'https://crm.example.com{{segmento}}/api/leads';
+    const res = await validate(flow).expect(200);
+    expect(res.body.valid).toBe(true);
+    expect(res.body.issues).toEqual([]);
+    expect(res.body.warnings).toEqual([
+      expect.objectContaining({ code: 'url_template_in_origin', path: '/nodes/6/request/url', nodeId: 'enviar-crm' }),
+    ]);
+  });
+
+  it('Flujo inválido de un mega', async () => {
+    const flow = leads();
+    // `{},` son 3 bytes: casi 1 MiB de nodos vacíos, dentro del límite del cuerpo.
+    flow.nodes = [];
+    const prefix = JSON.stringify(flow).replace('"nodes":[]}', '"nodes":[');
+    const suffix = ']}';
+    const count = Math.floor((1_048_576 - prefix.length - suffix.length) / 3);
+    const body = `${prefix}${Array.from({ length: count }, () => '{}').join(',')}${suffix}`;
+    expect(Buffer.byteLength(body)).toBeLessThanOrEqual(1_048_576);
+    expect(Buffer.byteLength(body)).toBeGreaterThan(1_040_000);
+
+    const started = performance.now();
+    const res = await request(testApp.server).post('/flows/validate').set('Content-Type', 'application/json').send(body).expect(200);
+    expect(performance.now() - started).toBeLessThan(5000);
+    expect(res.body.valid).toBe(false);
+    expect(res.body.issues).toHaveLength(101);
+    expect(res.body.issues[100]).toEqual({
+      layer: 'shape',
+      path: '',
+      code: 'too_many_issues',
+      message: 'hay más errores: solo se muestran los 100 primeros',
     });
   });
 });
