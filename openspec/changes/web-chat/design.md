@@ -491,7 +491,7 @@ La lista se limita, como se aprobó, a **seguridad** (frontera, filtro de URLs, 
 | `useGlobalAgent` (sustituye `createConnection` por `host` y `port`) | `transport.ts` | `api-transport-env-proxy.test.ts` (muere porque la trampa recibe la conexión) |
 | `showErrorMessage` | `transcript-view.ts` | `transcript-view.test.ts` |
 | `noIfMatch`, `autoResendOnLoss`, `allowDoubleSend` | `conversation-session.ts` / `web-client.ts` | `conversation-session.test.ts`, `web-client.test.ts` |
-| `skipInspectorPatch` (sin sustituir `inspector.open`), `skipHostGuard` (sin la guarda en `request`), `skipUpgradeGuard` (sin la guarda en `upgrade`) | `scripts/local-only-preload.cjs` | `local-only-preload.test.ts` (`skipInspectorPatch` muere porque el middleware real de Next devuelve una URL e `inspector.url()` deja de ser `undefined`; el test cierra el inspector, abierto en el puerto 0 de loopback) |
+| `skipInspectorPatch` (sin sustituir `inspector.open`), `skipHostGuard` (sin la guarda en `request`, `checkContinue` y `checkExpectation`), `skipUpgradeGuard` (sin la guarda en `upgrade` y `connect`), `skipUpgradeOrigin` (sin exigir el `Origin` propio en `upgrade`) | `scripts/local-only-preload.cjs` | `local-only-preload.test.ts` (`skipInspectorPatch` muere porque el middleware real de Next devuelve una URL e `inspector.url()` deja de ser `undefined`; el test mata al hijo en un `finally`, así que no queda ningún inspector vivo) |
 
 Los demás tests negativos («no contiene», «no recibe», «no pide», paridad de códigos) se validan **una vez a mano**, provocando el caso prohibido y viendo que fallan (`testing-pyramid.md`, tasks 4.2), sin registrarlos como mutantes. La mutación se ejecuta a mano (`pnpm --filter @franca/web mutate`) y el resultado queda en el gate de la fase 4.
 
@@ -522,7 +522,11 @@ Un guardián delante (la revisión 2) **no lo cierra**: el `next dev` hijo, en s
 **Solución elegida, la opción (a')**: un *preload* en el árbol de procesos de Next, sin proceso guardián.
 - `apps/web/scripts/local-only-preload.cjs`, cargado con `--require` en **todo** proceso de Node que lance Next:
   1. Sustituye `open` de `node:inspector` y de `node:inspector/promises` por una función que lanza. `_interop_require_wildcard` de Next copia las propiedades del módulo **después** del *preload*, así que el middleware recibe la función sustituida.
-  2. Envuelve `emit` de `http.Server.prototype` y de `https.Server.prototype`. En `request`, pone `Content-Security-Policy: frame-ancestors 'none'` y `X-Frame-Options: DENY` en la respuesta y, si la cabecera `host` en bruto no es local (`isLocalHost` de `src/server/config/local-host.cjs`, la misma que usa `frontier.ts`), responde `403` sin cuerpo y no emite el evento. En `upgrade`, si el `host` no es local, escribe `HTTP/1.1 403` y cierra el *socket*.
+  2. Envuelve `emit` de `http.Server.prototype` y de `https.Server.prototype` en los **cinco** eventos con los que Node entrega una petición:
+     - **`request`, `checkContinue` y `checkExpectation`**: pone `Content-Security-Policy: frame-ancestors 'none'` y `X-Frame-Options: DENY` en la respuesta. Si la cabecera `host` en bruto no es local (`isLocalHost` de `src/server/config/local-host.cjs`, la misma que usa `frontier.ts`), responde `403` sin cuerpo y no emite el evento.
+     - **`upgrade` y `connect`**: exige un `host` local **y** un `Origin` exactamente igual a `'http://' + host` en minúsculas. Si no, también sin `Origin`, escribe `HTTP/1.1 403` y cierra el *socket*.
+     - **Por qué el `Origin` en `upgrade`**: el *websocket* de HMR no tiene CORS. Con el inspector abierto, Next manda `devtoolsFrontendUrl` (con el UUID) a todo cliente en el mensaje `SYNC` (`hot-reloader-turbopack.js:1120-1131` y `1376-1392`), además de errores de compilación y `requestInsights`. `blockCrossSiteDEV` admite siempre `localhost` y `**.localhost`, así que una página de `http://localhost:5173` mandaría `Host: localhost:3000` y leería ese canal.
+     - **Sin listener de `checkExpectation`**, Node responde `417` por su cuenta sin emitir el evento y sin contenido (medido), y no hace falta guarda.
 - `apps/web/scripts/local-only.mjs` es el lanzador de los *scripts* `dev` y `start`:
   1. Valida `FRANCA_API_URL` (D5) y sale con 1 sin escuchar.
   2. Añade `--require "<ruta absoluta del preload>"` al `NODE_OPTIONS` que haya, sin pisarlo.
@@ -542,21 +546,28 @@ Un guardián delante (la revisión 2) **no lo cierra**: el `next dev` hijo, en s
 | Procesos que escuchan | — | Solo `next-server` en `127.0.0.1:3456`. La CLI y el *worker* de Turbopack no escuchan |
 | `Host: evil.example` en `/`, `/__nextjs_launch-editor`, `/__nextjs_source-map`, `/_next/static/x`, `localhost.evil.example`, y `Host: evil.example` con `X-Forwarded-Host: localhost` | — | 403 en todos |
 | *Upgrade* de HMR (`/_next/hmr`, `router-server.js:757`) con `Host` local / ajeno | — | `101` / `403` |
+| Guarda v3 sobre un `http.Server` propio: `upgrade` con el `Origin` propio / `Origin: http://localhost:5173` / sin `Origin` / `Host` ajeno | `101` en los cuatro | `101` / `403` / `403` / `403` |
+| Guarda v3: `POST` con `Expect: 100-continue` y un listener de `checkContinue`, `Host` ajeno / local; `CONNECT` con `Host` ajeno | `100` / `100`; `200` | `403` / `100`; `403` |
 | Overlay (`POST /__nextjs_original-stack-frames` con `Origin` local), `/`, `/__nextjs_server_status`, `/__nextjs_source-map` con `Host` local, *chunks* y sus `.js.map` | — | 200, 200, 200, 204 y 200 (los mapas con `Host` ajeno, 403) |
 | `frame-ancestors 'none'` y `X-Frame-Options: DENY` en `/`, en un recurso de desarrollo y en el 403 | — | Presentes en los tres |
 
 **Tests**, en Vitest y sin Next salvo lo indicado:
 - `tests/local-only-preload.test.ts` lanza un hijo `node --require scripts/local-only-preload.cjs --inspect-port=0` con un `http.createServer` propio. Comprueba:
-  - La matriz de `Host` en `request` y en `upgrade`, y las cabeceras de marcos.
+  - La matriz de `Host` en los cinco eventos (`request`, `checkContinue` con `Expect: 100-continue`, `checkExpectation`, `upgrade` y `connect`) y las cabeceras de marcos.
+  - En `upgrade`: `Origin: http://localhost:5173` da 403, el `Origin` propio da 101 y sin `Origin` da 403.
   - Que `inspector.open(0)` lanza, también desde `_interop_require_wildcard` de `@swc/helpers` (el que resuelve `next`) y desde el `getAttachNodejsDebuggerMiddleware` real de Next (500 sin URL).
   - Que `inspector.url()` es `undefined`.
 
-  El puerto 0 hace que el mutante abra el inspector en un puerto aleatorio de loopback, y el test lo cierra.
+  El hijo arranca con `--inspect-port=0`, así que el mutante `skipInspectorPatch` abriría el inspector en un puerto aleatorio de loopback. El test **mata al hijo en un `finally`** (también si falla o se agota el plazo, con `SIGKILL` si `SIGTERM` no basta) y comprueba que no queda ningún proceso suyo vivo, de modo que nunca queda un inspector abierto.
 - `tests/local-only-launcher.test.ts` comprueba con un `next` simulado que `NODE_OPTIONS` lleva el `--require`, conserva el anterior, sale con 1 con un `FRANCA_API_URL` inválido sin lanzar `next`, y propaga señales y código. También pasa el `NODE_OPTIONS` resultante por `getParsedNodeOptions`/`formatNodeOptions` de `next/dist/server/lib/utils` (la función del *fork*) y comprueba que el `--require` sigue.
 - El `next dev` real se prueba en el E2E «Otra interfaz de la máquina» (5.6): con `Host: evil.example`, el endpoint del inspector da 403 y no aparece ningún puerto nuevo en escucha.
-- Mutantes `skipInspectorPatch`, `skipHostGuard` y `skipUpgradeGuard` (D23).
+- Mutantes `skipInspectorPatch`, `skipHostGuard`, `skipUpgradeGuard` y `skipUpgradeOrigin` (D23).
 
-**Coste**: dos ficheros pequeños (*preload* y lanzador) y `isLocalHost` en un `.cjs` compartido. El botón «adjuntar el depurador de Node» de las herramientas de desarrollo de Next deja de funcionar (500). Para depurar, `NODE_OPTIONS=--inspect pnpm --filter @franca/web dev` abre el inspector al arrancar sin pasar por `open`.
+**Coste**: dos ficheros pequeños (*preload* y lanzador) y `isLocalHost` en un `.cjs` compartido (`module.exports = { isLocalHost }` explícito). El inspector de Node queda **desactivado** en la web:
+- El botón «adjuntar el depurador de Node» de las herramientas de desarrollo de Next responde 500.
+- **`next start --inspect` deja de funcionar**: `next-start.js:91` llama a `inspector.open`, que lanza, y Next sale con 1 («Failed to start the Node.js inspector»).
+- **No se recomienda `NODE_OPTIONS=--inspect`**: abre el inspector al arrancar sin pasar por `open`, y Next manda entonces su URL con el UUID por el *websocket* de HMR. La guarda de `Origin` cierra ese canal a otras páginas, pero el inspector queda abierto en `127.0.0.1:9229` para **cualquier proceso local** durante toda la sesión.
+- No hay una forma recomendada de depurar el servidor de la web con el inspector. Quien lo active (`NODE_OPTIONS=--inspect` u otra) lo hace a sabiendas, sin otras páginas abiertas, y lo cierra al terminar. `apps/web/README.md` lo dice como **advertencia**, no como receta.
 
 **Descartado**:
 - **(a) Solo neutralizar `inspector.open`**: deja `launch-editor` (oráculo de ficheros y efecto lateral), los mapas de fuentes y cualquier recurso futuro con un `Host` ajeno, y sin marcos en los recursos de desarrollo.
@@ -684,7 +695,7 @@ Ejemplos: `{"error":"revision_mismatch","currentRevision":2}` · `{"error":"conv
 | `vitest.config.ts`, `vitest.hostile.config.ts`, `playwright.config.ts` | Configuración de tests |
 | `e2e/support/{stack,database,processes,api-shapes,admin,browser,test}.ts`, `e2e/fixtures/flows/{pregunta,saludo-contacto,hola,preguntas,medios}.json`, `e2e/{home,conversation-page,questions,rhythm,concurrency,lifecycle,frontier,accessibility,fake-api-shapes}.e2e.ts` | D20 |
 
-**Modificados en `apps/web`**: `package.json` (*scripts*, dependencias y `mutate`), `eslint.config.mjs` (restricciones de D4, D13 y D17), `.gitignore` (`/test-results`, `/playwright-report`, `/blob-report`), `src/app/layout.tsx`, `src/app/page.tsx`, `src/app/globals.css` (fuente) y `README.md` (qué es y cómo se arranca y prueba). Se **borran** los SVG de plantilla de `public/` (`file`, `globe`, `next`, `vercel` y `window`). `next.config.ts` y `tsconfig.json` **no cambian**.
+**Modificados en `apps/web`**: `package.json` (*scripts*, dependencias y `mutate`), `eslint.config.mjs` (restricciones de D4, D13 y D17), `.gitignore` (`/test-results`, `/playwright-report`, `/blob-report`), `src/app/layout.tsx`, `src/app/page.tsx`, `src/app/globals.css` (fuente) y `README.md` (qué es, cómo se arranca y se prueba, y la advertencia sobre el inspector de D26). Se **borran** los SVG de plantilla de `public/` (`file`, `globe`, `next`, `vercel` y `window`). `next.config.ts` y `tsconfig.json` **no cambian**.
 
 **Fuera de `apps/web`** (cada uno con su porqué):
 
@@ -769,7 +780,7 @@ Son 3 en Vitest y 60 en Playwright: 63 en total, uno por escenario, con el títu
 - **R8. Contenido de terceros**. Imágenes, audio, vídeo y marcos del flujo piden a esos servidores (la IP y el momento de quien prueba), y el marco ejecuta *scripts* en un origen opaco. Es inherente a probar el flujo (propuesta). Sin `Referer`, la URL de la conversación no sale.
 - **R9. La extracción por texto de `API_ERROR_CODES`**. Si la API reescribe la declaración, el test falla en vez de pasar en verde (exige 20 o más). Se corrige el extractor en el mismo PR que el cambio de la API.
 - **R10. Lo que queda abierto tras D26**. No hay puerto interno: `next dev` y `next start` escuchan solo en `127.0.0.1:3000` y rechazan un `Host` ajeno en todo el proceso, como hace la API (`local-only.ts:16-31`), así que un DNS rebinding no llega a ningún recurso. Sigue abierto:
-  - (1) **Una página servida desde otro puerto de `localhost`** (otra herramienta de desarrollo de la máquina) manda `Host: localhost:3000` y un `Origin` que `blockCrossSiteDEV` admite (`localhost` y `**.localhost` van siempre en la lista): puede **provocar** `GET /__nextjs_launch-editor` (se abre un fichero en el editor) sin leer la respuesta, que no tiene CORS. El inspector ya no se abre. Se acepta: esa página ya es código local.
+  - (1) **Una página servida desde otro puerto de `localhost`** (otra herramienta de desarrollo de la máquina, p. ej. `http://localhost:5173`) manda `Host: localhost:3000`, que es local, y un `Origin` que `blockCrossSiteDEV` admite. Lo único que le queda es **provocar** `GET /__nextjs_launch-editor` (abrir un fichero en el editor) **sin leer la respuesta**, que no tiene CORS. No puede leer el *websocket* de HMR (la guarda exige el `Origin` propio en `upgrade`) ni abrir el inspector (`open` lanza). Se acepta: es un efecto lateral sin datos, provocado por código que ya corre en la máquina.
   - (2) **Un proceso local** puede usar la web y la API como hoy (propuesta) y abrir el inspector con `SIGUSR1`, que requiere ser el mismo usuario.
   - (3) **Arrancar `next` sin el lanzador** (`pnpm exec next dev`) se salta el *preload*. La guarda estática obliga a que los *scripts* pasen por él, `pnpm dev` lo usa (turbo ejecuta el *script*), y `proxy.ts` sigue aplicando `Host` y `Origin` a lo que no es de desarrollo.
   - (4) **`--experimental-https`** usaría `https.Server`. El *preload* también lo envuelve, pero no se prueba con certificados: la guarda estática prohíbe esa opción en los *scripts*.

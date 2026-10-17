@@ -56,7 +56,7 @@ Reglas para todas las fases:
   - Puerto `0`.
   - Mayúsculas.
   - El mensaje nombra `FRANCA_API_URL` y nunca contiene el valor.
-- [ ] 1.6 `src/server/ids.ts` y `src/server/config/local-host.cjs` + tests:
+- [ ] 1.6 `src/server/ids.ts` y `src/server/config/local-host.cjs` (CommonJS con `module.exports = { isLocalHost }` explícito) + tests. El **primer** test de `local-host.test.ts` importa el módulo exactamente como lo hará `frontier.ts` (`import { isLocalHost } from '@/server/config/local-host.cjs'`) y comprueba que es una función, y el *preload* lo carga con `require`:
   - UUID en minúsculas (también `…00A` y `..%2F..`), patrón de `id` importado de `@franca/spec`, versión y `offset`.
   - `isLocalHost` con la matriz de la spec: `localhost.evil.example`, `127.0.0.1.nip.io`, `localhost.`, mayúsculas y puertos.
 - [ ] 1.7 `src/lib/chat/url-filter.ts` + test (D13), con **«Direcciones rechazadas»** y **«Direcciones admitidas y su serialización»**, más los casos de `medios` y de `preguntas`.
@@ -155,16 +155,21 @@ Reglas para todas las fases:
   - La frontera no lee `x-forwarded-*`, `nextUrl.host` ni `request.url`.
   - Los *scripts* `dev` y `start`, exactamente `node scripts/local-only.mjs <dev|start> --hostname 127.0.0.1 --port 3000`, sin `--experimental-https`. Esta comprobación se añade en 2.9, junto con los *scripts*.
 - [ ] 2.9 D26, *preload* de la guarda local y lanzador. Aquí cambian los *scripts* `dev` y `start` de `package.json` a `node scripts/local-only.mjs <dev|start> --hostname 127.0.0.1 --port 3000`:
-  - `scripts/local-only-preload.cjs`: `inspector.open` sustituido, guarda de `Host` en `request` y `upgrade` de `http.Server` y `https.Server`, y cabeceras de marcos.
+  - `scripts/local-only-preload.cjs`: `inspector.open` sustituido; guarda de `Host` en los cinco eventos (`request`, `checkContinue`, `checkExpectation`, `upgrade` y `connect`) de `http.Server` y `https.Server`; en `upgrade` y `connect`, además, `Origin` exactamente igual a `'http://' + host` en minúsculas (si no, también sin `Origin`, 403 y cierre); y cabeceras de marcos.
   - `scripts/local-only.mjs`: valida `FRANCA_API_URL`, añade `--require` al `NODE_OPTIONS` existente, ejecuta `next` y propaga señales y código.
-  - `tests/local-only-preload.test.ts` y `tests/local-only-launcher.test.ts` (D26), con la matriz de `/__nextjs_launch-editor` incluida.
+  - `tests/local-only-preload.test.ts` y `tests/local-only-launcher.test.ts` (D26). El primero cubre:
+    - La matriz de `/__nextjs_launch-editor`.
+    - Los cinco eventos: un listener de `checkContinue` con `Expect: 100-continue` y `Host` ajeno da 403 (sin la guarda daba 100 y después 200).
+    - En `upgrade`, `Origin: http://localhost:5173` da 403, el propio 101 y sin `Origin` 403.
+    - Un `finally` que **mata al hijo** (`SIGTERM` y, si no basta, `SIGKILL`), también en fallo o por plazo, para que el mutante `skipInspectorPatch` nunca deje un inspector vivo.
+  - `apps/web/README.md` lleva la advertencia del inspector de D26: `next start --inspect` deja de funcionar y `NODE_OPTIONS=--inspect` deja el inspector abierto a cualquier proceso local. Es una advertencia, no una receta.
 
   Se verifica a mano con `pnpm --filter @franca/web dev`:
   - **Solo con `Host` ajeno contra el puerto real**: `curl -i -H 'Host: evil.example:3000' http://127.0.0.1:3000/__nextjs_attach-nodejs-inspector` → 403 sin cuerpo, `curl -i -H 'Host: evil.example:3000' 'http://127.0.0.1:3000/__nextjs_launch-editor?file=package.json'` → 403, y `lsof -nP -iTCP -sTCP:LISTEN | grep node` muestra solo `127.0.0.1:3000`, sin `9229`. Con un `Host` local no se prueba: si faltara el parche, se abriría el inspector de verdad.
-  - `http://localhost:3000` funciona con HMR (se edita un texto y se ve el cambio) y con el overlay.
+  - `http://localhost:3000` funciona con HMR (se edita un texto y se ve el cambio; el navegador manda el `Origin` propio en el *websocket*) y con el overlay.
   - Las respuestas llevan `frame-ancestors 'none'` y `X-Frame-Options: DENY`.
 
-  Mutantes `skipInspectorPatch`, `skipHostGuard` y `skipUpgradeGuard` en 4.3.
+  Mutantes `skipInspectorPatch`, `skipHostGuard`, `skipUpgradeGuard` y `skipUpgradeOrigin` en 4.3.
 
 - [ ] 2.10 **Gate 2** (incluye la verificación manual de 2.9):
   - `pnpm check` en verde.
@@ -215,7 +220,7 @@ Reglas para todas las fases:
 
 - [ ] 4.1 Auditar requisito por requisito que cada «SHALL» con lógica en el cliente o en el servidor de la web tiene un test de Vitest que fallaría sin ella, y completar lo que falte. Ninguna aserción sobre el propio *fixture*, ni `expect` dentro de un `if`.
 - [ ] 4.2 Validar **a mano, una vez**, cada test negativo que no tiene mutante registrado («no contiene», «no recibe», «no pide», «no llama», paridad de códigos, listas de tipos conocidos), produciendo a propósito el caso prohibido: tiene que fallar. Se anota cuáles se validaron.
-- [ ] 4.3 `apps/web/scripts/mutate.mjs` (reutiliza `packages/engine/scripts/mutate.mjs`, D23) y `apps/web/tests/mutations.json` con **solo** los mutantes de la tabla de D23: seguridad y concurrencia, incluidos `skipInspectorPatch`, `skipHostGuard` y `skipUpgradeGuard` de D26. Cada uno con su `find` único, su `replace` y sus `tests`.
+- [ ] 4.3 `apps/web/scripts/mutate.mjs` (reutiliza `packages/engine/scripts/mutate.mjs`, D23) y `apps/web/tests/mutations.json` con **solo** los mutantes de la tabla de D23: seguridad y concurrencia, incluidos `skipInspectorPatch`, `skipHostGuard`, `skipUpgradeGuard` y `skipUpgradeOrigin` de D26. Cada uno con su `find` único, su `replace` y sus `tests`.
 - [ ] 4.4 `pnpm --filter @franca/web mutate`: **ningún mutante sobrevive**. Se anota la salida resumida en el gate. Un superviviente obliga a un test nuevo, nunca a quitar el mutante.
 - [ ] 4.5 Revisión adversarial de las costuras con su código abierto:
   - Navegador ↔ rutas de la web: `web-client` frente a `handlers`, con las respuestas sin cuerpo.
@@ -295,7 +300,7 @@ Reglas para todas las fases:
   - `gotcha-next-escucha-antes-de-cargar-la-config` (enforcement: `e2e/frontier.e2e.ts`, `tests/static-guard.test.ts`).
   - `gotcha-input-email-recorta-el-valor` (enforcement: `src/components/chat/pending-question.test.tsx`, `e2e/questions.e2e.ts`).
   - `gotcha-cache-components-activity-y-prerender`: `<Activity>` conserva rutas y DOM, y un `GET` sin `connection()` se prerenderiza (enforcement: `tests/static-guard.test.ts`, `e2e/home.e2e.ts`).
-  - `gotcha-next-dev-fuera-de-la-frontera`: en `next dev`, los recursos de desarrollo se atienden antes de `proxy.ts`, `blockCrossSiteDEV` deja pasar lo que no lleva `Origin`, la cadena del inspector de Node con DNS rebinding, por qué un guardián delante no basta y por qué el *preload* sí. Enforcement: `apps/web/tests/local-only-preload.test.ts`, `apps/web/tests/static-guard.test.ts`, `apps/web/e2e/frontier.e2e.ts`.
+  - `gotcha-next-dev-fuera-de-la-frontera`: en `next dev`, los recursos de desarrollo se atienden antes de `proxy.ts`, `blockCrossSiteDEV` deja pasar lo que no lleva `Origin`, la cadena del inspector de Node con DNS rebinding, el `devtoolsFrontendUrl` que Next manda en el `SYNC` del *websocket* de HMR (por eso `upgrade` exige el `Origin` propio), por qué un guardián delante no basta y por qué el *preload* sí, y que `--inspect` queda desaconsejado. Enforcement: `apps/web/tests/local-only-preload.test.ts`, `apps/web/tests/static-guard.test.ts`, `apps/web/e2e/frontier.e2e.ts`.
 
   Al final, `pnpm wiki:lint` en verde.
 - [ ] 6.4 Verificación final en el navegador con `pnpm dev` (la API con Postgres y la web por turbo):
