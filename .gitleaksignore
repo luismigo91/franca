@@ -3,3 +3,5 @@
 fa9893f697a2d0e68716868b490af7de883ef8c3:apps/api/test/helpers/network.ts:generic-api-key:37
 # Insignia pública de CircleCI del README de ejemplo de NestJS (apps/api/README.md), anterior a esta rama.
 4cd2f618fe751f031e08f814d85ac225b47931dd:apps/api/README.md:generic-api-key:5
+# Marcador falso de los tests de privacidad de QA (apps/api/test/flows-contract-edges.e2e-spec.ts): hoy lleva gitleaks:allow; esta entrada cubre el commit donde se creó sin él.
+1ee994fe751ae38b0f4c57511a88033e3abad9d5:apps/api/test/flows-contract-edges.e2e-spec.ts:generic-api-key:491

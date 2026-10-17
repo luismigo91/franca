@@ -488,7 +488,7 @@ describe('contrato HTTP de flujos: bordes de rutas, parámetros y precondiciones
   });
 
   describe('credenciales escritas en el flujo', () => {
-    const SECRET = 'TOPSECRET-qa5-9f8e7d';
+    const SECRET = 'TOPSECRET-qa5-9f8e7d'; // gitleaks:allow
 
     const withHeaders = (id: string, headers: Record<string, unknown>) => {
       const flow = leads();
