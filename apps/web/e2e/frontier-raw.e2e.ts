@@ -1,7 +1,7 @@
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { finalStatusLine, headerOf, rawBytes, statusLine } from './support/http';
-import { descendants, isListening, listeningPorts, WEB_DIR } from './support/processes';
+import { descendants, isListening, listeningDiagnostics, listeningPorts, WEB_DIR } from './support/processes';
 import { startWeb } from './support/stack';
 import { expect, test } from './support/test';
 
@@ -138,7 +138,7 @@ test('next dev: los recursos de desarrollo con un Host local no abren el inspect
     }
     expect(await isListening(9229), 'el inspector no debe estar en el 9229').toBe(false);
     const ports = listeningPorts(descendants(web.child.pid!));
-    if (ports !== null) expect(ports.filter((port, index) => ports.indexOf(port) === index)).toEqual(['127.0.0.1:3000']);
+    if (ports !== null) expect(ports.filter((port, index) => ports.indexOf(port) === index), listeningDiagnostics(web.child.pid!)).toEqual(['127.0.0.1:3000']);
     // Los recursos de desarrollo con un Host ajeno ni se miran.
     for (const path of ['/__nextjs_attach-nodejs-inspector', '/__nextjs_launch-editor?file=package.json', '/__nextjs_original-stack-frames', '/_next/webpack-hmr']) {
       const raw = await rawBytes(get(path, ['evil.example:3000']));

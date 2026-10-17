@@ -103,3 +103,21 @@ export function listeningPorts(pids: number[]): string[] | null {
     return null;
   }
 }
+
+/** La salida de un comando aunque salga con error, o el motivo si no se pudo ejecutar. */
+function outputOf(command: string, args: string[]): string {
+  try {
+    return execFileSync(command, args, { encoding: 'utf8' });
+  } catch (error) {
+    const failure = error as { stdout?: string; message?: string };
+    return failure.stdout ?? `(${command}: ${failure.message ?? 'falló'})`;
+  }
+}
+
+/**
+ * Lo que hace falta para entender un fallo de `listeningPorts`: el árbol del proceso `pid` y todos los sockets TCP en
+ * escucha de la máquina. Va en el mensaje de la aserción.
+ */
+export function listeningDiagnostics(pid: number): string {
+  return [`descendientes de ${pid}: ${descendants(pid).join(',')}`, outputOf('ps', ['-eo', 'pid,ppid,pgid,args']), outputOf('lsof', ['-nP', '-iTCP', '-sTCP:LISTEN'])].join('\n');
+}

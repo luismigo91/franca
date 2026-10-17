@@ -1,7 +1,7 @@
 import { networkInterfaces } from 'node:os';
 import { CONVERSATION_ID } from './support/api-shapes';
 import { rawRequest } from './support/http';
-import { descendants, isListening, launch, listeningPorts, REPO_DIR, waitFor } from './support/processes';
+import { descendants, isListening, launch, listeningDiagnostics, listeningPorts, REPO_DIR, waitFor } from './support/processes';
 import { startWeb } from './support/stack';
 import { answer, expect, test, text, tryFlow } from './support/test';
 import { sendJson } from '../tests/helpers/fake-api';
@@ -32,7 +32,7 @@ test('Otra interfaz de la máquina', async ({ stack }) => {
           expect(inspector.status).toBe(403);
           expect(inspector.body).toBe('');
           const ports = listeningPorts(descendants(web.child.pid!));
-          if (ports !== null) expect(ports.filter((port, index) => ports.indexOf(port) === index)).toEqual(['127.0.0.1:3000']);
+          if (ports !== null) expect(ports.filter((port, index) => ports.indexOf(port) === index), listeningDiagnostics(web.child.pid!)).toEqual(['127.0.0.1:3000']);
         }
       } finally {
         await web.stop();
