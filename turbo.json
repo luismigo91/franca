@@ -18,7 +18,17 @@
       "dependsOn": ["^build", "db:generate"],
       "cache": false,
       "persistent": true,
-      "passThroughEnv": ["DATABASE_URL", "HOST", "PORT", "FRANCA_ANTHROPIC_API_KEY", "FRANCA_CONVERSATION_COST_LIMIT_USD"]
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "HOST",
+        "PORT",
+        "FRANCA_ANTHROPIC_API_KEY",
+        "FRANCA_CONVERSATION_COST_LIMIT_USD",
+        "FRANCA_SECRET_*",
+        "FRANCA_HTTP_SECRET_ORIGINS",
+        "FRANCA_HTTP_ALLOWED_DESTINATIONS",
+        "NODE_EXTRA_CA_CERTS"
+      ]
     },
     "lint": {
       "dependsOn": ["^build", "db:generate"]
