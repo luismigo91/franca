@@ -127,7 +127,7 @@ describe('CRM simulado', () => {
     expect(JSON.parse(reply.text)).toEqual({ error: 'invalid_body' });
   });
 
-  describe('CRM solo en loopback', () => {
+  it('CRM solo en loopback', async () => {
     /** Intenta conectar; `true` si la conexión se acepta. */
     const accepts = (host: string, port: number): Promise<boolean> =>
       new Promise((resolve) => {
@@ -138,20 +138,14 @@ describe('CRM simulado', () => {
     const external = Object.values(networkInterfaces())
       .flatMap((list) => list ?? [])
       .find((entry) => entry.family === 'IPv4' && !entry.internal)?.address;
-
-    it('CRM solo en loopback: [::1] rechazado', async () => {
-      const { port } = await start();
-      expect(await accepts('127.0.0.1', port)).toBe(true);
-      expect(await accepts('::1', port)).toBe(false);
-    });
-
-    it.skipIf(external === undefined)('CRM solo en loopback: la primera IPv4 no interna rechazada', async () => {
-      const { port } = await start();
-      expect(await accepts(external!, port)).toBe(false);
-    });
+    const { port } = await start();
+    expect(await accepts('127.0.0.1', port)).toBe(true);
+    // Sin interfaz de red local no hay una segunda dirección que probar: solo [::1].
+    const others = ['::1', ...(external === undefined ? [] : [external])];
+    expect(await Promise.all(others.map((host) => accepts(host, port)))).toEqual(others.map(() => false));
   });
 
-  it('Puerto del CRM ocupado: startCrm rechaza con EADDRINUSE', async () => {
+  it('Puerto del CRM ocupado', async () => {
     const holder = createServer();
     await new Promise<void>((resolve) => holder.listen(0, '127.0.0.1', resolve));
     closers.push(() => new Promise<void>((resolve) => holder.close(() => resolve())));

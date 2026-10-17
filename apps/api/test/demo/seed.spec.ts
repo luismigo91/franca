@@ -39,12 +39,14 @@ const created: Reply = { status: 201, headers: { etag: '"1"' }, body: { id: 'cap
 const published = (status: number, version: number): Reply => ({ status, body: { flowId: 'captacion-leads-local', version, flow: copy } });
 
 describe('seedDemo', () => {
-  it.each(['http://192.168.1.10:3001', ''])('Dirección de la API no admitida en la semilla («%s»): código 1, nombra la variable y no hace ninguna petición', async (value) => {
-    const result = await run({ FRANCA_API_URL: value });
-    expect(result.ok).toBe(false);
-    expect(result.text).toContain('FRANCA_API_URL');
-    expect(result.text).not.toContain('192.168.1.10');
-    expect(result.calls).toEqual([]);
+  it('Dirección de la API no admitida en la semilla', async () => {
+    for (const value of ['http://192.168.1.10:3001', '']) {
+      const result = await run({ FRANCA_API_URL: value });
+      expect(result.ok, value).toBe(false);
+      expect(result.text, value).toContain('FRANCA_API_URL');
+      expect(result.text, value).not.toContain('192.168.1.10');
+      expect(result.calls, value).toEqual([]);
+    }
   });
 
   it('crea y publica si no existe, con el borrador entero y el If-Match del ETag', async () => {
