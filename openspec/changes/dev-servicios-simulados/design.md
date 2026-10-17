@@ -62,6 +62,7 @@ El arranque lanza también la web, aunque viva en `apps/api/`. Se acepta: es una
   - Medido con el `tsc` 6.0.3 de la API: sin ella, el import da `TS7016`; con ella, el typecheck pasa y lo importado es `any`.
   - El código que corre en los tests es siempre el real, sin dobles. El tipado de la demo lo comprueba su propio proyecto `checkJs`.
   - Hoy ningún fichero TypeScript de la API importa un `.mjs`, así que la declaración no cambia nada más.
+  - **Revisión 3 (H4)**: los unit de la demo (`test/demo/*.spec.ts`) **sí** se comprueban con el proyecto `checkJs` de la demo: su `include` añade `../test/demo/*.spec.ts` y excluye el `.d.ts`. Así los tipos JSDoc son reales también en los tests y un nombre mal escrito falla. El `typecheck` de la API (que ve esos mismos ficheros con `declare module '*.mjs'`) sigue viéndolos como `any`; los e2e no entran en el proyecto de la demo.
   - Descartado: un cargador tipado con interfaces escritas a mano y un test de los nombres exportados. Repite las firmas, y la revisión lo marcó como sobreingeniería.
 
 Descartadas:
@@ -162,13 +163,19 @@ Pasos de `stopAll`:
 2. Espera a que salgan los dos, como mucho **7 s**. Después, `SIGKILL` al grupo de turbo y al CRM. Las tareas de turbo están en sus propios grupos y solo turbo puede pararlas, así que un `SIGKILL` puede dejarlas huérfanas. Por eso sigue el paso 3.
 3. Comprueba durante 2 s como mucho que **nada acepta conexiones** en 3000, `PORT` (3001 por defecto) y 4010, en `127.0.0.1` y en `::1` (la API puede escuchar en `::1` con `HOST`). Si queda algo, lo dice por dirección y puerto, con la orden `lsof` para encontrarlo, y termina con 1.
 
-**Una parada no se escala por señales.** Mientras `stopAll` está en curso, cualquier `SIGINT`, `SIGTERM` o `SIGHUP` nuevo se ignora, y el código de salida es el de la primera causa. El único `SIGKILL` es el del plazo de 7 s.
+**Una parada no se escala por señales.** Mientras `stopAll` está en curso, cualquier `SIGINT`, `SIGTERM` o `SIGHUP` nuevo se ignora, y el código de salida es el de la primera causa. El único `SIGKILL` es el del plazo (revisión 3, H1).
+
+**Revisión 3 (huecos que dejó el revisor en la ronda 2)**:
+- **H1. `stopAll` termina siempre.** Al recibir la primera señal (o la primera causa) arranca un **plazo absoluto de 9,5 s** con un temporizador `unref`. Si vence, `SIGKILL` al grupo de turbo y al CRM y `process.exit(código)` sin esperar a ningún `exit`. Con el plazo de 7 s del paso 2 vencido, tras el `SIGKILL` no se espera a ningún `exit` y se pasa directamente a la comprobación de puertos (paso 3). `stopAll` **no espera** a la semilla ni al sondeo de la API: los cancela (un `AbortSignal` compartido) y sigue. El total ya no es «como mucho 9 s» por construcción, sino por el plazo absoluto.
+- **H2. Carrera al arrancar.** Una marca `stopping` se pone en la primera causa de parada y se comprueba **justo antes del `spawn` de turbo**. Si llega una señal mientras se espera el `listening` del CRM, turbo no se lanza: se para el CRM, se escribe `Parada.` y se sale con el código de la señal. Caso nuevo en tasks 4.1.
+- **H3. `SIGHUP` con la terminal cerrada.** Escribir en una terminal que ya no existe da `EIO` por `stdout`/`stderr`, y un evento `error` sin manejador tumbaría el proceso a mitad de `stopAll`. El arranque registra `process.stdout.on('error', () => {})` y lo mismo en `stderr` antes de instalar los manejadores de señal.
+- **H4. Tipado de los tests de la demo.** `apps/api/demo/tsconfig.json` incluye también `../test/demo/*.spec.ts` (excluye `../test/demo/mjs-modules.d.ts`, con `types: ["node", "vitest/globals"]` o lo que funcione), para que los unit de la demo se comprueben con `checkJs` contra los tipos JSDoc reales, y un nombre de propiedad mal escrito no pase como `any`. Los e2e quedan fuera (siguen con `declare module '*.mjs'` en el typecheck de la API). Ver D2.
 
 - Descartado: que «un segundo Ctrl+C» fuerce el `SIGKILL`, como proponía la primera versión. Por A9, un solo Ctrl+C ya llega como dos `SIGINT`, así que mataría turbo al momento y dejaría las tareas huérfanas, con 3000 y 3001 ocupados (revisión, B1).
 - Descartado también: una ventana de 1 s para agrupar señales. Da el mismo resultado con un temporizador más.
 - Quien necesite matarlo todo ya puede hacerlo desde otra terminal.
 
-El total es como mucho de 9 s, dentro de los 10 s de «Parada con Ctrl+C». Medido (A5): con `SIGINT` al grupo, los puertos se liberan en menos de 1 s. La verificación final repite la medida **a través de `pnpm dev:demo`** en una terminal real, no con el binario de turbo a pelo (tasks, 6.5).
+El total es como mucho de 9,5 s (H1), dentro de los 10 s de «Parada con Ctrl+C». Medido (A5): con `SIGINT` al grupo, los puertos se liberan en menos de 1 s. La verificación final repite la medida **a través de `pnpm dev:demo`** en una terminal real, no con el binario de turbo a pelo (tasks, 6.5).
 
 - **El CRM se protege solo**: termina al recibir `{type: 'stop'}`, `SIGTERM` o al perder el canal IPC (`disconnect`, si el arranque muere de golpe), y **ignora `SIGINT`**. Así una carrera entre el Ctrl+C y el aviso de salida no se confunde con «el CRM se ha parado».
 - **Límite aceptado**: si el arranque recibe `SIGKILL`, turbo y sus tareas quedan huérfanos, igual que con `pnpm dev`.
@@ -452,7 +459,7 @@ Criterio de diff: `git diff --name-only main...HEAD` solo puede listar estos fic
 | `apps/api/demo/crm.mjs` | nuevo: C2 | 3 |
 | `apps/api/demo/seed.mjs` | nuevo: C5 y `requestApi` | 3 |
 | `apps/api/demo/dev-demo.mjs` | nuevo: C4 (`runDemo(deps)` y `main` con los procesos reales) | 3 |
-| `apps/api/demo/tsconfig.json` | nuevo: proyecto `checkJs` (D2) | 3 |
+| `apps/api/demo/tsconfig.json` | nuevo: proyecto `checkJs` (D2), con los unit de `test/demo/` (H4) | 3 |
 | `apps/api/package.json` | `lint` con `demo/` y `typecheck` con el proyecto de la demo | 3 |
 | `package.json` | `dev:demo` y `demo:seed` | 3 |
 | `apps/api/test/demo/mjs-modules.d.ts` | nuevo: `declare module '*.mjs';` (D2) | 3 |

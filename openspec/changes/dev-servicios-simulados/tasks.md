@@ -8,6 +8,8 @@ Las fases van en orden: cada una empieza cuando la anterior pasa su gate. El com
 - **B3.** Las migraciones entran en la receta y la semilla las detecta (A11, C5).
 - Además, los no bloqueantes y las simplificaciones de la revisión.
 
+**Revisión 3**, huecos de la ronda 2 (D7, H1-H4): plazo absoluto de 9,5 s que termina siempre (H1), marca `stopping` antes del `spawn` de turbo (H2), `error` de `stdout`/`stderr` ignorado para `SIGHUP` (H3) y unit de la demo dentro del proyecto `checkJs` (H4).
+
 **Reglas para todas las fases**:
 - **Solo se tocan los ficheros de «Ficheros» de `design.md`.** `git diff --name-only main...HEAD -- apps/web packages apps/api/src/main.ts apps/api/prisma .github pnpm-lock.yaml pnpm-workspace.yaml` no imprime nada en ningún gate. Si falta un fichero, se añade antes al diseño, con su porqué.
 - **Ningún test**:
@@ -125,8 +127,11 @@ Commit: `test(api): escenarios y mutantes de los nombres locales`.
     - la señal al grupo y 7 s de margen;
     - `SIGKILL` **solo** al vencer ese plazo;
     - las señales que lleguen durante la parada se ignoran;
-    - la comprobación de puertos en `127.0.0.1` y `::1`.
-- [ ] 3.6 `apps/api/demo/tsconfig.json` (D2). `apps/api/package.json`:
+    - la comprobación de puertos en `127.0.0.1` y `::1`;
+    - **H1**: plazo absoluto de 9,5 s desde la primera causa (temporizador `unref`): `SIGKILL` al grupo y al CRM y `process.exit(código)`; `stopAll` no espera a la semilla ni al sondeo de la API (los cancela) y, tras el `SIGKILL`, no espera a ningún `exit` y pasa a la comprobación de puertos;
+    - **H2**: marca `stopping` comprobada antes del `spawn` de turbo;
+    - **H3**: `process.stdout.on('error', () => {})` y lo mismo en `stderr`, antes de instalar las señales.
+- [ ] 3.6 `apps/api/demo/tsconfig.json` (D2, H4): `include` con `*.mjs` y `../test/demo/*.spec.ts`, `exclude` del `.d.ts`, `types: ["node", "vitest/globals"]` o lo que funcione; los e2e quedan fuera. `apps/api/package.json`:
   - `"lint": "oxlint --type-aware src/ test/ demo/"`
   - `"typecheck": "tsc --noEmit -p tsconfig.json && tsc -p demo/tsconfig.json"`
 
@@ -189,6 +194,9 @@ Commit: `feat(api): demo local con CRM simulado, semilla y pnpm dev:demo`.
   - **«CRM simulado que termina»**: el CRM sale sin que se le pida, hay `SIGINT` al grupo de turbo, el mensaje de C4 y el código 1.
   - **«Arranque de la API y la web que termina»**: turbo sale, se pide `stop` al CRM, aparece el mensaje de C4 y el código es distinto de 0.
   - La API que no responde en 120 s da su mensaje, y la demo sigue en marcha.
+  - **H2, carrera al arrancar**: una señal mientras se espera el `listening` del CRM: turbo no se lanza, se para el CRM y el código es el de la señal.
+  - **H1**: con dobles que nunca salen y una semilla/sondeo colgados, a los 9,5 s de la primera señal hay `SIGKILL` al grupo y `process.exit` con el código de la causa, sin esperar a ningún `exit`.
+  - **H3**: con `stdout.write` que emite `error` (EIO), la parada se completa y el código es 129.
 - [ ] 4.2 `apps/api/test/demo-seed.e2e-spec.ts`, con la API real (`startApi` con `inject('databaseUrl')` y `PORT=0`, una por fichero), la base vaciada entre tests y `seedDemo` llamado en el mismo proceso con `FRANCA_API_URL=http://127.0.0.1:<puerto>`:
   - **«Primera siembra»**: además, una vez como proceso real (`node apps/api/demo/seed.mjs`), para el código de salida.
   - **«Siembra repetida»**: `total` 1 y `revision` 1.
