@@ -32,7 +32,7 @@ export function TextQuestion({ question, describedBy, disabled, initial, firstCo
   // Siempre `preventDefault`: ni `action` ni `method`, y nunca un envío nativo (llevaría `Origin: null`).
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    submit();
+    if (!disabled) submit();
   };
   const common = {
     id: 'answer',
@@ -40,18 +40,20 @@ export function TextQuestion({ question, describedBy, disabled, initial, firstCo
     'aria-label': COPY.answerLabel,
     'aria-describedby': describedBy,
     placeholder: question.placeholder,
-    disabled,
+    // `readOnly` y `aria-disabled`, no `disabled`: un control `disabled` enfocado manda el foco a `body` (accesibilidad solo con teclado).
+    readOnly: disabled,
+    'aria-disabled': disabled || undefined,
     value,
     autoComplete: 'off',
     spellCheck: false,
     className:
-      'w-full rounded-md border border-foreground/30 bg-transparent px-3 py-2 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground disabled:opacity-60',
+      'w-full rounded-md border border-foreground/30 bg-transparent px-3 py-2 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground aria-disabled:opacity-60',
   } as const;
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing || event.keyCode === 229) return;
     event.preventDefault();
-    submit();
+    if (!disabled) submit();
   };
 
   return (
@@ -70,7 +72,7 @@ export function TextQuestion({ question, describedBy, disabled, initial, firstCo
           />
         )}
       </div>
-      <Button type="submit" disabled={disabled}>
+      <Button type="submit" aria-disabled={disabled || undefined}>
         {COPY.send}
       </Button>
     </form>

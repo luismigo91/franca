@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { TechnicalActivity } from '@/components/chat/technical-activity';
 import type { ConversationResource } from '@/lib/chat/api-types';
 import { COPY, STATUS_COPY } from '@/lib/chat/copy';
@@ -5,7 +6,7 @@ import { formatCost, formatDateTime } from '@/lib/chat/format';
 import { readPendingQuestion } from '@/lib/chat/events';
 import type { ActivityItem } from '@/lib/chat/transcript-view';
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5 border-b border-foreground/10 py-2 last:border-b-0">
       <dt className="text-xs opacity-70">{label}</dt>

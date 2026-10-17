@@ -34,13 +34,14 @@ const fake = withFakeApi();
 const ORIGIN_HEADERS = { Host: 'localhost:3000', Origin: BASE };
 const post = (path: string, body: string, headers: Record<string, string> = {}) =>
   new Request(`${BASE}${path}`, { method: 'POST', body, headers: { 'Content-Type': 'application/json', ...ORIGIN_HEADERS, ...headers } });
+const del = () => new Request(`${BASE}/x`, { method: 'DELETE', headers: ORIGIN_HEADERS });
 const get = (path: string) => new Request(`${BASE}${path}`);
 
 afterEach(() => vi.restoreAllMocks());
 
 /** Una petición cuyo cuerpo no se puede leer: si el manejador lo lee, el test falla. */
 function unreadable(method: string, path: string): Request {
-  const request = new Request(`${BASE}${path}`, { method });
+  const request = new Request(`${BASE}${path}`, { method, headers: method === 'GET' ? {} : ORIGIN_HEADERS });
   const boom = () => {
     throw new Error('el cuerpo se ha leído');
   };
@@ -86,7 +87,7 @@ describe('las ocho operaciones: ruta, consulta y método exactos', () => {
     answer();
     await handleGetConversation(get('/x'), { conversationId: ID });
     await handleTranscript(get('/x?offset=100'), { conversationId: ID });
-    await handleDeleteConversation(new Request(`${BASE}/x`, { method: 'DELETE' }), { conversationId: ID });
+    await handleDeleteConversation(del(), { conversationId: ID });
     expect(fake.api.requests.map((request) => `${request.method} ${request.path}`)).toEqual([
       `GET /conversations/${ID}`,
       `GET /conversations/${ID}/transcript?limit=100&offset=100`,
@@ -169,7 +170,7 @@ describe('peticiones del navegador', () => {
   });
 
   it('un cuerpo con UTF-8 inválido es 400 invalid_json', async () => {
-    const request = new Request(`${BASE}/api/conversations`, { method: 'POST', body: new Uint8Array([0x7b, 0x22, 0xff, 0x22, 0x7d]), headers: { 'Content-Type': 'application/json' } });
+    const request = new Request(`${BASE}/api/conversations`, { method: 'POST', body: new Uint8Array([0x7b, 0x22, 0xff, 0x22, 0x7d]), headers: { 'Content-Type': 'application/json', ...ORIGIN_HEADERS } });
     const response = await handleCreateConversation(request);
     expect(response.status).toBe(400);
     expect(fake.api.requests).toEqual([]);
@@ -224,7 +225,7 @@ describe('peticiones del navegador', () => {
     const bad = ['..%2F..%2Fflows%2Fhola', '00000000-0000-4000-8000-00000000000A'];
     for (const conversationId of bad) {
       const send = await handleSendInput(post(`/api/conversations/${conversationId}/inputs`, '{"input":{"text":"a"}}', { 'If-Match': '"1"' }), { conversationId });
-      const remove = await handleDeleteConversation(new Request(`${BASE}/x`, { method: 'DELETE' }), { conversationId });
+      const remove = await handleDeleteConversation(del(), { conversationId });
       for (const response of [send, remove]) {
         expect(response.status).toBe(404);
         expect(await response.json()).toEqual({ error: 'conversation_not_found' });
@@ -258,6 +259,23 @@ describe('peticiones del navegador', () => {
     expect(Object.keys(received.headers).sort()).toEqual(['connection', 'content-length', 'content-type', 'host', 'if-match']);
     expect(received.headers.host).toBe(new URL(fake.api.url).host);
     for (const name of ['origin', 'cookie', 'authorization', 'referer', 'x-extra', 'user-agent']) expect(received.headers[name]).toBeUndefined();
+  });
+});
+
+describe('defensa en profundidad de la frontera', () => {
+  it('create, inputs y delete vuelven a comprobar Host y Origin: 403 sin llamar a la API', async () => {
+    const bad: Record<string, string>[] = [{ Host: 'evil.example:3000', Origin: 'http://evil.example:3000' }, { Host: 'localhost:3000' }, { Host: 'localhost:3000', Origin: 'null' }, { Host: 'localhost:3000', Origin: 'http://127.0.0.1:3000' }];
+    for (const headers of bad) {
+      const base = { 'Content-Type': 'application/json', 'If-Match': '"1"', ...headers };
+      const create = await handleCreateConversation(new Request(`${BASE}/api/conversations`, { method: 'POST', body: '{"flowId":"pregunta"}', headers: base }));
+      const send = await handleSendInput(new Request(`${BASE}/api/conversations/${ID}/inputs`, { method: 'POST', body: '{"input":{"text":"a"}}', headers: base }), { conversationId: ID });
+      const remove = await handleDeleteConversation(new Request(`${BASE}/api/conversations/${ID}`, { method: 'DELETE', headers }), { conversationId: ID });
+      for (const response of [create, send, remove]) {
+        expect(response.status, JSON.stringify(headers)).toBe(403);
+        expect(await response.text()).toBe('');
+      }
+    }
+    expect(fake.api.requests).toEqual([]);
   });
 });
 
@@ -405,7 +423,7 @@ describe('con las respuestas copiadas de la API real', () => {
   }
 
   it('DELETE con el 204 real: 204 sin cuerpo', async () => {
-    const { result, requests } = await withRaw(RAW_204, () => handleDeleteConversation(new Request(`${BASE}/x`, { method: 'DELETE' }), { conversationId: ID }));
+    const { result, requests } = await withRaw(RAW_204, () => handleDeleteConversation(del(), { conversationId: ID }));
     expect(result.status).toBe(204);
     expect(await result.text()).toBe('');
     expect(requests[0]).toMatch(new RegExp(`^DELETE /conversations/${ID} HTTP/1.1\\r\\nHost: 127.0.0.1:\\d+\\r\\nConnection: close\\r\\n\\r\\n$`));

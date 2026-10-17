@@ -16,4 +16,6 @@ metadata:
 - **Ocho operaciones fijas**, no un proxy genérico ni `rewrites` de `next.config` (reenviarían las cabeceras del navegador): `operations.ts` arma cada ruta con argumentos ya validados, y un id de conversación que no es un UUID en minúsculas no llega a la API.
 - **`fetch` del navegador en modo `cors`**: con `Referrer-Policy: no-referrer`, un `POST` `no-cors` o el envío nativo de un `<form>` llevan `Origin: null` y la frontera los rechaza. Los formularios llaman siempre a `preventDefault()` y no tienen `action`.
 
+Los tres manejadores que cambian algo vuelven a llamar a `checkFrontier` (defensa en profundidad). **Residuos que no llegan a manejadores ni a la API**: la forma absoluta (`GET http://evil.com/` recibe un 308 de Next antes de `proxy.ts`) y `TRACE` (500); el navegador no los produce.
+
 Ver [[gotcha-next-dev-fuera-de-la-frontera]] para `next dev` y [[gotcha-node-http-createconnection-y-proxy]] para el transporte.

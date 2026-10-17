@@ -102,6 +102,8 @@ Descartado:
 3. **Ruta de conversación**: si `pathname` empieza por `/api/conversations/`, su segundo segmento (decodificado con `decodeURIComponent`, y un error de decodificación cuenta como inválido) debe ser un UUID en minúsculas. Si no, `404 {"error":"conversation_not_found"}`. Es una defensa por si Next resuelve una ruta con `%2F` de otra manera. La ruta (D3) vuelve a validar.
 4. **Cabeceras de respuesta** (también en los 403 y 404 de la frontera): `Cache-Control: no-store` (salvo en `/_next/static/`, cuyos ficheros llevan *hash* y no tienen datos), `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`, `Content-Security-Policy: frame-ancestors 'none'` y `X-Frame-Options: DENY` (D24). Nunca `Access-Control-Allow-*`.
 
+**Defensa en profundidad**: los tres manejadores que cambian algo (`handleCreateConversation`, `handleSendInput` y `handleDeleteConversation`) vuelven a llamar a `checkFrontier` y responden con su decisión si no pasa (403 o 404), con test unitario. La comprobación de `Origin` no va en el *preload* para peticiones normales.
+
 No hay ninguna Server Action: una guarda estática prohíbe `'use server'` en `src/`. Así nada acepta mutaciones fuera de las rutas de D3, y aunque apareciera una, el paso 2 la cubre, porque Next la recibe como un `POST`.
 
 Descartado:
@@ -484,14 +486,14 @@ La lista se limita, como se aprobó, a **seguridad** (frontera, filtro de URLs, 
 | `skipHostCheck`, `hostSuffixMatch` (`endsWith('localhost')`), `readForwardedHost` (usa `x-forwarded-host` si viene) | `frontier.ts` | `frontier.test.ts` |
 | `allowMissingOrigin`, `compareOriginToFixedHost` (con `localhost:3000`) | `frontier.ts` | `frontier.test.ts` |
 | `dropFrameHeaders` (sin `frame-ancestors` ni `X-Frame-Options`), `dropNoStore` | `frontier.ts` | `frontier.test.ts` |
-| `forwardBrowserHeaders` (copia las cabeceras de la petición) | `handlers.ts` | `handlers.test.ts` (integración) |
+| `forwardBrowserHeaders` (añade cabeceras del navegador) | `transport.ts` | `handlers.test.ts` y `transport.test.ts`. La garantía es estructural (`TransportRequest` no tiene campo de cabeceras): el mutante es débil |
 | `genericPassthrough` (ruta de la API desde la del navegador) | `operations.ts` | `handlers.test.ts` |
 | `unvalidatedConversationId` | `ids.ts` | `ids.test.ts` y `handlers.test.ts` |
 | `keepErrorMessage` | `responses.ts` | `responses.test.ts` |
 | `useGlobalAgent` (sustituye `createConnection` por `host` y `port`) | `transport.ts` | `api-transport-env-proxy.test.ts` (muere porque la trampa recibe la conexión) |
 | `showErrorMessage` | `transcript-view.ts` | `transcript-view.test.ts` |
 | `noIfMatch`, `autoResendOnLoss`, `allowDoubleSend` | `conversation-session.ts` / `web-client.ts` | `conversation-session.test.ts`, `web-client.test.ts` |
-| `skipInspectorPatch` (sin sustituir `inspector.open`), `skipHostGuard` (sin la guarda en `request`, `checkContinue` y `checkExpectation`), `skipUpgradeGuard` (sin la guarda en `upgrade` y `connect`), `skipUpgradeOrigin` (sin exigir el `Origin` propio en `upgrade`) | `scripts/local-only-preload.cjs` | `local-only-preload.test.ts` (`skipInspectorPatch` muere porque el middleware real de Next devuelve una URL e `inspector.url()` deja de ser `undefined`; el test mata al hijo en un `finally`, así que no queda ningún inspector vivo) |
+| `skipInspectorPatch` (sin sustituir `inspector.open`), `skipHostGuard` (sin la guarda en `request`, `checkContinue` y `checkExpectation`), `skipUpgradeGuard` (sin la guarda en `upgrade` y `connect`), `skipUpgradeOrigin` (sin exigir el `Origin` propio en `upgrade`), `skipWriteContinueGuard` (sin la guarda de `writeContinue`) | `scripts/local-only-preload.cjs` | `local-only-preload.test.ts` (`skipInspectorPatch` muere porque el middleware real de Next devuelve una URL e `inspector.url()` deja de ser `undefined`; el test mata al hijo en un `finally`, así que no queda ningún inspector vivo) |
 
 Los demás tests negativos («no contiene», «no recibe», «no pide», paridad de códigos) se validan **una vez a mano**, provocando el caso prohibido y viendo que fallan (`testing-pyramid.md`, tasks 4.2), sin registrarlos como mutantes. La mutación se ejecuta a mano (`pnpm --filter @franca/web mutate`) y el resultado queda en el gate de la fase 4.
 
@@ -526,6 +528,7 @@ Un guardián delante (la revisión 2) **no lo cierra**: el `next dev` hijo, en s
      - **`request`, `checkContinue` y `checkExpectation`**: pone `Content-Security-Policy: frame-ancestors 'none'` y `X-Frame-Options: DENY` en la respuesta. Si la cabecera `host` en bruto no es local (`isLocalHost` de `src/server/config/local-host.cjs`, la misma que usa `frontier.ts`), responde `403` sin cuerpo y no emite el evento.
      - **`upgrade` y `connect`**: exige un `host` local **y** un `Origin` exactamente igual a `'http://' + host` en minúsculas. Si no, también sin `Origin`, escribe `HTTP/1.1 403` y cierra el *socket*.
      - **Por qué el `Origin` en `upgrade`**: el *websocket* de HMR no tiene CORS. Con el inspector abierto, Next manda `devtoolsFrontendUrl` (con el UUID) a todo cliente en el mensaje `SYNC` (`hot-reloader-turbopack.js:1120-1131` y `1376-1392`), además de errores de compilación y `requestInsights`. `blockCrossSiteDEV` admite siempre `localhost` y `**.localhost`, así que una página de `http://localhost:5173` mandaría `Host: localhost:3000` y leería ese canal.
+     - **`writeContinue`**: Next crea su servidor **sin** listener de `checkContinue` (`start-server.js:232`), así que con `Expect: 100-continue` Node escribe `100 Continue` por su cuenta **antes** de emitir `request`, y la guarda de `request` llegaría tarde. El *preload* envuelve `http.ServerResponse.prototype.writeContinue` y no lo escribe si el `Host` no es local: un `Host` ajeno recibe solo `403`, uno local `100` y después `200` (medido). Por eso «los cinco eventos» son además esta salida.
      - **Sin listener de `checkExpectation`**, Node responde `417` por su cuenta sin emitir el evento y sin contenido (medido): la guarda existe, pero sin listener no se alcanza.
 - `apps/web/scripts/local-only.mjs` es el lanzador de los *scripts* `dev` y `start`:
   1. Valida `FRANCA_API_URL` (D5) y sale con 1 sin escuchar.
@@ -553,7 +556,7 @@ Un guardián delante (la revisión 2) **no lo cierra**: el `next dev` hijo, en s
 
 **Tests**, en Vitest y sin Next salvo lo indicado:
 - `tests/local-only-preload.test.ts` lanza un hijo `node --require scripts/local-only-preload.cjs --inspect-port=0` con un `http.createServer` propio. Comprueba:
-  - La matriz de `Host` en los cinco eventos (`request`, `checkContinue` con `Expect: 100-continue`, `checkExpectation`, `upgrade` y `connect`) y las cabeceras de marcos.
+  - La matriz de `Host` en los cinco eventos, con un hijo **con** y otro **sin** listener de `checkContinue` (la forma de Next; mutante `skipWriteContinueGuard`) (`request`, `checkContinue` con `Expect: 100-continue`, `checkExpectation`, `upgrade` y `connect`) y las cabeceras de marcos.
   - En `upgrade`: `Origin: http://localhost:5173` da 403, el `Origin` propio da 101 y sin `Origin` da 403.
   - Que `inspector.open(0)` lanza, también desde `_interop_require_wildcard` de `@swc/helpers` (el que resuelve `next`) y desde el `getAttachNodejsDebuggerMiddleware` real de Next (500 sin URL).
   - Que `inspector.url()` es `undefined`.
@@ -640,7 +643,8 @@ Ejemplo de la versión: `{"flowId":"captacion-leads","version":1,"name":"Captaci
 | 403 | — (sin cuerpo) | Frontera | `Host` no local; `Origin` ausente u otro en `POST`/`DELETE` | Se lee por su estado (`unknown`), y el chat muestra el genérico del contexto. La propia web no lo provoca |
 | 4xx/5xx | — (sin cuerpo) | API o Next | Error de la API sin un `error` legible, o un 405 de Next | El mismo estado sin cuerpo y, en el cliente, `unknown`: genérico del contexto, **nunca** `network_error` |
 | 404 | `conversation_not_found` | Frontera, ruta o API | id no UUID en minúsculas, o no existe | Abrir: «Conversación no encontrada». Enviar: «Esta conversación ya no existe» con enlace. Borrar: vuelve al inicio |
-| 404 | `flow_not_found` / `version_not_found` | Ruta o API | `flowId` o versión inválidos o inexistentes | Cabecera con el `flowId`. Empezar: «Ese flujo ya no existe» y relee la lista |
+| 404 | `flow_not_found` | Ruta o API | `flowId` o versión inválidos, o el flujo no existe | Cabecera con el `flowId`. Empezar: «Ese flujo ya no existe» y relee la lista |
+| 404 | `version_not_found` | Ruta o API | La versión no existe | Genérico del contexto (cabecera con el `flowId`) |
 | 404 | `not_found` | Comodín | Otra ruta de `/api` | Genérico |
 | 400 | `invalid_query` | Ruta o API | `offset` inválido | Genérico de lista |
 | 400 | `invalid_json` / `invalid_request` | Ruta o API | Cuerpo no JSON o mal formado. `contactId` no admitido (API) | Empezar: el campo «Identificador de contacto» lo indica |

@@ -1,7 +1,9 @@
 import * as operations from '@/server/api/operations';
 import { buildCreateBody, buildInputBody, readIfMatch, readJsonBody, readOffset } from '@/server/bff/request';
-import { errorResponse, failureResponse, toWebResponse, type ResponseKind } from '@/server/bff/responses';
+import { emptyResponse, errorResponse, failureResponse, toWebResponse, type ResponseKind } from '@/server/bff/responses';
 import { isConversationId, isFlowId, parseVersion, type ConversationId } from '@/server/ids';
+import { ApiUrlError } from '@/server/config/api-url.mjs';
+import { checkFrontier } from '@/server/frontier';
 import { logInvalidApiUrl, logServerError } from '@/server/log';
 import type { TransportResult } from '@/server/api/transport';
 
@@ -25,8 +27,8 @@ async function respond(method: string, template: Template, kind: ResponseKind, c
   try {
     response = toWebResponse(await call(), kind);
   } catch (error) {
-    // La única excepción posible es `FRANCA_API_URL` inválida en ejecución (si alguien arrancó `next` sin el lanzador).
-    logInvalidApiUrl();
+    // La excepción esperada es `FRANCA_API_URL` inválida en ejecución (si alguien arrancó `next` sin el lanzador).
+    if (error instanceof ApiUrlError) logInvalidApiUrl();
     logServerError(method, template, 500, 'internal_error', error instanceof Error ? error.name : 'unknown');
     return errorResponse(500, 'internal_error');
   }
@@ -35,6 +37,16 @@ async function respond(method: string, template: Template, kind: ResponseKind, c
     logServerError(method, template, response.status, typeof body?.error === 'string' ? body.error : 'no_body');
   }
   return response;
+}
+
+/**
+ * Defensa en profundidad del CSRF (D2): las operaciones que cambian algo vuelven a pasar por la misma función pura que
+ * `proxy.ts` (`Host` local y `Origin` propio), por si la frontera dejara de ejecutarse delante de la ruta.
+ */
+function rejectedByFrontier(request: Request): Response | null {
+  const decision = checkFrontier({ method: request.method, headers: request.headers, pathname: new URL(request.url).pathname });
+  if (decision.allowed) return null;
+  return decision.body === null ? emptyResponse(decision.status) : errorResponse(decision.status, 'conversation_not_found');
 }
 
 const notFoundConversation = () => errorResponse(404, 'conversation_not_found');
@@ -63,6 +75,8 @@ export async function handleListConversations(request: Request): Promise<Respons
 
 /** `POST /api/conversations`. */
 export async function handleCreateConversation(request: Request): Promise<Response> {
+  const rejected = rejectedByFrontier(request);
+  if (rejected) return rejected;
   const parsed = await readJsonBody(request);
   if (!parsed.ok) return failureResponse(parsed);
   const body = buildCreateBody(parsed.value);
@@ -92,6 +106,8 @@ export async function handleTranscript(request: Request, params: { conversationI
 
 /** `POST /api/conversations/:id/inputs` (con `If-Match`). */
 export async function handleSendInput(request: Request, params: { conversationId: string }): Promise<Response> {
+  const rejected = rejectedByFrontier(request);
+  if (rejected) return rejected;
   const id = validId(params);
   if (id === null) return notFoundConversation();
   const ifMatch = readIfMatch(request);
@@ -104,7 +120,9 @@ export async function handleSendInput(request: Request, params: { conversationId
 }
 
 /** `DELETE /api/conversations/:id`. */
-export async function handleDeleteConversation(_request: Request, params: { conversationId: string }): Promise<Response> {
+export async function handleDeleteConversation(request: Request, params: { conversationId: string }): Promise<Response> {
+  const rejected = rejectedByFrontier(request);
+  if (rejected) return rejected;
   const id = validId(params);
   if (id === null) return notFoundConversation();
   return respond('DELETE', TEMPLATES.conversation, 'delete', () => operations.deleteConversation(id));

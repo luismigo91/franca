@@ -1,4 +1,6 @@
 import { PREGUNTAS_HASTA_PLAN } from './support/admin';
+import { CONVERSATION_ID, flowItem, messageEvent, resourceOf, scripted, textInputEvent } from './support/api-shapes';
+import { sendJson } from '../tests/helpers/fake-api';
 import { expect, test, text } from './support/test';
 
 test('Solo con teclado', async ({ page, admin }) => {
@@ -44,4 +46,38 @@ test('Pantalla estrecha', async ({ page, admin }) => {
   await details.scrollIntoViewIfNeeded();
   await expect(details).toBeVisible();
   await expect(details.getByRole('heading', { name: 'Detalles de la prueba' })).toBeVisible();
+});
+
+test('El foco no se pierde tras un envío fallido', async ({ page, admin, stack }) => {
+  await admin.publish('pregunta');
+  const created = await admin.createConversation('pregunta');
+  await page.goto(`/conversaciones/${created.id}`);
+  await text(page, '¿Nombre?').waitFor();
+  await page.locator('#answer').fill('a'.repeat(70_000));
+  await page.locator('#answer').press('Enter');
+  await expect(text(page, 'La respuesta es demasiado larga para enviarla.')).toBeVisible();
+  const focused = await page.evaluate(() => ({ id: document.activeElement?.id, tag: document.activeElement?.tagName, length: (document.activeElement as HTMLTextAreaElement | null)?.value.length }));
+  expect(focused).toEqual({ id: 'answer', tag: 'TEXTAREA', length: 70_000 });
+
+  // «Ocupada» (409): el mismo resultado con la API simulada.
+  const world = { conversation: resourceOf({ pendingInput: textInputEvent('p') }), items: [flowItem(1, messageEvent('p', '¿Nombre?')), flowItem(2, textInputEvent('p'))] };
+  stack.fakeApi.respond(scripted(world, (_request, response) => sendJson(response, 409, { message: 'x', error: 'conversation_busy' })));
+  await page.goto(`/conversaciones/${CONVERSATION_ID}`);
+  await text(page, '¿Nombre?').waitFor();
+  await page.locator('#answer').fill('Ana');
+  await page.locator('#answer').press('Enter');
+  await expect(page.getByText('La conversación está procesando otra respuesta.')).toBeVisible();
+  expect(await page.evaluate(() => ({ id: document.activeElement?.id, value: (document.activeElement as HTMLTextAreaElement | null)?.value }))).toEqual({ id: 'answer', value: 'Ana' });
+});
+
+test('El foco pasa al aviso de fin al terminar', async ({ page, admin }) => {
+  await admin.publish('pregunta');
+  const created = await admin.createConversation('pregunta');
+  await page.goto(`/conversaciones/${created.id}`);
+  await text(page, '¿Nombre?').waitFor();
+  await page.locator('#answer').fill('Ana');
+  await page.locator('#answer').press('Enter');
+  await text(page, 'Conversación terminada').waitFor();
+  const region = page.getByRole('region', { name: 'Conversación terminada' });
+  await expect(region).toBeFocused();
 });

@@ -107,9 +107,15 @@ describe('PendingQuestion', () => {
     expect(html).toMatch(/value="b"[^>]*checked=""|checked=""[^>]*value="b"/);
   });
 
-  it('mientras se envía, los controles están desactivados', () => {
-    expect(render(text('text'), null, true)).toContain('disabled');
-    expect(render(question({ type: 'input', nodeId: 'q', inputType: 'choice', attempt: 1, reason: null, multiple: false, choices: [{ id: 'a', label: 'A' }] }), null, true)).toContain('disabled');
+  it('mientras se envía, los controles son inertes pero no `disabled` (un control disabled enfocado pierde el foco)', () => {
+    const single = question({ type: 'input', nodeId: 'q', inputType: 'choice', attempt: 1, reason: null, multiple: false, choices: [{ id: 'a', label: 'A' }] });
+    const multiple = question({ type: 'input', nodeId: 'q', inputType: 'choice', attempt: 1, reason: null, multiple: true, choices: [{ id: 'a', label: 'A' }] });
+    for (const html of [render(text('text'), null, true), render(text('email'), null, true), render(single, null, true), render(multiple, null, true)]) {
+      expect(html).toContain('aria-disabled="true"');
+      expect(html).not.toMatch(/\sdisabled(=|\s|>)/);
+    }
+    expect(render(text('text'), null, true)).toContain('readOnly');
+    expect(render(text('text'), null, false)).not.toContain('aria-disabled="');
   });
 
   it('el formulario no tiene action ni method (la guarda estática lo comprueba también sobre el código)', () => {

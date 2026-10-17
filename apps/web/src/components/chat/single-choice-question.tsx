@@ -1,3 +1,4 @@
+import type { RefObject } from 'react';
 import { Button } from '@/components/ui/button';
 import type { ChatInput } from '@/lib/chat/api-types';
 import { COPY } from '@/lib/chat/copy';
@@ -16,7 +17,7 @@ interface SingleChoiceProps {
   choices: ChoiceOption[];
   describedBy: string | undefined;
   disabled: boolean;
-  firstControl: React.RefObject<HTMLElement | null>;
+  firstControl: RefObject<HTMLElement | null>;
   onSend: (input: ChatInput, label: string) => void;
 }
 
@@ -27,10 +28,13 @@ export function SingleChoiceQuestion({ choices, describedBy, disabled, firstCont
       {choices.map((choice, index) => (
         <Button
           key={choice.id}
-          ref={index === 0 ? (firstControl as React.RefObject<HTMLButtonElement | null>) : undefined}
+          ref={index === 0 ? (firstControl as RefObject<HTMLButtonElement | null>) : undefined}
           variant="secondary"
-          disabled={disabled}
-          onClick={() => onSend({ choice: choice.id }, choice.label)}
+          aria-disabled={disabled || undefined}
+          onClick={() => {
+            // Inerte mientras se envía, sin `disabled`: así el botón enfocado no pierde el foco.
+            if (!disabled) onSend({ choice: choice.id }, choice.label);
+          }}
           className="gap-2"
         >
           <OptionImage imageUrl={choice.imageUrl} />

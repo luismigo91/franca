@@ -44,7 +44,9 @@ describe('frontera adversarial: Host', () => {
   });
 
   it('el Host con puerto fuera de rango pasa porque el puerto no es lo que protege (no hay nada que abusar)', () => {
-    // Documenta el comportamiento actual: `[0-9]{1,5}` no comprueba ≤ 65535. Un puerto imposible nunca llega a Node.
+    // Documenta el comportamiento actual: `[0-9]{1,5}` no comprueba ≤ 65535. Se acepta por paridad con
+    // `apps/api/src/http/local-only.ts:5` (la web respondió 200 a `localhost:99999`); el puerto no frena el rebinding.
+    // FOLLOW-UP 7.7 de tasks.md: endurecerlo en las dos apps a la vez.
     expect(isLocalHost('localhost:99999')).toBe(true);
   });
 });

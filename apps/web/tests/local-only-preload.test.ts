@@ -39,9 +39,9 @@ afterAll(async () => {
   for (const child of children.splice(0)) await kill(child);
 });
 
-function start(): Promise<Running> {
+function start(extraEnv: Record<string, string> = {}): Promise<Running> {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ['--require', PRELOAD, '--inspect-port=0', CHILD], { cwd: WEB, stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, ['--require', PRELOAD, '--inspect-port=0', CHILD], { cwd: WEB, stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, ...extraEnv } });
     children.push(child);
     let out = '';
     let port: number | null = null;
@@ -135,6 +135,17 @@ describe('preload de la guarda local (D26)', () => {
     const allowed = await raw(port, request(`localhost:${port}`));
     expect(allowed).toContain('HTTP/1.1 100 Continue');
     expect(allowed).toContain('continued');
+  });
+
+  it('Expect: 100-continue SIN listener de checkContinue (la forma de Next): un Host ajeno recibe solo 403, nunca el 100', async () => {
+    const { port } = await start({ NO_CHECK_CONTINUE: '1' });
+    const request = (host: string) => `POST / HTTP/1.1\r\nHost: ${host}\r\nExpect: 100-continue\r\nContent-Length: 0\r\nConnection: close\r\n\r\n`;
+    const rejected = await raw(port, request('evil.example'));
+    expect(statusOf(rejected)).toBe('HTTP/1.1 403 Forbidden');
+    expect(rejected).not.toContain('100 Continue');
+    const allowed = await raw(port, request(`localhost:${port}`));
+    expect(allowed).toContain('HTTP/1.1 100 Continue');
+    expect(allowed).toContain('HTTP/1.1 200 OK');
   });
 
   it('checkExpectation: una expectativa distinta con un Host ajeno da 403, y con uno local llega al listener', async () => {

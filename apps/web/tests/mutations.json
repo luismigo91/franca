@@ -255,5 +255,14 @@
     "tests": [
       "tests/local-only-preload.test.ts"
     ]
+  },
+  {
+    "id": "skipWriteContinueGuard",
+    "file": "scripts/local-only-preload.cjs",
+    "find": "if (this.req && !isLocalHost(this.req.headers.host)) return;\n",
+    "replace": "",
+    "tests": [
+      "tests/local-only-preload.test.ts"
+    ]
   }
 ]

@@ -22,7 +22,7 @@ export function ConversationHeader({ header, ended, starting, onRestart, onRemov
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {!ended && (
-          <Button disabled={starting} onClick={onRestart}>
+          <Button aria-disabled={starting || undefined} onClick={starting ? undefined : onRestart}>
             {starting ? COPY.starting : COPY.restart}
           </Button>
         )}

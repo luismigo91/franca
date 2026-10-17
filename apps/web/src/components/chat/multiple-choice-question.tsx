@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type RefObject } from 'react';
 import { OptionImage } from '@/components/chat/single-choice-question';
 import { Button } from '@/components/ui/button';
 import type { ChatInput } from '@/lib/chat/api-types';
@@ -13,7 +13,7 @@ interface MultipleChoiceProps {
   disabled: boolean;
   /** Los `id` marcados de una respuesta no enviada; solo se recuperan los que siguen existiendo. */
   initial: string[];
-  firstControl: React.RefObject<HTMLElement | null>;
+  firstControl: RefObject<HTMLElement | null>;
   onSend: (input: ChatInput, label: string) => void;
 }
 
@@ -38,12 +38,12 @@ export function MultipleChoiceQuestion({ choices, describedBy, disabled, initial
   // Siempre `preventDefault`: ni `action` ni `method`, y nunca un envío nativo.
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    submit();
+    if (!disabled) submit();
   };
 
   return (
     <form noValidate onSubmit={handleSubmit} aria-label={COPY.answerLabel} aria-describedby={describedBy} className="flex flex-col gap-3">
-      <fieldset className="flex flex-col gap-2" disabled={disabled}>
+      <fieldset className="flex flex-col gap-2">
         <legend className="sr-only">Elige las opciones</legend>
         {choices.map((choice, index) => (
           <label key={choice.id} className="flex min-h-10 items-center gap-3 rounded-md border border-foreground/20 px-3 py-2">
@@ -52,8 +52,11 @@ export function MultipleChoiceQuestion({ choices, describedBy, disabled, initial
               name="choices"
               value={choice.id}
               checked={checked.has(choice.id)}
-              onChange={() => toggle(choice.id)}
-              ref={index === 0 ? (firstControl as React.RefObject<HTMLInputElement | null>) : undefined}
+              aria-disabled={disabled || undefined}
+              onChange={() => {
+                if (!disabled) toggle(choice.id);
+              }}
+              ref={index === 0 ? (firstControl as RefObject<HTMLInputElement | null>) : undefined}
               className="size-4"
             />
             <OptionImage imageUrl={choice.imageUrl} />
@@ -61,7 +64,7 @@ export function MultipleChoiceQuestion({ choices, describedBy, disabled, initial
           </label>
         ))}
       </fieldset>
-      <Button type="submit" disabled={disabled} className="self-start">
+      <Button type="submit" aria-disabled={disabled || undefined} className="self-start">
         {COPY.send}
       </Button>
     </form>

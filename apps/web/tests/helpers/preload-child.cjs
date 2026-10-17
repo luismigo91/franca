@@ -18,10 +18,14 @@ setTimeout(() => process.exit(0), 60_000);
 const server = http.createServer((request, response) => {
   response.end('ok');
 });
-server.on('checkContinue', (request, response) => {
-  response.writeContinue();
-  response.end('continued');
-});
+// Con NO_CHECK_CONTINUE no hay listener de `checkContinue`: la forma de Next (`start-server.js`), con la que Node escribe
+// `100 Continue` por su cuenta antes de emitir `request`.
+if (!process.env.NO_CHECK_CONTINUE) {
+  server.on('checkContinue', (request, response) => {
+    response.writeContinue();
+    response.end('continued');
+  });
+}
 server.on('checkExpectation', (request, response) => {
   response.end('expectation');
 });
