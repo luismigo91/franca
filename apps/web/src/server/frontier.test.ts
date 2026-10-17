@@ -12,7 +12,7 @@ describe('frontera: Host', () => {
     expect(run('GET', '/', { host }).allowed).toBe(true);
   });
 
-  it.each(['localhost.evil.example:3000', '127.0.0.1.nip.io:3000', 'localhost.:3000', 'evil.example:3000', ''])('rechaza Host %j con 403 sin cuerpo', (host) => {
+  it.each(['localhost.evil.example:3000', '127.0.0.1.nip.io:3000', 'localhost.:3000', 'evil.example:3000', 'notlocalhost:3000', 'evil.localhost:3000', ''])('rechaza Host %j con 403 sin cuerpo', (host) => {
     const decision = run('GET', '/', { host });
     expect(decision).toMatchObject({ allowed: false, status: 403, body: null });
   });

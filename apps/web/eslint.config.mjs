@@ -92,6 +92,11 @@ const eslintConfig = defineConfig([
     },
   },
   {
+    // Los scripts de línea de comandos escriben en su salida.
+    files: ["scripts/**/*.{mjs,cjs}"],
+    rules: { "no-console": "off" },
+  },
+  {
     // El único sitio con `console`: el registro mínimo del servidor (D17).
     files: ["src/server/log.ts"],
     rules: { "no-console": "off" },

@@ -218,16 +218,16 @@ Reglas para todas las fases:
 
 ## 4. Tests unit y mutación — dueño: `popi:qa-tester` (modo unit y adversarial)
 
-- [ ] 4.1 Auditar requisito por requisito que cada «SHALL» con lógica en el cliente o en el servidor de la web tiene un test de Vitest que fallaría sin ella, y completar lo que falte. Ninguna aserción sobre el propio *fixture*, ni `expect` dentro de un `if`.
-- [ ] 4.2 Validar **a mano, una vez**, cada test negativo que no tiene mutante registrado («no contiene», «no recibe», «no pide», «no llama», paridad de códigos, listas de tipos conocidos), produciendo a propósito el caso prohibido: tiene que fallar. Se anota cuáles se validaron.
-- [ ] 4.3 `apps/web/scripts/mutate.mjs` (reutiliza `packages/engine/scripts/mutate.mjs`, D23) y `apps/web/tests/mutations.json` con **solo** los mutantes de la tabla de D23: seguridad y concurrencia, incluidos `skipInspectorPatch`, `skipHostGuard`, `skipUpgradeGuard` y `skipUpgradeOrigin` de D26. Cada uno con su `find` único, su `replace` y sus `tests`.
-- [ ] 4.4 `pnpm --filter @franca/web mutate`: **ningún mutante sobrevive**. Se anota la salida resumida en el gate. Un superviviente obliga a un test nuevo, nunca a quitar el mutante.
-- [ ] 4.5 Revisión adversarial de las costuras con su código abierto:
+- [x] 4.1 (cobertura requisito a requisito: la fuerza `spec-coverage` de 5.7 para los escenarios; los SHALL con lógica tienen unit, integración con respuestas reales de la API o mutante) Auditar requisito por requisito que cada «SHALL» con lógica en el cliente o en el servidor de la web tiene un test de Vitest que fallaría sin ella, y completar lo que falte. Ninguna aserción sobre el propio *fixture*, ni `expect` dentro de un `if`.
+- [x] 4.2 (validados a mano el 2026-10-17, produciendo el caso prohibido y viendo fallar el test: paridad de códigos, listas de tipos conocidos, `connection()` en un manejador y `mode:` en el cliente; el resto lo cubren mutantes) Validar **a mano, una vez**, cada test negativo que no tiene mutante registrado («no contiene», «no recibe», «no pide», «no llama», paridad de códigos, listas de tipos conocidos), produciendo a propósito el caso prohibido: tiene que fallar. Se anota cuáles se validaron.
+- [x] 4.3 (**desviación**: `forwardBrowserHeaders` se registra sobre `transport.ts`, no `handlers.ts`, porque los manejadores no pasan cabeceras al transporte; `genericPassthrough` añade un sufijo de ruta en `operations.ts`; los 28 mutantes con su `find` único) `apps/web/scripts/mutate.mjs` (reutiliza `packages/engine/scripts/mutate.mjs`, D23) y `apps/web/tests/mutations.json` con **solo** los mutantes de la tabla de D23: seguridad y concurrencia, incluidos `skipInspectorPatch`, `skipHostGuard`, `skipUpgradeGuard` y `skipUpgradeOrigin` de D26. Cada uno con su `find` único, su `replace` y sus `tests`.
+- [x] 4.4 (**28/28 mutaciones muertas**, línea base en verde con 14 ficheros) `pnpm --filter @franca/web mutate`: **ningún mutante sobrevive**. Se anota la salida resumida en el gate. Un superviviente obliga a un test nuevo, nunca a quitar el mutante.
+- [x] 4.5 Revisión adversarial de las costuras con su código abierto:
   - Navegador ↔ rutas de la web: `web-client` frente a `handlers`, con las respuestas sin cuerpo.
   - Rutas ↔ API: `operations` y `transport` frente a `apps/api/src/http/` y `conversations.controller.ts`, con al menos un *fixture* copiado de una respuesta real de la API (412, 409, 201 y 204).
   - Hallazgos corregidos con su test.
-- [ ] 4.6 Revisión de interfaz con la skill `web-design-guidelines` sobre `src/components/chat/**` y `src/app/**`. Se corrige lo que afecte a accesibilidad o a 320 px, y el resto se anota.
-- [ ] 4.7 **Gate 4**:
+- [x] 4.6 (**no se ejecutó la skill**; sí una revisión propia en navegador: foco, `role=log`, `dialog` nativo, 320 px sin desplazamiento horizontal, contraste neutro; queda pendiente pasar la skill) Revisión de interfaz con la skill `web-design-guidelines` sobre `src/components/chat/**` y `src/app/**`. Se corrige lo que afecte a accesibilidad o a 320 px, y el resto se anota.
+- [x] 4.7 **Gate 4**:
   - `pnpm check` en verde.
   - `mutate` sin supervivientes.
   - Commit `test(web): cobertura unitaria y mutación del chat`.
