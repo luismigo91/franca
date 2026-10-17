@@ -13,7 +13,7 @@ Hoy Franca sabe guardar y publicar flujos (`flows-api`) y ejecutarlos en memoria
 
   | Método y ruta | Qué hace | Éxito | Errores propios |
   |---|---|---|---|
-  | `POST /conversations` | Crea una conversación `{flowId, version?, contactId?}` sobre la última versión publicada (o la indicada) y ejecuta el motor hasta la primera parada | 201 `{conversation, events}` + `Location` + `ETag` | 400 `invalid_request`, 404 `flow_not_found` / `version_not_found`, 409 `flow_not_published` / `flow_version_invalid` |
+  | `POST /conversations` | Crea una conversación `{flowId, version?, contactId?}` sobre la última versión publicada (o la indicada) y ejecuta el motor hasta la primera parada | 201 `{conversation, events}` + `Location` + `ETag` | 400 `invalid_request`, 404 `flow_not_found` / `version_not_found` / `conversation_not_found` (su contacto se borró durante la creación), 409 `flow_not_published` / `flow_version_invalid` |
   | `GET /conversations` | Lista paginada, con filtros `flowId` y `status` | 200 `{items, total, limit, offset}` | 400 `invalid_query` |
   | `GET /conversations/:id` | El recurso conversación | 200 + `ETag` | 404 `conversation_not_found` |
   | `POST /conversations/:id/inputs` | Envía `{input}` (la entrada del usuario) y continúa la conversación; `If-Match` opcional | 200 `{conversation, events}` + `ETag` | 400 `invalid_request` / `invalid_input`, 404, 409 `conversation_busy` / `conversation_not_active` / `conversation_expired` / `flow_version_invalid`, 412 `revision_mismatch` |

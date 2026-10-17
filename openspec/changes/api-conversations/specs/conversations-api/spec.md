@@ -74,7 +74,7 @@ Sin `version`, la conversación SHALL usar la última versión publicada del flu
 - **THEN** las cuatro responden 404 `flow_not_found`
 
 ### Requirement: Orden de comprobación al crear
-`POST /conversations` SHALL responder con la primera comprobación que falla, en este orden: 413, 415, 400 `invalid_json`, 400 `invalid_request`, 404 `flow_not_found`, 409 `flow_not_published` o 404 `version_not_found`, y 409 `flow_version_invalid`. Si todas pasan, responde 201.
+`POST /conversations` SHALL responder con la primera comprobación que falla, en este orden: 413, 415, 400 `invalid_json`, 400 `invalid_request`, 404 `flow_not_found`, 409 `flow_not_published` o 404 `version_not_found`, y 409 `flow_version_invalid`. Si todas pasan, responde 201 (salvo lo que dice «Borrado durante la creación»).
 
 #### Scenario: Cuerpo mal tipado de un flujo inexistente
 - **WHEN** se hace `POST /conversations` con `{flowId: "no-existe", version: "x"}`
@@ -149,7 +149,7 @@ Ninguna respuesta SHALL incluir el estado del motor (variables, intento, convers
 ### Requirement: Parámetros del listado de conversaciones
 En `GET /conversations`, un `flowId` que no cumple el patrón de `id` de la spec, un `status` distinto de `waiting`, `ended`, `failed` y `expired`, un parámetro repetido, o un `limit` u `offset` fuera de su rango SHALL responderse 400 `invalid_query`. Los parámetros desconocidos se ignoran.
 
-#### Scenario: Valores no admitidos
+#### Scenario: Parámetros del listado no admitidos
 - **WHEN** se hace por separado `GET /conversations` con `status=activa`, `flowId=Hola`, `status=ended&status=failed`, `limit=101` y `offset=-1`
 - **THEN** las cinco responden 400 `invalid_query`
 - **AND** `GET /conversations?orden=fecha` responde 200
@@ -157,7 +157,7 @@ En `GET /conversations`, un `flowId` que no cumple el patrón de `id` de la spec
 ### Requirement: Enviar una entrada
 `POST /conversations/:conversationId/inputs` SHALL recibir `{input}`, continuar la conversación con `input` como entrada del usuario y responder 200 con el resultado del avance. `input` tiene la forma de «Forma de la entrada del usuario» de `flow-engine` y las demás propiedades del cuerpo se ignoran. Un cuerpo que no es un objeto con la propiedad `input` responde 400 `invalid_request`.
 
-#### Scenario: Ejemplo de captación de leads
+#### Scenario: Entradas del ejemplo de captación de leads
 - **GIVEN** una conversación de `captacion-leads` recién creada (`revision` 1)
 - **WHEN** se envía `{input: {text: " Ana "}}`, después `{input: {text: "ana@example.com"}}` y después `{input: {choice: "grande"}}`
 - **THEN** responden 200 con `revision` 2, 3 y 4
@@ -180,7 +180,7 @@ Si el motor rechaza la entrada con `invalid_input` (no tiene la forma que pide e
 ### Requirement: Respuesta inválida del usuario
 Una respuesta que el motor admite pero da por inválida (un reintento con `reason`, o `retries_exhausted`) SHALL ser un avance aplicado como cualquier otro: suma 1 a `revision`, actualiza `updatedAt` y queda en la transcripción.
 
-#### Scenario: Email inválido en el ejemplo
+#### Scenario: Email inválido en una conversación del ejemplo
 - **GIVEN** una conversación de `captacion-leads` esperando en `pedir-email` con `revision` 2
 - **WHEN** se envía `{input: {text: "ana@"}}`
 - **THEN** la respuesta es 200 con `revision` 3, `status` `waiting`, los eventos `message` `"Ese email no parece válido, ¿lo revisas?"` e `input` con `attempt` 2 y `reason` `"invalid_format"`, y `pendingInput` igual a ese `input`
@@ -336,6 +336,14 @@ Tras cada avance aplicado de una conversación con `contactId`, la API SHALL gua
 - **WHEN** se hace `DELETE /contacts/nadie` y `DELETE /contacts/ana@example.com`
 - **THEN** la primera responde 204 y la segunda 400 `invalid_request`
 
+### Requirement: Borrado durante la creación
+Si el flujo o el contacto de una conversación se borran mientras se ejecuta el primer avance de su creación, la API SHALL descartar la creación entera (sin dejar la conversación, su transcripción ni valores de contacto) y responder 404 `flow_not_found` o 404 `conversation_not_found`, respectivamente: el borrado gana, como en «Borrar una conversación».
+
+#### Scenario: Borrar un contacto mientras se crea una conversación suya
+- **GIVEN** `faq-ia` publicado, el contacto `"c-1"` con el email `"ana@example.com"` guardado y un proveedor que resuelve el turno solo cuando el test lo indica
+- **WHEN** se hace `POST /conversations` con `{flowId: "faq-ia", contactId: "c-1"}`, mientras el proveedor no responde se hace `DELETE /contacts/c-1` y después el proveedor resuelve el turno con `{kind: "turn", text: "Hola", slots: {}, done: false, costUsd: 0.01}`
+- **THEN** el `DELETE` responde 204, la creación responde 404 `conversation_not_found`, `GET /conversations` tiene `total` 0 y ninguna fila de la base de datos contiene `ana@example.com`
+
 ### Requirement: Conversaciones de un flujo borrado
 Borrar un flujo SHALL no afectar a sus conversaciones: se pueden leer, continuar hasta que terminen o caduquen y borrar, porque su versión se conserva (`flows-api`, «Versiones inmutables»). Desde el borrado no se pueden crear conversaciones nuevas de ese flujo: responden 404 `flow_not_found`.
 
@@ -432,7 +440,7 @@ Antes de cada turno `llm`, si `costUsd` de la conversación (con los turnos ya h
 ### Requirement: Configuración del presupuesto
 `FRANCA_CONVERSATION_COST_LIMIT_USD` SHALL fijar el presupuesto por conversación en dólares: un decimal mayor que 0 y de 1000 como mucho, escrito con dígitos y como mucho un punto (`0.5`, `2`). Sin definir, vale 0.50. Con otro valor, también vacío, la API no arranca, termina con un código distinto de 0 y su mensaje nombra la variable sin repetir el valor.
 
-#### Scenario: Valores no admitidos
+#### Scenario: Presupuestos no admitidos
 - **WHEN** la API arranca por separado con `FRANCA_CONVERSATION_COST_LIMIT_USD` igual a `abc`, `0`, `-1`, `1e3`, `1001`, `""` y `" 1"`
 - **THEN** ninguna llega a escuchar, cada una termina con un código distinto de 0 y su mensaje nombra `FRANCA_CONVERSATION_COST_LIMIT_USD`
 - **AND** con `0.01` y con `1000` la API arranca
@@ -440,7 +448,7 @@ Antes de cada turno `llm`, si `costUsd` de la conversación (con los turnos ya h
 ### Requirement: Tamaño máximo del cuerpo de una conversación
 En `POST /conversations` y `POST /conversations/:conversationId/inputs`, un cuerpo de más de 65 536 bytes SHALL responderse 413 `payload_too_large` sin crear ni continuar nada, con un `message` que dice ese máximo. Una respuesta válida cabe de sobra: un `text` de 4096 unidades escrito entero con escapes `\uXXXX` ocupa menos de 25 000 bytes. Las demás rutas conservan el máximo de 1 MiB.
 
-#### Scenario: Justo en el límite y por encima
+#### Scenario: Entrada justo en el límite y por encima
 - **GIVEN** una conversación de `pregunta` esperando en `p` (`revision` 1)
 - **WHEN** se envía `{"input": {"text": "   "}}` completado con espacios al final hasta 65 537 bytes, y después lo mismo hasta 65 536 bytes
 - **THEN** la primera responde 413 `payload_too_large` y la segunda 200 con `revision` 2
@@ -464,7 +472,7 @@ Las rutas de conversaciones y contactos SHALL cumplir «Host local», «Sin acce
 ### Requirement: Base de datos no disponible en las conversaciones
 Si la base de datos no responde, en los casos de «Base de datos no disponible» de `flows-api`, las rutas de conversaciones y contactos SHALL responder 503 `database_unavailable` en menos de 10 segundos, sin datos de conexión. Si falla al guardar un avance ya ejecutado, el avance se descarta, la conversación queda como antes y la entrada se puede repetir cuando caduque la reclamación.
 
-#### Scenario: Postgres parado
+#### Scenario: Postgres parado en las conversaciones
 - **GIVEN** la API arrancada con `DATABASE_URL` apuntando a un puerto local sin servidor
 - **WHEN** se hace `POST /conversations` con `{flowId: "hola"}`, `GET /conversations`, `POST /conversations/00000000-0000-4000-8000-000000000000/inputs` con `{input: {text: "x"}}` y `DELETE /contacts/c-1`
 - **THEN** las cuatro responden 503 `database_unavailable`
@@ -498,9 +506,14 @@ La API SHALL pasar los casos `registros-llm`, `custodia-estado`, `una-continuaci
 - **THEN** los cuatro devuelven `[]`
 
 ### Requirement: Estado guardado que el motor rechaza
-Si al continuar el motor rechaza el estado guardado (`invalid_state` o `state_mismatch`), la API SHALL responder 500 `internal_error` sin detalle, sin cambiar la conversación, y registrar el `id` de la conversación y el código del rechazo.
+Si el motor rechaza el estado guardado al continuar (`invalid_state`, `state_mismatch` o `session_not_active`; un estado que no es JSON cuenta como `invalid_state`) o los valores de contacto guardados al crear (`invalid_contact`), la API SHALL responder 500 `internal_error` sin detalle, sin crear ni cambiar la conversación, y registrar el `id` de la conversación y el código del rechazo.
 
 #### Scenario: Estado alterado en la base de datos
 - **GIVEN** una conversación de `pregunta` esperando en `p` cuyo estado se ha reescrito en la base de datos como `{}`
 - **WHEN** se envía `{input: {text: "Ana"}}`
 - **THEN** la respuesta es 500 con exactamente `{message: "error interno", error: "internal_error"}`, `revision` sigue en 1 y la salida de registro contiene `invalid_state`
+
+#### Scenario: Valor de contacto alterado en la base de datos
+- **GIVEN** `saludo-contacto` publicado y el contacto `"c-1"` con el valor de `email` reescrito en la base de datos como un array de 1000 niveles de anidamiento
+- **WHEN** se hace `POST /conversations` con `{flowId: "saludo-contacto", contactId: "c-1"}`
+- **THEN** la respuesta es 500 con exactamente `{message: "error interno", error: "internal_error"}`, `GET /conversations` tiene `total` 0 y la salida de registro contiene `invalid_contact`
