@@ -109,9 +109,10 @@ El recurso conversación SHALL ser `{id, flowId, version, contactId, status, rev
 `status` SHALL ser `waiting`, `ended`, `failed` o `expired`. En `waiting`, `pendingInput` es el último evento `input` emitido; en los demás, `null`. `outcome` es el del `end` en `ended`, y `error`, el `{code, nodeId}` del fallo en `failed`; en los demás estados, ambos son `null`. `processing` es `true` mientras se procesa una entrada (ver «Una entrada a la vez»).
 
 #### Scenario: Fallo en el nodo http del ejemplo
-- **GIVEN** una conversación de `captacion-leads` esperando en `pedir-tamano`
+- **GIVEN** la API sin secretos configurados y una conversación de `captacion-leads` esperando en `pedir-tamano`
 - **WHEN** se envía `{input: {choice: "grande"}}`
-- **THEN** la respuesta es 200 con `status` `failed`, `error` `{code: "unsupported_node", nodeId: "enviar-crm"}`, `pendingInput` `null` y como único evento el `error` `unsupported_node` con `nodeId` `enviar-crm`
+- **THEN** la respuesta es 200 con `status` `failed`, `error` `{code: "missing_secret", nodeId: "enviar-crm"}`, `pendingInput` `null` y como único evento el `error` `missing_secret` con `nodeId` `enviar-crm`
+- **AND** la API no ha abierto ninguna conexión
 
 ### Requirement: El estado del motor no sale de la API
 Ninguna respuesta SHALL incluir el estado del motor (variables, intento, conversación de un `llm` ni valores de contacto). La API tampoco lo acepta del cliente: un estado que el cliente añade a su petición se ignora y la conversación continúa con el que guardó la API, de modo que `maxTurns`, `costCapUsd` y el presupuesto no se pueden reiniciar desde fuera.
@@ -159,10 +160,10 @@ En `GET /conversations`, un `flowId` que no cumple el patrón de `id` de la spec
 `POST /conversations/:conversationId/inputs` SHALL recibir `{input}`, continuar la conversación con `input` como entrada del usuario y responder 200 con el resultado del avance. `input` tiene la forma de «Forma de la entrada del usuario» de `flow-engine` y las demás propiedades del cuerpo se ignoran. Un cuerpo que no es un objeto con la propiedad `input` responde 400 `invalid_request`.
 
 #### Scenario: Entradas del ejemplo de captación de leads
-- **GIVEN** una conversación de `captacion-leads` recién creada (`revision` 1)
+- **GIVEN** la API sin secretos configurados y una conversación de `captacion-leads` recién creada (`revision` 1)
 - **WHEN** se envía `{input: {text: " Ana "}}`, después `{input: {text: "ana@example.com"}}` y después `{input: {choice: "grande"}}`
 - **THEN** responden 200 con `revision` 2, 3 y 4
-- **AND** la primera emite el `message` `"Encantado, Ana. ¿A qué email te escribimos?"` y el `input` de `pedir-email`, la segunda el `message` y el `input` de `pedir-tamano`, y la tercera deja la conversación en `failed` con `unsupported_node` en `enviar-crm`
+- **AND** la primera emite el `message` `"Encantado, Ana. ¿A qué email te escribimos?"` y el `input` de `pedir-email`, la segunda el `message` y el `input` de `pedir-tamano`, y la tercera deja la conversación en `failed` con `missing_secret` en `enviar-crm`
 
 #### Scenario: Cuerpos sin input
 - **GIVEN** una conversación de `pregunta` esperando en `p` (`revision` 1)
@@ -245,12 +246,23 @@ Una reclamación SHALL caducar a los 300 segundos de tomarse, medidos con el rel
 - **THEN** esa petición responde 409 `conversation_busy`, la transcripción no contiene `"uno"`, y `revision` y `costUsd` son los que dejó `"tres"`
 
 ### Requirement: Tiempo máximo de un avance
-Un avance SHALL pedir turnos `llm` al proveedor solo durante sus primeros 90 segundos, medidos con el reloj de la API. Pasado ese tiempo, cada turno que pida el motor se resuelve como `{kind: "failed", costUsd: 0}` sin llamar al proveedor, y el nodo sale por `onExhausted`. Un turno ya en curso no se corta: lo acota el tiempo total por turno del adaptador (60 segundos por defecto).
+Un avance SHALL pedir turnos `llm` y hacer intentos `http` solo durante sus primeros 90 segundos, según el reloj de la API. Pasado ese plazo, un turno se resuelve como `{kind: "failed", costUsd: 0}` sin llamar al proveedor, y un intento como `{kind: "timeout"}` sin resolver ni conectar (los secretos van antes: «Orden de un intento» de `http-host`). Un intento empezado dentro del plazo termina, como mucho, al acabar el plazo. Un turno en curso no se corta: lo acota el adaptador (60 s de serie).
 
 #### Scenario: Segundo llm fuera de plazo
 - **GIVEN** `doble-llm` publicado y un proveedor cuyo primer turno hace avanzar el reloj de la API 91 segundos y devuelve `{kind: "turn", text: "Hola", slots: {}, done: true, costUsd: 0.01}`
 - **WHEN** se crea una conversación de `doble-llm`
 - **THEN** el proveedor se ha llamado una vez y los eventos son el `message` `"Hola"` de `a`, `{type: "llm", nodeId: "a", turns: 1, costUsd: 0.01, reason: null}`, `{type: "llm", nodeId: "b", turns: 1, costUsd: 0, reason: "provider_error"}` y el `end` con `outcome` `"fin"`
+
+#### Scenario: Llamada http fuera de plazo
+- **GIVEN** `llm-http` publicado (`{"specVersion": "0.1", "id": "llm-http", "name": "llm y http", "start": "a", "nodes": [{"id": "a", "type": "llm", "provider": "principal", "goal": "Saluda.", "next": "h", "onExhausted": "h"}, {"id": "h", "type": "http", "request": {"method": "GET", "url": "https://api.example.com/estado"}, "retries": 0, "next": "ok", "onError": "ko"}, {"id": "ok", "type": "end", "outcome": "ok"}, {"id": "ko", "type": "end", "outcome": "ko"}]}`) y un proveedor cuyo turno hace avanzar el reloj de la API 91 segundos y devuelve `{kind: "turn", text: "Hola", slots: {}, done: true, costUsd: 0.01}`
+- **WHEN** se crea una conversación de `llm-http`
+- **THEN** los eventos son el `message` `"Hola"` de `a`, `{type: "llm", nodeId: "a", turns: 1, costUsd: 0.01, reason: null}`, `{type: "http", nodeId: "h", attempts: 1, status: null, error: "timeout"}` y el `end` con `outcome` `"ko"`
+- **AND** la API no ha pedido resolver `api.example.com` ni ha abierto ninguna conexión
+
+#### Scenario: Intento http recortado por el plazo
+- **GIVEN** `llm-http` con `timeoutMs` 8000 en `h`, publicado; `api.example.com` resolviendo a una dirección pública con un servidor del test (certificado de `api.example.com`) que acepta la petición y nunca responde; y un proveedor cuyo turno hace avanzar el reloj de la API 89,5 segundos y devuelve el turno del escenario anterior
+- **WHEN** se crea una conversación de `llm-http`
+- **THEN** el evento de `h` es `{type: "http", nodeId: "h", attempts: 1, status: null, error: "timeout"}` y el intento dura entre 500 ms y 500 ms más la tolerancia del entorno, no 8 s
 
 ### Requirement: Caducidad por inactividad
 Una conversación `waiting` SHALL caducar cuando pasan `settings.sessionTimeoutMinutes` de su versión (1440 si no lo define; como mucho 525600, un año) desde su `updatedAt`. `expiresAt` es ese instante en `waiting` y `expired`, y `null` en `ended` y `failed`. Desde entonces su `status` es `expired`, no admite entradas (409 `conversation_expired`) y se puede leer y borrar.
@@ -378,14 +390,26 @@ La API SHALL tratar como datos personales la transcripción, el estado del motor
 - **WHEN** se leen las filas de esa conversación en la base de datos
 - **THEN** ninguna contiene `stateVersion`
 
-### Requirement: Nodos http deshabilitados
-La API SHALL ejecutar los flujos sin la capacidad `http` del motor: al llegar a un nodo `http`, la conversación falla con `unsupported_node` y el `nodeId` de ese nodo, sin resolver secretos ni abrir conexiones salientes. Un flujo con nodos `http` se publica y conversa con normalidad hasta ese nodo. El host `http` de producción queda para otra feature.
+### Requirement: Nodos http en las conversaciones
+La API SHALL ejecutar los nodos `http` con su salida http (`http-host`): el motor recibe la capacidad `http` en cada avance, al crear y en cada entrada. El evento `http` llega tal cual en la respuesta del avance y en la transcripción, sin URL, cabeceras, cuerpos ni secretos. Un fallo de la llamada sigue por `onError`, y un secreto no disponible hace fallar la conversación con `missing_secret`.
+
+#### Scenario: Lead enviado al CRM del ejemplo
+- **GIVEN** el CRM del test (datos de los escenarios de `http-host`) y una conversación de `captacion-leads` a la que se ha enviado `{text: "Ana"}` y `{text: "ana@example.com"}`
+- **WHEN** se envía `{input: {choice: "grande"}}`
+- **THEN** la respuesta es 200 con `status` `ended`, `outcome` `"lead-empresa"` y los eventos `{type: "http", nodeId: "enviar-crm", attempts: 1, status: 201, error: null}`, el `message` de `fin-empresa` con `"Gracias, Ana. Alguien del equipo comercial te escribe hoy mismo."` y el `end` con `outcome` `"lead-empresa"`
+- **AND** la transcripción termina con esos tres eventos tal cual
 
 #### Scenario: Escalado en el ejemplo de FAQ
-- **GIVEN** `faq-ia` publicado y un proveedor que devuelve `{kind: "failed", costUsd: 0}`
+- **GIVEN** `FRANCA_SECRET_SOPORTE_TOKEN` = `Bearer prueba-soporte-1`, `FRANCA_HTTP_SECRET_ORIGINS` = `SOPORTE_TOKEN=https://soporte.example.com`, `soporte.example.com` resolviendo a una dirección pública con un servidor del test (certificado de `soporte.example.com`) que responde 201 con `{"id":"T-1","eco":"MARCA-ECO"}`, y `faq-ia` publicado con un proveedor que devuelve `{kind: "failed", costUsd: 0}`
 - **WHEN** se crea una conversación y se envía `{input: {text: "ana@example.com"}}`
-- **THEN** la creación queda esperando en `pedir-email` tras el evento `llm` con `reason` `"provider_error"`, y la entrada deja la conversación en `failed` con `error` `{code: "unsupported_node", nodeId: "crear-ticket"}`
-- **AND** la API no ha abierto ninguna conexión saliente
+- **THEN** la entrada responde 200 con `outcome` `"escalado"` y los eventos `{type: "http", nodeId: "crear-ticket", attempts: 1, status: 201, error: null}`, el `message` `"Hecho. Te escribiremos a ana@example.com lo antes posible."` y el `end`
+- **AND** el servidor recibió `POST /api/tickets` con `authorization` `Bearer prueba-soporte-1` y el cuerpo `{"email":"ana@example.com","subject":""}`, y ni la transcripción ni las filas de la conversación contienen `MARCA-ECO` ni `prueba-soporte-1`
+
+#### Scenario: Lead sin enviar por un destino interno
+- **GIVEN** el CRM del test con `crm.example.com` resolviendo a `169.254.169.254`, y una conversación de `captacion-leads` a la que se ha enviado `{text: "Ana"}` y `{text: "ana@example.com"}`
+- **WHEN** se envía `{input: {choice: "pequena"}}`
+- **THEN** la respuesta es 200 con `outcome` `"lead-sin-enviar"` y los eventos `{type: "http", nodeId: "enviar-crm", attempts: 1, status: null, error: "blocked"}`, el `message` `"Hemos guardado tus datos y te escribimos en breve."` y el `end`
+- **AND** la API no ha abierto ninguna conexión
 
 ### Requirement: Proveedor de Claude
 Con `FRANCA_ANTHROPIC_API_KEY` definida y no vacía, la API SHALL ofrecer la capacidad `llm` con un único proveedor, `principal`: `createAnthropicProvider` de `@franca/llm-anthropic` con un cliente de `createAnthropicClient` que recibe esa clave y `baseURL` `https://api.anthropic.com` explícitas, y las demás opciones por defecto del adaptador. Un nodo con otro `provider` falla con `llm_not_configured`.
@@ -492,7 +516,7 @@ Si la base de datos no responde, en los casos de «Base de datos no disponible»
 - **THEN** la primera responde 503 `database_unavailable` y deja `revision` en 1, y la repetición responde 200 con `status` `ended`
 
 ### Requirement: Privacidad de los registros de conversaciones
-La API SHALL no registrar las entradas del usuario, el contenido de los eventos, la transcripción, variables, valores de contacto ni peticiones o resultados `llm` más allá de lo que permite «Host de producción: registros de llm» de `flow-engine`. De un avance puede registrar el `id` de la conversación, `flowId`, `version`, el estado final y el `code` y `nodeId` de un fallo.
+La API SHALL no registrar las entradas del usuario, el contenido de los eventos, la transcripción, variables, valores de contacto, peticiones o resultados `llm` más allá de «Host de producción: registros de llm» de `flow-engine`, ni nada de una llamada `http` más allá de «Registros de la salida http» de `http-host`. De un avance puede registrar el `id` de la conversación, `flowId`, `version`, el estado final, el `code` y `nodeId` de un fallo, y los avisos de `http-host`.
 
 #### Scenario: Datos personales fuera del registro
 - **GIVEN** la salida de registro capturada, una conversación de `captacion-leads` con `contactId` `"c-1"` a la que se envía `{text: "Ana Pérez"}` y `{text: "ana@example.com"}`, y una de `faq-ia` cuyo proveedor responde con el texto `"MARCA-RESPUESTA"` y a la que se envía `{text: "MARCA-PREGUNTA"}`
@@ -508,11 +532,12 @@ Una conversación SHALL poder crearse y continuarse con cualquier versión que e
 - **THEN** responden 201 y 200, y la segunda con `status` `ended` y `outcome` `"ok"`
 
 ### Requirement: Conformidad del host de conversaciones
-La API SHALL pasar los casos `registros-llm`, `custodia-estado`, `una-continuacion` y `reclamacion-caducada` de `HOST_CONFORMANCE_CASES` de `@franca/engine/conformance` con un arnés cuyas sesiones son las conversaciones de la API y cuyo `llm` es la capacidad de la API con el proveedor del caso como `principal`. Los casos de `http` quedan para el host `http` de producción.
+La API SHALL pasar todos los casos de `HOST_CONFORMANCE_CASES` de `@franca/engine/conformance` con un arnés cuyas sesiones son las conversaciones de la API, cuyo `llm` es la capacidad de la API con el proveedor del caso como `principal` y cuyo `http` es la salida http de la API (`http-host`) con el resolutor, los destinos permitidos, los secretos y el registro del arnés. Sus servidores son locales y reales: la suite no sale a Internet ni necesita privilegios, en Linux y en macOS.
 
 #### Scenario: Suite de conformidad
-- **WHEN** se ejecutan esos cuatro casos contra la API y Postgres reales
-- **THEN** los cuatro devuelven `[]`
+- **WHEN** se ejecutan contra la API y Postgres reales todos los casos de `HOST_CONFORMANCE_CASES`
+- **THEN** todos devuelven `[]`
+- **AND** el test falla si algún caso del catálogo no se ha ejecutado (un caso nuevo del motor entra solo)
 
 ### Requirement: Estado guardado que el motor rechaza
 Si el motor rechaza el estado guardado al continuar (`invalid_state`, `state_mismatch` o `session_not_active`; un estado que no es JSON cuenta como `invalid_state`) o los valores de contacto guardados al crear (`invalid_contact`), la API SHALL responder 500 `internal_error` sin detalle, sin crear ni cambiar la conversación, y registrar el `id` de la conversación y el código del rechazo.

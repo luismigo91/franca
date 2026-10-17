@@ -2,6 +2,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { finishing, keepTalking } from './helpers/conversations-llm.js';
 import { captureOutput } from './helpers/output.js';
 import { dobleLlm, faq, pregunta, startConversationsContext, type ConversationsContext } from './helpers/conversations.js';
+import { llmHttp } from './helpers/http-flows.js';
+import { P, startWorld } from './helpers/http-world.js';
 
 describe('nodos llm de las conversaciones (e2e)', () => {
   let ctx: ConversationsContext;
@@ -26,6 +28,45 @@ describe('nodos llm de las conversaciones (e2e)', () => {
       { type: 'llm', nodeId: 'b', turns: 1, costUsd: 0, reason: 'provider_error' },
       { type: 'end', nodeId: 'fin', outcome: 'fin' },
     ]);
+  });
+
+  it('Llamada http fuera de plazo', async () => {
+    await ctx.publish(llmHttp());
+    ctx.testApp.llm.use(() => {
+      ctx.testApp.clock.advance(91_000);
+      return finishing(0.01, 'Hola');
+    });
+    const res = await ctx.conv.create({ flowId: 'llm-http' }).expect(201);
+    expect(res.body.events).toEqual([
+      { type: 'message', nodeId: 'a', content: [{ kind: 'text', text: 'Hola' }], typingDelayMs: 600 },
+      { type: 'llm', nodeId: 'a', turns: 1, costUsd: 0.01, reason: null },
+      { type: 'http', nodeId: 'h', attempts: 1, status: null, error: 'timeout' },
+      { type: 'end', nodeId: 'ko', outcome: 'ko' },
+    ]);
+    expect(ctx.testApp.network.resolved()).not.toContain('api.example.com');
+    expect(ctx.testApp.network.connections()).toEqual([]);
+  });
+
+  it('Intento http recortado por el plazo', async () => {
+    const world = await startWorld();
+    try {
+      world.network.resolve('api.example.com', [P]);
+      // Acepta la petición y nunca responde.
+      await world.serveAt(P, 443, { kind: 'stall-headers' }, { tls: { hostname: 'api.example.com', authority: 'trusted' } });
+      await world.ctx.publish(llmHttp({ timeoutMs: 8000 }));
+      world.ctx.testApp.llm.use(() => {
+        world.ctx.testApp.clock.advance(89_500);
+        return finishing(0.01, 'Hola');
+      });
+      const started = Date.now();
+      const res = await world.ctx.conv.create({ flowId: 'llm-http' }).expect(201);
+      const elapsed = Date.now() - started;
+      expect(res.body.events).toContainEqual({ type: 'http', nodeId: 'h', attempts: 1, status: null, error: 'timeout' });
+      expect(elapsed).toBeGreaterThanOrEqual(500);
+      expect(elapsed).toBeLessThanOrEqual(500 + 1500);
+    } finally {
+      await world.close();
+    }
   });
 
   it('Coste acumulado', async () => {

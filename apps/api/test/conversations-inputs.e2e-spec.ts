@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { keepTalking } from './helpers/conversations-llm.js';
-import { faq, hola, leads, pregunta, startConversationsContext, type ConversationsContext } from './helpers/conversations.js';
+import { dumpConversationTables, faq, hola, leads, pregunta, startConversationsContext, type ConversationsContext } from './helpers/conversations.js';
+import { CRM_VARIABLES, startWorld } from './helpers/http-world.js';
 
 const NO_EXISTE = '00000000-0000-4000-8000-000000000000';
 
@@ -71,7 +72,7 @@ describe('entradas y transcripción (e2e)', () => {
       ['message', 'pedir-tamano'],
       ['input', 'pedir-tamano'],
     ]);
-    expect(third.conversation).toMatchObject({ status: 'failed', error: { code: 'unsupported_node', nodeId: 'enviar-crm' } });
+    expect(third.conversation).toMatchObject({ status: 'failed', error: { code: 'missing_secret', nodeId: 'enviar-crm' } });
   });
 
   it('Cuerpos sin input', async () => {
@@ -221,15 +222,72 @@ describe('entradas y transcripción (e2e)', () => {
     expect(res.text).not.toContain('MARCA-RECHAZO');
   });
 
+  it('Lead enviado al CRM del ejemplo', async () => {
+    const world = await startWorld({ variables: CRM_VARIABLES });
+    try {
+      await world.crm();
+      const id = await world.leadsReady();
+      const res = await world.ctx.conv.send(id, { input: { choice: 'grande' } }).expect(200);
+      const events = [
+        { type: 'http', nodeId: 'enviar-crm', attempts: 1, status: 201, error: null },
+        { type: 'message', nodeId: 'fin-empresa', content: [{ kind: 'text', text: 'Gracias, Ana. Alguien del equipo comercial te escribe hoy mismo.' }], typingDelayMs: 600 },
+        { type: 'end', nodeId: 'fin-empresa', outcome: 'lead-empresa' },
+      ];
+      expect(res.body.conversation).toMatchObject({ status: 'ended', outcome: 'lead-empresa' });
+      expect(res.body.events).toEqual(events);
+      const items = (await world.ctx.conv.transcript(id, '?limit=100').expect(200)).body.items;
+      expect(items.slice(-3).map((item: any) => item.event)).toEqual(events);
+    } finally {
+      await world.close();
+    }
+  });
+
   it('Escalado en el ejemplo de FAQ', async () => {
-    const outbound = vi.spyOn(globalThis, 'fetch');
-    await ctx.publish(faq());
-    ctx.testApp.llm.use({ kind: 'failed', costUsd: 0 });
-    const created = await ctx.start('faq-ia');
-    expect(created.body.conversation).toMatchObject({ status: 'waiting', pendingInput: { nodeId: 'pedir-email' } });
-    expect(created.body.events).toContainEqual({ type: 'llm', nodeId: 'asistente', turns: 1, costUsd: 0, reason: 'provider_error' });
-    const sent = await ctx.say(created.id, { text: 'ana@example.com' });
-    expect(sent.conversation).toMatchObject({ status: 'failed', error: { code: 'unsupported_node', nodeId: 'crear-ticket' } });
-    expect(outbound).not.toHaveBeenCalled();
+    const world = await startWorld({ variables: { FRANCA_SECRET_SOPORTE_TOKEN: 'Bearer prueba-soporte-1', FRANCA_HTTP_SECRET_ORIGINS: 'SOPORTE_TOKEN=https://soporte.example.com' } }); // gitleaks:allow
+    try {
+      world.network.resolve('soporte.example.com', ['1.2.3.4']);
+      const server = await world.serveAt('1.2.3.4', 443, { kind: 'respond', status: 201, body: '{"id":"T-1","eco":"MARCA-ECO"}' }, { tls: { hostname: 'soporte.example.com', authority: 'trusted' } });
+      await world.ctx.publish(faq());
+      world.ctx.testApp.llm.use({ kind: 'failed', costUsd: 0 });
+      const created = await world.ctx.start('faq-ia');
+      const sent = await world.ctx.conv.send(created.id, { input: { text: 'ana@example.com' } }).expect(200);
+      expect(sent.body.conversation).toMatchObject({ status: 'ended', outcome: 'escalado' });
+      expect(sent.body.events).toEqual([
+        { type: 'http', nodeId: 'crear-ticket', attempts: 1, status: 201, error: null },
+        { type: 'message', nodeId: 'fin-escalado', content: [{ kind: 'text', text: 'Hecho. Te escribiremos a ana@example.com lo antes posible.' }], typingDelayMs: 400 },
+        { type: 'end', nodeId: 'fin-escalado', outcome: 'escalado' },
+      ]);
+      const [request] = server.received();
+      expect(server.received()).toHaveLength(1);
+      expect(request).toMatchObject({ method: 'POST', path: '/api/tickets', body: '{"email":"ana@example.com","subject":""}' });
+      expect(request!.headers['authorization']).toBe('Bearer prueba-soporte-1');
+      const transcript = await world.ctx.conv.transcript(created.id, '?limit=100').expect(200);
+      const rows = await dumpConversationTables(world.ctx.prisma);
+      for (const text of [transcript.text, rows]) {
+        expect(text).not.toContain('MARCA-ECO');
+        expect(text).not.toContain('prueba-soporte-1');
+      }
+    } finally {
+      await world.close();
+    }
+  });
+
+  it('Lead sin enviar por un destino interno', async () => {
+    const world = await startWorld({ variables: CRM_VARIABLES });
+    try {
+      await world.crm();
+      world.network.resolve('crm.example.com', ['169.254.169.254']);
+      const id = await world.leadsReady();
+      const res = await world.ctx.conv.send(id, { input: { choice: 'pequena' } }).expect(200);
+      expect(res.body.conversation).toMatchObject({ status: 'ended', outcome: 'lead-sin-enviar' });
+      expect(res.body.events).toEqual([
+        { type: 'http', nodeId: 'enviar-crm', attempts: 1, status: null, error: 'blocked' },
+        { type: 'message', nodeId: 'aviso-error', content: [{ kind: 'text', text: 'Hemos guardado tus datos y te escribimos en breve.' }], typingDelayMs: 600 },
+        { type: 'end', nodeId: 'aviso-error', outcome: 'lead-sin-enviar' },
+      ]);
+      expect(world.network.connections()).toEqual([]);
+    } finally {
+      await world.close();
+    }
   });
 });

@@ -1,0 +1,22 @@
+[
+  {
+    "id": "rejectUnauthorizedOnly",
+    "file": "src/http-host/transport.ts",
+    "find": "const peerVerification = () => ({ rejectUnauthorized: VERIFY_PEER });",
+    "replace": "const peerVerification = () => ({});",
+    "tests": [
+      "test/conversations-conformance.e2e-spec.ts",
+      "test/http-host-tls-timing.e2e-spec.ts"
+    ]
+  },
+  {
+    "id": "authorizedCheckOnly",
+    "file": "src/http-host/transport.ts",
+    "find": "const isPeerVerified = (socket: TLSSocket): boolean => !VERIFY_PEER || socket.authorized === true;",
+    "replace": "const isPeerVerified = (_socket: TLSSocket): boolean => true;",
+    "tests": [
+      "test/conversations-conformance.e2e-spec.ts",
+      "test/http-host-tls-timing.e2e-spec.ts"
+    ]
+  }
+]

@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { continueSession, startSession, type AdvanceResult, type EngineEvent, type JsonValue, type LlmCapability, type SessionResult, type SessionState } from '@franca/engine';
+import { continueSession, startSession, type AdvanceResult, type EngineEvent, type EngineHost, type JsonValue, type LlmCapability, type SessionResult, type SessionState } from '@franca/engine';
 import type { Flow } from '@franca/spec';
 import { CLOCK, type Clock } from '../flows/clock.js';
+import { HTTP_HOST } from '../http-host/http-host.module.js';
+import type { HttpHost } from '../http-host/http-host.js';
 import { toPage, type Page } from '../flows/flow-resources.js';
 import { parseFlowId } from '../flows/flow-params.js';
 import { etagOf, matchesIfMatch } from '../flows/if-match.js';
@@ -15,7 +17,7 @@ import { parseCreateBody, parseInputBody } from './conversation-body.js';
 import { parseConversationId, parseContactId } from './conversation-params.js';
 import { parseConversationListQuery } from './conversation-query.js';
 import { toConversationResource, toConversationSummary, toTranscriptItem, type ConversationResource, type ConversationSummary, type TranscriptItem } from './conversation-resources.js';
-import { hasExpired, isClaimActive } from './conversation-timing.js';
+import { hasExpired, isClaimActive, LLM_WINDOW_MS } from './conversation-timing.js';
 import { CONVERSATIONS_CONFIG, type ConversationsConfig } from './conversations-config.js';
 import { ConversationsRepository, type LockedRow } from './conversations.repository.js';
 import { buildEngineHost } from './engine-host.js';
@@ -63,6 +65,7 @@ export class ConversationsService {
     @Inject(CLOCK) private readonly clock: Clock,
     @Inject(CONVERSATIONS_CONFIG) private readonly config: ConversationsConfig,
     @Inject(LLM_PROVIDERS) private readonly providers: ReadonlyMap<string, LlmCapability>,
+    @Inject(HTTP_HOST) private readonly http: HttpHost,
   ) {}
 
   /**
@@ -91,8 +94,8 @@ export class ConversationsService {
       for (const [name, value] of await this.repository.readContactValues(contactId)) stored.set(name, value);
     }
     const flow: unknown = JSON.parse(definition);
-    const advance = this.newAdvance(0);
-    const result = await startSession({ flow, contact: Object.fromEntries(stored) }, buildEngineHost(advance.capability));
+    const { advance, host } = this.newAdvance(id, 0);
+    const result = await startSession({ flow, contact: Object.fromEntries(stored) }, host);
     const run = this.accepted(id, flow as Flow, result, advance);
 
     const now = this.clock.now();
@@ -208,8 +211,8 @@ export class ConversationsService {
       state = undefined;
     }
     const flow: unknown = JSON.parse(claim.definition);
-    const advance = this.newAdvance(row.costUsd);
-    const result = await continueSession({ flow, state, input }, buildEngineHost(advance.capability));
+    const { advance, host } = this.newAdvance(id, row.costUsd);
+    const result = await continueSession({ flow, state, input }, host);
     return this.accepted(id, flow as Flow, result, advance);
   }
 
@@ -245,14 +248,16 @@ export class ConversationsService {
 
   // ---- Piezas ----
 
-  private newAdvance(priorCostUsd: number): AdvanceLlm {
-    return createAdvanceLlm({
-      providers: this.providers,
-      now: () => this.clock.now().getTime(),
-      startedAtMs: this.clock.now().getTime(),
-      budgetUsd: this.config.costLimitUsd,
-      priorCostUsd,
-    });
+  /**
+   * El avance y el host del motor. `llm` y `http` comparten **un** inicio de plazo (`startedAtMs`): los 90 s de
+   * `LLM_WINDOW_MS` valen para los turnos y para los intentos.
+   */
+  private newAdvance(id: string, priorCostUsd: number): { advance: AdvanceLlm; host: EngineHost } {
+    const now = () => this.clock.now().getTime();
+    const startedAtMs = now();
+    const advance = createAdvanceLlm({ providers: this.providers, now, startedAtMs, budgetUsd: this.config.costLimitUsd, priorCostUsd });
+    const http = this.http.forAdvance({ conversationId: id, deadlineMs: startedAtMs + LLM_WINDOW_MS, now });
+    return { advance, host: buildEngineHost(advance.capability, http) };
   }
 
   /** El resultado del motor si lo aceptó; si no, el error del contrato (y el registro de un rechazo de lo guardado). */

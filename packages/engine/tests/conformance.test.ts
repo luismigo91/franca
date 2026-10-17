@@ -7,7 +7,7 @@ import { effectiveSpec } from './helpers/spec-text.js';
 
 // La spec tal como queda con los cambios activos aplicados: el test vale antes de archivar (el requisito solo
 // está en el delta) y después (ya está en la vigente).
-const { requirements: spec, text: specText } = effectiveSpec('flow-engine');
+const { requirements: spec, blocks: specBlocks } = effectiveSpec('flow-engine');
 
 describe('catálogo ↔ spec', () => {
   it('hay 21 casos con id único en kebab-case', () => {
@@ -39,16 +39,18 @@ describe('catálogo ↔ spec', () => {
 
 describe('CONFORMANCE_INTERNAL_ADDRESSES', () => {
   it('contiene todas las direcciones de «Dominios que resuelven a direcciones internas»', () => {
-    const start = specText.indexOf('#### Scenario: Dominios que resuelven a direcciones internas');
-    const given = specText.slice(start).split('\n').find((line) => line.startsWith('- **GIVEN**'))!;
+    // El bloque efectivo del requisito: con un cambio activo es el del delta, no la primera aparición en el texto.
+    const block = specBlocks.get('Host de producción: destinos de red')!;
+    const start = block.indexOf('#### Scenario: Dominios que resuelven a direcciones internas');
+    const given = block.slice(start).split('\n').find((line) => line.startsWith('- **GIVEN**'))!;
     const fromSpec = [...given.matchAll(/`([^`]+)`/g)].map((m) => m[1]!);
-    expect(fromSpec).toHaveLength(25);
+    expect(fromSpec).toHaveLength(32);
     for (const address of fromSpec) expect(CONFORMANCE_INTERNAL_ADDRESSES, address).toContain(address);
   });
 
   it('no repite direcciones', () => {
     expect(new Set(CONFORMANCE_INTERNAL_ADDRESSES).size).toBe(CONFORMANCE_INTERNAL_ADDRESSES.length);
-    expect(CONFORMANCE_INTERNAL_ADDRESSES).toHaveLength(25);
+    expect(CONFORMANCE_INTERNAL_ADDRESSES).toHaveLength(32);
   });
 
   it('incluye loopback IPv4 e IPv6, que el arnés no puede usar para sus servidores', () => {

@@ -4,14 +4,17 @@ import type { AddressInfo } from 'node:net';
 import { AppModule } from './app.module.js';
 import { ConfigError, loadConfig, type AppConfig } from './config/app-config.js';
 import { loadConversationsConfig } from './conversations/conversations-config.js';
+import { loadHttpHostConfig } from './http-host/http-host-config.js';
 import { configureApp } from './http/app-setup.js';
 
 /** Lee la configuración antes de crear nada: con una configuración inválida no se abre ningún puerto. */
-function readConfig(): AppConfig | undefined {
+async function readConfig(): Promise<AppConfig | undefined> {
   try {
     const config = loadConfig(process.env);
     // Un presupuesto inválido impide arrancar antes de abrir el puerto, como `HOST`.
     loadConversationsConfig(process.env);
+    // Igual los secretos, sus orígenes y los destinos permitidos de la salida http (el origen se prueba contra el motor).
+    await loadHttpHostConfig(process.env);
     return config;
   } catch (error) {
     if (!(error instanceof ConfigError)) throw error;
@@ -27,7 +30,7 @@ function formatAddress({ address, port }: AddressInfo): string {
 }
 
 async function bootstrap(): Promise<void> {
-  const config = readConfig();
+  const config = await readConfig();
   if (!config) return;
   const app = await NestFactory.create(AppModule, { bodyParser: false });
   configureApp(app);

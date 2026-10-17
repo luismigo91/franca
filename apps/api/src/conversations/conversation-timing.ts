@@ -2,7 +2,7 @@ import type { Flow } from '@franca/spec';
 
 /** Milisegundos que dura una reclamación (D4): cubre el peor avance (~150 s) con margen y desbloquea una API reiniciada. */
 export const CLAIM_TTL_MS = 300_000;
-/** Milisegundos desde el inicio de un avance durante los que se piden turnos `llm` al proveedor. */
+/** Milisegundos desde el inicio de un avance durante los que se piden turnos `llm` al proveedor y se hacen intentos `http`. */
 export const LLM_WINDOW_MS = 90_000;
 /** Plazo de inactividad por defecto cuando el flujo no define `settings.sessionTimeoutMinutes`: un día. */
 export const DEFAULT_SESSION_TIMEOUT_MINUTES = 1440;
