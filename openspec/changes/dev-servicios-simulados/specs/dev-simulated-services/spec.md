@@ -166,7 +166,7 @@ La demo SHALL esperar hasta 120 segundos a que la API local responda y entonces 
 - **THEN** su salida dice que el `id` está reservado y nombra `pnpm demo:seed`, y el CRM simulado, la API y la web siguen escuchando
 
 ### Requirement: Parada de la demo
-Cuando la demo recibe `SIGINT` o `SIGTERM`, o cuando el CRM simulado termina, SHALL parar todos los procesos que arrancó y terminar. No deja nada escuchando en los puertos 3000, 3001 ni 4010.
+Cuando la demo recibe `SIGINT` o `SIGTERM`, cuando el CRM simulado termina o cuando termina lo que arrancó de `pnpm dev` (la API y la web), SHALL parar todos los procesos que arrancó y terminar. En los dos últimos casos termina con un código distinto de 0 y su salida dice qué se ha parado. No deja nada escuchando en los puertos 3000, 3001 ni 4010.
 
 #### Scenario: Parada con Ctrl+C
 - **GIVEN** la demo en marcha
@@ -177,3 +177,8 @@ Cuando la demo recibe `SIGINT` o `SIGTERM`, o cuando el CRM simulado termina, SH
 - **GIVEN** la demo en marcha
 - **WHEN** el proceso del CRM simulado termina
 - **THEN** la demo para la API y la web, termina con un código distinto de 0 y su salida dice que el CRM simulado se ha parado
+
+#### Scenario: Arranque de la API y la web que termina
+- **GIVEN** la demo en marcha
+- **WHEN** termina el proceso que la demo arrancó para hacer lo mismo que `pnpm dev`
+- **THEN** la demo para el CRM simulado, termina con un código distinto de 0 y su salida dice que `pnpm dev` ha terminado
