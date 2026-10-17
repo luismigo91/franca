@@ -119,6 +119,7 @@ model Conversation {
   entries          ConversationEntry[]
 
   @@index([updatedAt(sort: Desc), id])
+  @@index([flowId, updatedAt(sort: Desc), id])
   @@index([contactId])
   @@map("conversations")
 }
