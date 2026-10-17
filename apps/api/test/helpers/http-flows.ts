@@ -70,11 +70,12 @@ export function llmHttp(options: { timeoutMs?: number; secret?: string } = {}): 
 }
 
 /** `captacion-leads` con la `url` de `enviar-crm` cambiada y/o cabeceras añadidas. */
-export function leadsWith(patch: { url?: string; headers?: Record<string, HeaderValue> }): any {
+export function leadsWith(patch: { url?: string; headers?: Record<string, HeaderValue>; timeoutMs?: number }): any {
   const flow = leads();
   const node = flow.nodes.find((candidate: { id: string }) => candidate.id === 'enviar-crm');
   if (patch.url) node.request.url = patch.url;
   if (patch.headers) node.request.headers = { ...node.request.headers, ...patch.headers };
+  if (patch.timeoutMs !== undefined) node.timeoutMs = patch.timeoutMs;
   return flow;
 }
 

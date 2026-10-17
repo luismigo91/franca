@@ -35,6 +35,8 @@ export interface TestServer {
   received(): readonly ReceivedRequest[];
   /** Conexiones TCP aceptadas (también las que no llegaron a enviar una petición HTTP, como un TLS fallido). */
   connections(): number;
+  /** Conexiones TCP que siguen abiertas ahora mismo. */
+  openConnections(): number;
   close(): Promise<void>;
 }
 
@@ -197,6 +199,7 @@ export class TestServers {
       port,
       received: () => received,
       connections: () => connections,
+      openConnections: () => sockets.size,
       close: () => this.closeOne({ server, sockets, timers }),
     };
   }
