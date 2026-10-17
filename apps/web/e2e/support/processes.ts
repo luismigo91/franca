@@ -81,19 +81,25 @@ export function descendants(pid: number): number[] {
   return all;
 }
 
+/** Las direcciones `host:puerto` de la salida de `lsof` (la penúltima columna, sin la cabecera). */
+function parseLsof(out: string): string[] {
+  return out
+    .split('\n')
+    .slice(1)
+    .filter((line) => line.trim() !== '')
+    .map((line) => line.trim().split(/\s+/).slice(-2, -1)[0] ?? '')
+    .sort();
+}
+
 /** Los puertos TCP en escucha de un conjunto de procesos (con `lsof`), o `null` si `lsof` no está. */
 export function listeningPorts(pids: number[]): string[] | null {
   try {
-    const out = execFileSync('lsof', ['-nP', '-iTCP', '-sTCP:LISTEN', '-a', '-p', pids.join(',')], { encoding: 'utf8' });
-    return out
-      .split('\n')
-      .slice(1)
-      .filter((line) => line.trim() !== '')
-      .map((line) => line.trim().split(/\s+/).slice(-2, -1)[0] ?? '')
-      .sort();
+    return parseLsof(execFileSync('lsof', ['-nP', '-iTCP', '-sTCP:LISTEN', '-a', '-p', pids.join(',')], { encoding: 'utf8' }));
   } catch (error) {
-    // `lsof` sale con 1 cuando no hay nada que listar.
-    if ((error as { status?: number }).status === 1) return [];
+    // `lsof` sale con 1 si no hay nada que listar y, en Linux, también si alguno de los pids ya terminó (un hijo efímero
+    // de `next dev`), aunque haya encontrado los demás: lo encontrado sigue en su salida.
+    const failure = error as { status?: number; stdout?: string };
+    if (failure.status === 1) return parseLsof(failure.stdout ?? '');
     return null;
   }
 }
