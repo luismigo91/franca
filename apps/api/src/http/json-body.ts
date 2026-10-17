@@ -1,6 +1,7 @@
 import { createParamDecorator, type ExecutionContext } from '@nestjs/common';
 import { raw, type NextFunction, type Request, type RequestHandler, type Response } from 'express';
-import { ApiException } from './api-error.js';
+import { ApiException, payloadTooLarge } from './api-error.js';
+import { bodyLimitFor, MAX_CONVERSATION_BODY_BYTES } from './body-limits.js';
 import { MAX_BODY_BYTES } from './limits.js';
 
 /** El cuerpo ya decodificado: ausente, o el valor que dio `JSON.parse`. */
@@ -46,9 +47,9 @@ function isUncompressed(encoding: string | undefined): boolean {
 }
 
 /** Errores de body-parser a errores del contrato; los demás pasan tal cual (acabarán en 500). */
-function mapBodyParserError(error: unknown): unknown {
+function mapBodyParserError(error: unknown, limitBytes: number): unknown {
   const type = (error as { type?: unknown } | null)?.type;
-  if (type === 'entity.too.large') return new ApiException('payload_too_large');
+  if (type === 'entity.too.large') return payloadTooLarge(limitBytes);
   if (type === 'request.aborted' || type === 'request.size.invalid') return new ApiException('invalid_json');
   return error;
 }
@@ -70,18 +71,23 @@ function parseBody(request: Request, encoding: string | undefined): ParsedBody {
 }
 
 /**
- * Lee el cuerpo en bruto (como mucho `MAX_BODY_BYTES`, contados tal como llegan) y lo decodifica como JSON.
- * Orden de errores: 413, 415 (compresión, tipo de medio o `charset`) y 400 `invalid_json` (no UTF-8 o no JSON).
- * `Content-Encoding` se aparta antes de leer para que el límite cuente los bytes comprimidos y el 413 salga antes
- * que el 415. Sin cuerpo no hay nada que comprobar. El valor lo entrega `@JsonBody()`.
+ * Lee el cuerpo en bruto (como mucho el máximo de su ruta, `bodyLimitFor`: 1 MiB, o 64 KiB en las dos rutas `POST` de
+ * conversaciones; contado tal como llega) y lo decodifica como JSON. Orden de errores: 413, 415 (compresión, tipo de
+ * medio o `charset`) y 400 `invalid_json` (no UTF-8 o no JSON). `Content-Encoding` se aparta antes de leer para que el
+ * límite cuente los bytes comprimidos y el 413 salga antes que el 415. Sin cuerpo no hay nada que comprobar. El valor lo
+ * entrega `@JsonBody()`.
  */
 export function readJsonBody(): RequestHandler {
-  const read = raw({ type: () => true, limit: MAX_BODY_BYTES, inflate: false });
+  const readers = new Map<number, RequestHandler>(
+    [MAX_BODY_BYTES, MAX_CONVERSATION_BODY_BYTES].map((limit) => [limit, raw({ type: () => true, limit, inflate: false })]),
+  );
   return (request: Request, response: Response, next: NextFunction) => {
+    const limit = bodyLimitFor(request.method, request.path);
+    const read = readers.get(limit)!;
     const encoding = request.headers['content-encoding'];
     delete request.headers['content-encoding'];
     read(request, response, (error?: unknown) => {
-      if (error) return next(mapBodyParserError(error));
+      if (error) return next(mapBodyParserError(error, limit));
       try {
         BODIES.set(request, parseBody(request, encoding));
       } catch (failure) {
