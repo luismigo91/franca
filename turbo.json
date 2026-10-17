@@ -1,8 +1,12 @@
 {
   "$schema": "https://turborepo.com/schema.json",
   "tasks": {
+    "db:generate": {
+      "inputs": ["prisma/schema.prisma", "prisma.config.ts"],
+      "outputs": ["src/generated/prisma/**"]
+    },
     "build": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "db:generate"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
     },
     "dev": {
@@ -10,17 +14,25 @@
       "cache": false,
       "persistent": true
     },
+    "@franca/api#dev": {
+      "dependsOn": ["^build", "db:generate"],
+      "cache": false,
+      "persistent": true,
+      "passThroughEnv": ["DATABASE_URL", "HOST", "PORT"]
+    },
     "lint": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build", "db:generate"]
     },
     "typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build", "db:generate"]
     },
     "test": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build", "db:generate"]
     },
     "test:e2e": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build", "build", "db:generate"],
+      "cache": false,
+      "passThroughEnv": ["DATABASE_URL"]
     },
     "validate": {
       "dependsOn": ["build"]
