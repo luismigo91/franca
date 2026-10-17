@@ -77,16 +77,16 @@ export interface ConformanceHarness extends HostConformanceHarness {
   dispose(): void;
 }
 
-/**
- * El arnés de conformidad de `@franca/engine/conformance` contra la API y Postgres reales. `sessions(provider)` fija el
- * proveedor guionizado y devuelve las conversaciones por HTTP; `llm(provider)` es la composición de producción
- * (`createAdvanceLlm`, el reloj y el presupuesto de la API) con el proveedor del caso como `principal`.
- */
 /** Puerto virtual en el que no escucha nada y que ningún par permitido usa. */
 const BLOCKED_PORT = 29_999;
 /** Los puertos virtuales de los servidores y las direcciones de TEST-NET-2 (`198.51.100.0/24`: no es global ni está en las internas del motor). */
 const FIRST_VIRTUAL_PORT = 21_000;
 
+/**
+ * El arnés de conformidad de `@franca/engine/conformance` contra la API y Postgres reales. `sessions(provider)` fija el
+ * proveedor guionizado y devuelve las conversaciones por HTTP; `llm(provider)` es la composición de producción
+ * (`createAdvanceLlm`, el reloj y el presupuesto de la API) con el proveedor del caso como `principal`.
+ */
 export function createConversationsHarness(ctx: ConversationsContext, output: ResettableOutput): ConformanceHarness {
   const { llm: scripted, clock, network } = ctx.testApp;
   const servers = new TestServers();
