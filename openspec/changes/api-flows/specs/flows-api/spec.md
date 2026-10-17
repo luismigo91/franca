@@ -552,7 +552,7 @@ Una versión SHALL quedar igual para siempre: ningún endpoint la modifica ni la
 - **THEN** las tres responden 404 `flow_not_found`
 
 ### Requirement: Base de datos no disponible
-Si la base de datos no responde (no acepta conexiones, las acepta y no contesta, o una consulta tarda más de 4 segundos, también si espera un bloqueo, o el servidor corta la conexión a mitad de una consulta), los endpoints que leen o escriben flujos SHALL responder 503 `database_unavailable` en menos de 10 segundos, sin datos de conexión en la respuesta ni en los registros. `POST /flows/validate` sigue respondiendo con normalidad.
+Si la base de datos no responde (no acepta conexiones por el motivo que sea, las acepta y no contesta, las corta a mitad de una consulta o una consulta no termina: Postgres la corta a los 3,5 segundos y el cliente deja de esperar a los 4), los endpoints que leen o escriben flujos SHALL responder 503 `database_unavailable` en menos de 10 segundos, sin datos de conexión en respuesta ni registros. `POST /flows/validate` responde con normalidad.
 
 #### Scenario: Postgres parado
 - **GIVEN** la API arrancada con `DATABASE_URL` apuntando a un puerto local sin servidor
@@ -588,6 +588,16 @@ Si la base de datos no responde (no acepta conexiones, las acepta y no contesta,
 - **GIVEN** `hola` creado y un Postgres que, tras aceptar `BEGIN`, deja de contestar y de transmitir en cuanto la API pide bloquear la fila
 - **WHEN** se hace `PUT /flows/hola` con `If-Match: *` y `POST /flows/hola/versions`
 - **THEN** ambas responden 503 `database_unavailable`, cada una en menos de 10 segundos (el corte de la consulta y el `ROLLBACK` sobre la conexión muda suman menos de 10 segundos)
+
+#### Scenario: Demasiadas conexiones
+- **GIVEN** la API arrancada con `DATABASE_URL` de un rol de Postgres con `CONNECTION LIMIT 0`
+- **WHEN** se hace `GET /flows` y `POST /flows` con `hola`
+- **THEN** ambas responden 503 `database_unavailable`, no 500
+
+#### Scenario: Servidor inalcanzable
+- **GIVEN** la API arrancada con `DATABASE_URL` apuntando a una dirección a la que no hay ruta (`0.0.0.1`)
+- **WHEN** se hace `GET /flows` y `POST /flows` con `hola`
+- **THEN** ambas responden 503 `database_unavailable` en menos de 10 segundos, no 500
 
 #### Scenario: Transacción caducada por el propio código
 - **GIVEN** una operación de la API cuya transacción interactiva supera su tiempo máximo antes de su última consulta (provocado en el test)
