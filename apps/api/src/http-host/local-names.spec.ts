@@ -43,6 +43,8 @@ describe('readLocalNames', () => {
     'crm.franca.test=localhost',
     'crm.franca.test:4010=127.0.0.1',
     'crm.franca.test/x=127.0.0.1',
+    // Termina en .test y el motor lo admite como parte de una url (host más ruta), pero no es un host escrito como su serialización.
+    'crm.franca.test/x.test=127.0.0.1',
     'crm.franca.test=127.0.0.1, otro.franca.test=127.0.0.1',
     ' ',
   ];
