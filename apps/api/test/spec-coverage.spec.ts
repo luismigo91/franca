@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { effectiveSpec } from './helpers/spec-text.js';
 
 /**
- * Cada `#### Scenario` de las dos capacidades de `api-flows` (el delta mientras el cambio esté activo; la spec vigente
- * después de archivarlo) tiene un `it` con exactamente su título: `flows-api` en `apps/api`, y `flow-validation` en
- * `packages/spec/tests/` o en el test de paridad del motor. Y ningún título de escenario se repite en una capacidad.
+ * Cada `#### Scenario` de las capacidades `flows-api` y `conversations-api` (el delta mientras el cambio esté activo; la
+ * spec vigente después de archivarlo) tiene un `it` con exactamente su título en `apps/api`, y el de `flow-validation`
+ * en `packages/spec/tests/` o en el test de paridad del motor. Y ningún título de escenario se repite en una capacidad.
  */
 function sources(dir: URL, suffix: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -26,6 +26,7 @@ const validationCode = [...sources(new URL('../../../packages/spec/tests/', impo
 
 const capabilities = [
   { name: 'flows-api', code: apiCode, minimum: { requirements: 30, scenarios: 95 } },
+  { name: 'conversations-api', code: apiCode, minimum: { requirements: 49, scenarios: 71 } },
   { name: 'flow-validation', code: validationCode, minimum: { requirements: 8, scenarios: 34 } },
 ] as const;
 
