@@ -8,6 +8,7 @@
  */
 import schema from '../flow.schema.json' with { type: 'json' };
 import { exceedsFlowDepth, MAX_FLOW_DEPTH } from './depth.js';
+import { isObject } from './is-object.js';
 import { capIssues, type FlowIssue } from './issues.js';
 import { shapeIssues } from './shape.js';
 import { TEMPLATE_VAR } from './template.js';
@@ -170,8 +171,4 @@ function semanticIssues(flow: Flow): FlowIssue[] {
 
   if (![...reachable].some((id) => byId.get(id)!.type === 'end')) add('/nodes', 'ningún nodo end es alcanzable');
   return issues;
-}
-
-function isObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
 }

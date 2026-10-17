@@ -9,6 +9,7 @@
  */
 import { Ajv2020, type ErrorObject, type ValidateFunction } from 'ajv/dist/2020.js';
 import schema from '../flow.schema.json' with { type: 'json' };
+import { isObject } from './is-object.js';
 import { byPath, capIssues, compareByPath, MAX_FLOW_ISSUES, type FlowIssue } from './issues.js';
 
 /** Caracteres máximos del texto JSON de una pieza para dar todos sus errores. */
@@ -72,7 +73,7 @@ interface Budget {
 /**
  * Issues de forma de un valor, ordenados por `path` y acotados por `MAX_FLOW_ISSUES`.
  *
- * @param input Valor recibido (cualquier JSON).
+ * @param value Valor recibido (cualquier JSON).
  * @returns `[]` si la forma es correcta.
  */
 export function shapeIssues(value: unknown): FlowIssue[] {
@@ -233,8 +234,4 @@ function shapeMessage(e: ErrorObject): string {
     default:
       return e.message ?? 'valor no válido';
   }
-}
-
-function isObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
