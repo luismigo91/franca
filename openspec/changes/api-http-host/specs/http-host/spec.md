@@ -53,7 +53,7 @@ La salida http SHALL resolver cada cabecera `{name, secret}` con el secreto de l
 - **THEN** cada una queda en `failed` con `missing_secret` en `enviar-crm` y la API no ha abierto ninguna conexión
 
 ### Requirement: Forma de los orígenes de los secretos
-`FRANCA_HTTP_SECRET_ORIGINS` SHALL ser una lista de entradas `NOMBRE=origen` separadas por comas, sin espacios. `NOMBRE` cumple `^[A-Z][A-Z0-9_]{0,63}$` (el de `secretRef`) y `origen` es un origen que puede tener la `url` de un nodo `http` (ver «Destino y longitud de la URL» de `flow-engine`), escrito exactamente como su serialización WHATWG: sin `/` final, ruta, usuario ni puerto por defecto. Un nombre puede repetirse con otros orígenes. Ausente o vacía, no hay secretos.
+`FRANCA_HTTP_SECRET_ORIGINS` SHALL ser una lista de entradas `NOMBRE=origen` separadas por comas, sin espacios. `NOMBRE` cumple `^[A-Z][A-Z0-9_]{0,63}$` y `origen` es un origen que puede tener la `url` de un nodo `http` (ver «Destino y longitud de la URL» de `flow-engine`), escrito exactamente como su serialización WHATWG: sin `/` final, ruta, usuario ni puerto por defecto. Un nombre puede repetirse con otros orígenes. Ausente o `""`, no hay secretos; una entrada vacía impide arrancar.
 
 #### Scenario: Varios orígenes para un secreto
 - **GIVEN** `FRANCA_SECRET_CRM_TOKEN` = `Bearer prueba-crm-1`, `FRANCA_HTTP_SECRET_ORIGINS` = `CRM_TOKEN=https://crm.example.com,CRM_TOKEN=https://crm.example.com:8443`, `crm.example.com` resolviendo a `P` y servidores del test en `P:443` y `P:8443` con certificado de `crm.example.com` que responden 204
@@ -63,6 +63,11 @@ La salida http SHALL resolver cada cabecera `{name, secret}` con el secreto de l
 #### Scenario: Orígenes de secretos no admitidos
 - **WHEN** la API arranca por separado con `FRANCA_SECRET_CRM_TOKEN` = `Bearer x` y `FRANCA_HTTP_SECRET_ORIGINS` igual a `CRM_TOKEN`, `crm_token=https://crm.example.com`, `CRM_TOKEN=https://crm.example.com/`, `CRM_TOKEN=https://crm.example.com:443`, `CRM_TOKEN=HTTPS://crm.example.com`, `CRM_TOKEN=ftp://crm.example.com`, `CRM_TOKEN=https://1.2.3.4`, `CRM_TOKEN=http://localhost:8080` y `CRM_TOKEN=https://crm.example.com, CRM_TOKEN=https://x.example.com`
 - **THEN** ninguna llega a escuchar, cada una termina con un código distinto de 0 y su mensaje nombra `FRANCA_HTTP_SECRET_ORIGINS`
+
+#### Scenario: Entradas vacías en los orígenes
+- **WHEN** la API arranca por separado con `FRANCA_SECRET_CRM_TOKEN` = `Bearer x` y `FRANCA_HTTP_SECRET_ORIGINS` igual a `CRM_TOKEN=https://crm.example.com,` (coma final), `,CRM_TOKEN=https://crm.example.com`, `CRM_TOKEN=https://crm.example.com,,CRM_TOKEN=https://crm.example.com:8443`, `,` y `" "` (un espacio)
+- **THEN** ninguna llega a escuchar, cada una termina con un código distinto de 0 y su mensaje nombra `FRANCA_HTTP_SECRET_ORIGINS`
+- **AND** con `FRANCA_HTTP_SECRET_ORIGINS` = `""` la API arranca sin secretos
 
 ### Requirement: Valores de los secretos
 Por cada nombre de `FRANCA_HTTP_SECRET_ORIGINS`, `FRANCA_SECRET_<NOMBRE>` SHALL dar su valor: de 1 a 8192 caracteres ASCII visibles, espacios o tabuladores, sin blancos al principio ni al final. Si falta, está vacía o no cumple, la API no arranca, termina con un código distinto de 0 y su mensaje nombra la variable sin repetir su valor.
@@ -87,12 +92,17 @@ Una variable `FRANCA_SECRET_<NOMBRE>` cuyo nombre no está en `FRANCA_HTTP_SECRE
 - **THEN** su salida de arranque contiene una línea con `CRM_TOKEN`, `https://crm.example.com` y `127.0.0.1:8080`, y no contiene `prueba-crm-1`
 
 ### Requirement: Destinos permitidos por la instalación
-`FRANCA_HTTP_ALLOWED_DESTINATIONS` SHALL ser una lista, separada por comas y sin espacios, de pares `dirección:puerto` que la salida http permite aunque la dirección no sea unicast global: IPv4 en decimal con puntos y sin ceros a la izquierda, o IPv6 entre corchetes, y un puerto de 1 a 65535 sin ceros a la izquierda. Ausente o vacía, no permite ninguno. Con otro valor, la API no arranca, termina con un código distinto de 0 y su mensaje nombra la variable.
+`FRANCA_HTTP_ALLOWED_DESTINATIONS` SHALL ser una lista, separada por comas y sin espacios, de pares `dirección:puerto` que la salida http permite aunque la dirección no sea unicast global: IPv4 en decimal con puntos y sin ceros a la izquierda, o IPv6 entre corchetes, y un puerto de 1 a 65535 sin ceros a la izquierda. Ausente o `""`, no permite ninguno. Con otro valor, también una entrada vacía, la API no arranca, termina con un código distinto de 0 y su mensaje nombra la variable.
 
 #### Scenario: Destinos permitidos no admitidos
 - **WHEN** la API arranca por separado con `FRANCA_HTTP_ALLOWED_DESTINATIONS` igual a `localhost:8080`, `127.0.0.1`, `127.0.0.1:0`, `127.0.0.1:65536`, `127.0.0.1:08080`, `127.0.0.01:8080`, `::1:8080`, `10.0.0.0/8:80`, `*:80` y `127.0.0.1:8080, 127.0.0.2:8080`
 - **THEN** ninguna llega a escuchar, cada una termina con un código distinto de 0 y su mensaje nombra `FRANCA_HTTP_ALLOWED_DESTINATIONS`
 - **AND** con `127.0.0.1:8080,[::1]:8443` la API arranca
+
+#### Scenario: Entradas vacías en los destinos permitidos
+- **WHEN** la API arranca por separado con `FRANCA_HTTP_ALLOWED_DESTINATIONS` igual a `127.0.0.1:8080,` (coma final), `,127.0.0.1:8080`, `127.0.0.1:8080,,[::1]:8443`, `,` y `" "` (un espacio)
+- **THEN** ninguna llega a escuchar, cada una termina con un código distinto de 0 y su mensaje nombra `FRANCA_HTTP_ALLOWED_DESTINATIONS`
+- **AND** con `FRANCA_HTTP_ALLOWED_DESTINATIONS` = `""` la API arranca sin destinos permitidos
 
 ### Requirement: Comparación de los destinos permitidos
 Un par permitido SHALL permitir solo esa dirección con ese puerto, comparadas como direcciones y no como texto: una IPv4 mapeada en IPv6 (`::ffff:0:0/96`) es su IPv4 y una IPv6 vale lo mismo escrita de cualquier forma. Un par permitido admite también `http://` sin TLS (ver «Solo https hacia destinos públicos»).
