@@ -31,9 +31,14 @@ export function isDatabaseUnavailable(error: unknown): boolean {
   return error instanceof Error && !('code' in error) && PG_MESSAGES.has(error.message);
 }
 
+/** SQLSTATE de `canceling statement due to statement timeout`: Postgres abortó una sentencia que tardaba demasiado. */
+const STATEMENT_TIMEOUT_SQLSTATE = '57014';
+
 function isUnavailableRequestError(error: Prisma.PrismaClientKnownRequestError): boolean {
   if (UNAVAILABLE_CODES.has(error.code)) return true;
   if (error.code === 'P2028') return error.message.includes(TRANSACTION_START_TIMEOUT);
-  const cause = (error.meta as { driverAdapterError?: { cause?: { kind?: unknown } } } | undefined)?.driverAdapterError?.cause;
-  return cause?.kind === 'DatabaseNotReachable';
+  const cause = (error.meta as { driverAdapterError?: { cause?: { kind?: unknown; originalCode?: unknown } } } | undefined)
+    ?.driverAdapterError?.cause;
+  // P2010 con 57014: una sentencia (por ejemplo, una espera de bloqueo de fila) superó `statement_timeout`.
+  return cause?.kind === 'DatabaseNotReachable' || cause?.originalCode === STATEMENT_TIMEOUT_SQLSTATE;
 }

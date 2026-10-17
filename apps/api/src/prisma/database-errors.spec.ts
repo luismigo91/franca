@@ -44,6 +44,29 @@ describe('isDatabaseUnavailable', () => {
     expect(isDatabaseUnavailable(expired)).toBe(false);
   });
 
+  it('P2010 con 57014: una sentencia (la espera de un bloqueo de fila) superó statement_timeout', () => {
+    const meta = {
+      driverAdapterError: {
+        name: 'DriverAdapterError',
+        cause: {
+          originalCode: '57014',
+          originalMessage: 'canceling statement due to statement timeout',
+          kind: 'postgres',
+          code: '57014',
+          severity: 'ERROR',
+          message: 'canceling statement due to statement timeout',
+        },
+      },
+    };
+    const message = '\nInvalid `prisma.$queryRaw()` invocation:\n\n\nRaw query failed. Code: `57014`. Message: `canceling statement due to statement timeout`';
+    expect(isDatabaseUnavailable(known('P2010', message, meta))).toBe(true);
+  });
+
+  it('P2010 con otro error de Postgres (por ejemplo una sintaxis incorrecta) no es base caída', () => {
+    const meta = { driverAdapterError: { cause: { originalCode: '42601', kind: 'postgres' } } };
+    expect(isDatabaseUnavailable(known('P2010', 'Raw query failed. Code: `42601`.', meta))).toBe(false);
+  });
+
   it.each(['P1002', 'P1017', 'P2024'])('%s', (code) => {
     expect(isDatabaseUnavailable(known(code, 'x', {}))).toBe(true);
   });

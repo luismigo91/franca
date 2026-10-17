@@ -2,7 +2,7 @@ import { Inject, Injectable, type OnModuleDestroy } from '@nestjs/common';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { APP_CONFIG, type AppConfig } from '../config/app-config.js';
 import { PrismaClient } from '../generated/prisma/client.js';
-import { DATABASE_CONNECT_TIMEOUT_MS, DATABASE_QUERY_TIMEOUT_MS } from './limits.js';
+import { DATABASE_CONNECT_TIMEOUT_MS, DATABASE_QUERY_TIMEOUT_MS, DATABASE_STATEMENT_TIMEOUT_MS } from './limits.js';
 
 /**
  * Cliente de Prisma con el adaptador de `pg`. Conexión perezosa (sin `$connect` al iniciar): la API arranca con
@@ -17,6 +17,7 @@ export class PrismaService extends PrismaClient implements OnModuleDestroy {
         connectionString: config.databaseUrl,
         connectionTimeoutMillis: DATABASE_CONNECT_TIMEOUT_MS,
         query_timeout: DATABASE_QUERY_TIMEOUT_MS,
+        statement_timeout: DATABASE_STATEMENT_TIMEOUT_MS,
       }),
       errorFormat: 'minimal',
     });
