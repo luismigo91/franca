@@ -80,6 +80,14 @@ El CRM simulado SHALL escuchar solo en `127.0.0.1:4010`. Si no puede escuchar ah
 - **WHEN** se intenta conectar con `L:4010` y con `[::1]:4010`
 - **THEN** las dos conexiones se rechazan
 
+### Requirement: Puertos de la API y la web libres
+Antes de lanzar ningún proceso, la demo SHALL comprobar que nada acepta conexiones en `127.0.0.1` ni `[::1]` en el puerto 3000 ni en el de la API (`PORT`, por defecto 3001). Si algo escucha, termina con un código distinto de 0 sin lanzar nada, nombra el puerto y dice que puede haber otro `pnpm dev` abierto.
+
+#### Scenario: Puertos de la API o la web ocupados
+- **GIVEN** otro proceso escuchando en `127.0.0.1:3001` (por ejemplo, `pnpm --filter @franca/api dev` en marcha), y en otra ronda en el 3000
+- **WHEN** se ejecuta `pnpm dev:demo`
+- **THEN** termina con un código distinto de 0, su salida nombra ese puerto y dice que puede haber otro `pnpm dev` abierto, y no hay nada escuchando en el 4010
+
 ### Requirement: Peticiones que acepta el CRM simulado
 A un `POST /api/leads` con `Authorization` igual al token de la ejecución, `Content-Type` `application/json` y un cuerpo que es un objeto JSON, el CRM simulado SHALL responder 201 con `Content-Type` `application/json` y el cuerpo `{"id":"L-<n>"}`. `n` empieza en 1 en cada ejecución y sube de uno en uno. No guarda nada en disco.
 
