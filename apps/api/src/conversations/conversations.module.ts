@@ -1,6 +1,7 @@
 import { Logger, Module, Inject, type OnApplicationBootstrap } from '@nestjs/common';
 import type { LlmCapability } from '@franca/engine';
 import { CLOCK, systemClock } from '../flows/clock.js';
+import { HttpHostModule } from '../http-host/http-host.module.js';
 import { ContactsController } from './contacts.controller.js';
 import { CONVERSATIONS_CONFIG, loadConversationsConfig, type ConversationsConfig } from './conversations-config.js';
 import { ConversationsController } from './conversations.controller.js';
@@ -14,6 +15,7 @@ import { createLlmProviders, LLM_PROVIDERS } from './llm-providers.js';
  * antes de abrir el puerto.
  */
 @Module({
+  imports: [HttpHostModule],
   controllers: [ConversationsController, ContactsController],
   providers: [
     ConversationsService,

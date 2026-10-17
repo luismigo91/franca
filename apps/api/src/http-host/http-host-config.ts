@@ -4,9 +4,6 @@ import { canonicalIp, destinationKey, parseIp } from './addresses.js';
 import { isNodeUrlOrigin } from './secret-origin.js';
 import type { InstalledSecret } from './secrets.js';
 
-/** Token de inyección de la configuración de la salida http ya validada. */
-export const HTTP_HOST_CONFIG = Symbol('HTTP_HOST_CONFIG');
-
 export const SECRET_ORIGINS_VARIABLE = 'FRANCA_HTTP_SECRET_ORIGINS';
 export const ALLOWED_DESTINATIONS_VARIABLE = 'FRANCA_HTTP_ALLOWED_DESTINATIONS';
 export const SECRET_VARIABLE_PREFIX = 'FRANCA_SECRET_';
