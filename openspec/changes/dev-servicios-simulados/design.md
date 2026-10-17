@@ -1,13 +1,13 @@
 # Design: servicios simulados para la demo local (`dev-servicios-simulados`)
 
-**Fecha**: 2026-10-17 · **Rama**: `feat/dev-servicios-simulados` · **Spec**: `proposal.md` y `specs/` (`139869e`, más la corrección `d3de23f`, ver «Auditoría», A7).
+**Fecha**: 2026-10-17 · **Rama**: `feat/dev-servicios-simulados` · **Spec**: `proposal.md` y `specs/` (`139869e`, más las correcciones `d3de23f` y `09a430c`; ver «Auditoría», A7 y A11). **Revisión 2**, tras el FAIL de `popi:architecture-reviewer`: B1 en D7, B2 en D6 y B3 en A11 y C5, más los no bloqueantes y las simplificaciones que pidió el coordinador.
 
 ## Context
 
 El cambio tiene dos partes de tamaño muy distinto:
 
 - **Una variable nueva en un componente de seguridad**: `FRANCA_HTTP_LOCAL_NAMES` en `apps/api/src/http-host/`, con 3 requisitos y 8 escenarios en el delta de `http-host`. Es poco código (un lector, una búsqueda y una línea de arranque), pero toca la resolución de la salida http. Por eso lleva mutantes y e2e por escenario.
-- **Herramientas de desarrollo**: un CRM simulado, una copia de `captacion-leads`, una semilla y un arranque de un comando, con 12 requisitos y 23 escenarios en `dev-simulated-services`. No forman parte de la API ni de la web, y la CI no los arranca.
+- **Herramientas de desarrollo**: un CRM simulado, una copia de `captacion-leads`, una semilla y un arranque de un comando, con 13 requisitos y 27 escenarios en `dev-simulated-services` (con las correcciones `d3de23f` y `09a430c`). No forman parte de la API ni de la web, y la CI no los arranca.
 
 Lo que no cambia: el formato de flujo, `packages/*`, `apps/web`, el esquema de Prisma, la CI y `pnpm dev`.
 
@@ -25,6 +25,9 @@ Leído en `main` + `139869e`: `apps/api/src/http-host/**`, `main.ts`, `apps/api/
 | A6 | «La semilla usa las mismas reglas y el mismo valor por defecto que la web para `FRANCA_API_URL`» | La regla vive en `apps/web/src/server/config/api-url.mjs` (`parseApiUrl`, `DEFAULT_API_URL`), un módulo ESM puro con `@ts-check` y sin dependencias | La semilla lo **importa** en vez de copiarlo (D11). La web no cambia |
 | A7 | «Parada de la demo» cubría `SIGINT`, `SIGTERM` y la caída del CRM | No decía qué pasa si termina lo que arrancó de `pnpm dev` (por ejemplo, un error de compilación). La demo se quedaría con el CRM escuchando y sin API ni web | Corregido en la spec, en un commit propio (`d3de23f`): para el CRM, termina con un código distinto de 0 y lo dice. Escenario «Arranque de la API y la web que termina» |
 | A8 | `spec-coverage.spec.ts` exige un `it` por escenario de `http-host` | Exige un `it` por escenario de `flows-api`, `conversations-api`, `http-host` y `flow-validation`. No incluye `dev-simulated-services`, y varios de sus escenarios solo se pueden comprobar a mano | `pnpm check` falla desde `139869e` por los 8 escenarios del delta y vuelve a verde al terminar la fase 2. Los escenarios de la demo se cubren según la tabla «Cobertura» (sin ampliar `spec-coverage`) |
+| A9 | Un Ctrl+C es un `SIGINT` | `pnpm dev:demo` corre bajo pnpm 10.18, cuyo ciclo de vida **reenvía `SIGINT` a su hijo** (`pnpm.cjs`, en torno a las líneas 92967 y 92999-93001, señalado en la revisión). La terminal ya lo entrega a todo el grupo en primer plano. El arranque recibe **dos `SIGINT` casi a la vez** por un solo Ctrl+C | D7: una parada en curso ignora cualquier señal nueva, y el único `SIGKILL` es el del plazo de 7 s (revisión, B1) |
+| A10 | Desactivar la telemetría de Next exigiría tocar la web | Con el *strict env mode* de turbo, pasan por defecto `TURBO_*` y `NEXT_*` (visto en las cadenas del binario de turbo 2.11.8; se confirma a mano en 6.3). `NEXT_TELEMETRY_DISABLED` llega a `@franca/web#dev` sin `passThroughEnv` | D6: la demo define `NEXT_TELEMETRY_DISABLED=1` y `TURBO_TELEMETRY_DISABLED=1` sin tocar la web. La promesa se limita a que la llamada http y Claude no salen de la máquina (`proposal.md`) |
+| A11 | Desde un clon limpio bastan `pnpm install`, `docker compose up -d` y `pnpm dev:demo` | `pnpm dev` no aplica las migraciones. Con una base vacía, la API arranca, pero `GET /flows/:id` responde 500 `internal_error`: una tabla que falta no es «base no disponible» para `database-errors.ts` | La receta pasa a cuatro comandos, con `pnpm --filter @franca/api db:migrate`. La semilla lo explica ante un 500 (requisito nuevo «Semilla sin migraciones», `09a430c`, y C5) |
 
 ## Goals / Non-Goals
 
@@ -55,9 +58,11 @@ El arranque lanza también la web, aunque viva en `apps/api/`. Se acepta: es una
 - **Typecheck**: un proyecto propio, `apps/api/demo/tsconfig.json`, con `allowJs`, `checkJs`, `noEmit`, `declaration: false`, `types: ["node"]` e `include: ["*.mjs"]`. Si TypeScript se queja de `rootDir` al seguir el import de la web, `rootDir: "../.."`. El *script* `typecheck` de la API pasa a `tsc --noEmit -p tsconfig.json && tsc -p demo/tsconfig.json`.
   - **No** se activa `allowJs` en `apps/api/tsconfig.json`. Medido: con `--allowJs`, el typecheck actual falla con `TS4081` en `src/conversations/llm-providers.ts`, una interacción entre `allowJs` y `declaration`.
 - **Lint**: el *script* `lint` pasa a `oxlint --type-aware src/ test/ demo/`. Medido: oxlint 1.88 aplica las reglas con tipos (`no-floating-promises`) a un `.mjs`.
-- **Cómo los importan los tests**: los tests en TypeScript cargan los módulos de la demo con un cargador tipado, `test/demo/demo-modules.ts`. Este cargador hace `import()` de una URL calculada, así que TypeScript no resuelve el `.mjs` ni da `TS7016`, y declara las interfaces de lo que exporta cada módulo.
-  - Un test comprueba que los nombres exportados son exactamente los que declara el cargador. Así las interfaces no divergen en silencio.
-  - El código que corre es siempre el real: no hay dobles.
+- **Cómo los importan los tests**: con un import normal (`import { startCrm } from '../../demo/crm.mjs'`) y una declaración de una línea, `test/demo/mjs-modules.d.ts`: `declare module '*.mjs';`.
+  - Medido con el `tsc` 6.0.3 de la API: sin ella, el import da `TS7016`; con ella, el typecheck pasa y lo importado es `any`.
+  - El código que corre en los tests es siempre el real, sin dobles. El tipado de la demo lo comprueba su propio proyecto `checkJs`.
+  - Hoy ningún fichero TypeScript de la API importa un `.mjs`, así que la declaración no cambia nada más.
+  - Descartado: un cargador tipado con interfaces escritas a mano y un test de los nombres exportados. Repite las firmas, y la revisión lo marcó como sobreingeniería.
 
 Descartadas:
 - **TypeScript con *type stripping* de Node**: sin *flag* solo desde 22.18, y `engines` dice `>=22`. Además exige imports `.ts`, que `apps/api/tsconfig.json` no admite sin otra opción.
@@ -119,32 +124,51 @@ Descartadas:
 
 ### D6. Cómo convive con turbo
 
-- **La demo arranca lo mismo que `pnpm dev`**: el arranque lanza `node_modules/.bin/turbo run dev --ui=stream` desde la raíz del repositorio, con `detached: true`, la entrada `ignore` y la salida heredada.
+- **La demo arranca lo mismo que `pnpm dev`**: el arranque lanza `node_modules/.bin/turbo run dev --ui=stream --no-daemon` desde la raíz del repositorio, con `detached: true`, la entrada `ignore` y la salida heredada.
   - `detached` da a turbo un grupo propio para poder pararlo (A5, D7).
-  - `--ui=stream` fija la interfaz de líneas: un grupo en segundo plano no puede tener la terminal, que sí necesitaría la interfaz interactiva de turbo. Las tareas son las mismas que las de `pnpm dev`.
+  - `--ui=stream` fija la interfaz de líneas: un grupo en segundo plano no puede tener la terminal, que sí necesitaría la interfaz interactiva de turbo.
+  - `--no-daemon` evita que turbo deje un proceso de larga vida que hereda el entorno de esta ejecución, token incluido.
+  - Las tareas son las mismas que las de `pnpm dev`.
 - **`turbo.json`**:
   - `FRANCA_HTTP_LOCAL_NAMES` entra en el `passThroughEnv` de `@franca/api#dev`. Sin eso, la API de la demo no vería la variable y la conversación terminaría en `lead-sin-enviar`. También sirve para quien la defina con `pnpm dev`.
-  - Hay una tarea nueva, `@franca/api#test`, con el mismo `dependsOn` que `test` y `inputs: ["$TURBO_DEFAULT$", "$TURBO_ROOT$/apps/web/src/server/config/api-url.mjs"]`. Los tests de la semilla dependen de ese fichero de la web (D11): sin declararlo, la caché local podría dar por buena una versión antigua. En la CI no hay caché, así que no cambia nada.
-- **El entorno de turbo** es el de la shell menos `FRANCA_ANTHROPIC_API_KEY`, más las cuatro variables de C3. `FRANCA_API_URL`, `HOST`, `PORT` y `DATABASE_URL` pasan sin tocar.
+  - Hay una tarea nueva, `@franca/api#test`, con el mismo `dependsOn` que `test` (`["^build", "db:generate"]`) y estos `inputs`, el mismo patrón que `@franca/web#test`:
+    - `$TURBO_DEFAULT$`;
+    - `$TURBO_ROOT$/apps/web/src/server/config/api-url.mjs`, del que dependen la semilla y sus tests (D11);
+    - `$TURBO_ROOT$/openspec/**`, que lee `spec-coverage.spec.ts`;
+    - `$TURBO_ROOT$/packages/engine/tests/helpers/spec-text.ts`, que compara `spec-text-parity.spec.ts`.
+
+    **Esto cierra el FOLLOW-UP 7.6 de `web-chat`**: la caché local ya no puede dar por buena una spec cambiada.
+  - Hay también `@franca/api#lint` y `@franca/api#typecheck` con su `dependsOn` actual (`["^build", "db:generate"]`) e `inputs: ["$TURBO_DEFAULT$", "$TURBO_ROOT$/apps/web/src/server/config/api-url.mjs"]`. El proyecto `checkJs` de la demo y oxlint con tipos leen ese fichero al seguir el import.
+  - En la CI no hay caché, así que estos `inputs` solo cambian las ejecuciones locales.
+- **El entorno de turbo** es el de la shell menos `FRANCA_ANTHROPIC_API_KEY`, más las cuatro variables de C3, `NEXT_TELEMETRY_DISABLED=1` y `TURBO_TELEMETRY_DISABLED=1`.
+  - Las dos de telemetría pasan el filtro de turbo sin declararlas (A10). Con ellas, ni Next ni turbo envían telemetría durante la demo, sin tocar la web.
+  - Otras herramientas (Prisma, el aviso de versiones de pnpm) pueden intentar sus comprobaciones. La demo **no** promete cortarlas: promete que la llamada http del flujo y Claude no salen de la máquina (`proposal.md`).
+  - `FRANCA_API_URL`, `HOST`, `PORT` y `DATABASE_URL` pasan sin tocar.
 
 ### D7. Parada: una señal al grupo, un plazo y una comprobación de puertos
 
-El CRM se lanza con `fork` y `detached: true`. Así el Ctrl+C de la terminal (que va al grupo en primer plano: pnpm y el arranque) **solo** le llega al arranque, que es el único que decide la parada. Las cuatro causas siguen el mismo camino, `stopAll(motivo)`:
+El CRM se lanza con `fork` y `detached: true`. Así el Ctrl+C de la terminal (que va al grupo en primer plano: pnpm y el arranque) **solo** le llega al arranque, que es el único que decide la parada. Le llega **dos veces**: una de la terminal y otra que reenvía pnpm (A9). Todas las causas siguen el mismo camino, `stopAll(motivo)`:
 
 | Causa | Qué hace la demo | Código de salida |
 |---|---|---|
 | `SIGINT` (Ctrl+C) | Para todo | 130 |
 | `SIGTERM` | Para todo | 143 |
+| `SIGHUP` (se cierra la terminal) | Para todo. Con `detached`, turbo está en otra sesión y no recibe el `SIGHUP` de la terminal: si el arranque no lo atendiera, turbo y sus tareas quedarían huérfanos | 129 |
 | El CRM termina sin que se le pida | «El CRM simulado se ha parado…» y para el resto | 1 |
 | turbo termina solo | «`pnpm dev` ha terminado…» y para el CRM | El de turbo, o 1 si fue 0 o una señal |
 
 Pasos de `stopAll`:
 1. Envía `SIGINT` al grupo de turbo (`process.kill(-pid, 'SIGINT')`) y `{type: 'stop'}` al CRM.
 2. Espera a que salgan los dos, como mucho **7 s**. Después, `SIGKILL` al grupo de turbo y al CRM. Las tareas de turbo están en sus propios grupos y solo turbo puede pararlas, así que un `SIGKILL` puede dejarlas huérfanas. Por eso sigue el paso 3.
-3. Comprueba durante 2 s como mucho que **nada acepta conexiones** en `127.0.0.1` en 3000, `PORT` (3001 por defecto) y 4010. Si queda algo, lo dice por puerto con la orden `lsof` para encontrarlo y termina con 1.
-4. Un segundo Ctrl+C durante la parada salta directamente a `SIGKILL`.
+3. Comprueba durante 2 s como mucho que **nada acepta conexiones** en 3000, `PORT` (3001 por defecto) y 4010, en `127.0.0.1` y en `::1` (la API puede escuchar en `::1` con `HOST`). Si queda algo, lo dice por dirección y puerto, con la orden `lsof` para encontrarlo, y termina con 1.
 
-El total es como mucho de 9 s, dentro de los 10 s de «Parada con Ctrl+C». Medido (A5): con `SIGINT` al grupo, los puertos se liberan en menos de 1 s.
+**Una parada no se escala por señales.** Mientras `stopAll` está en curso, cualquier `SIGINT`, `SIGTERM` o `SIGHUP` nuevo se ignora, y el código de salida es el de la primera causa. El único `SIGKILL` es el del plazo de 7 s.
+
+- Descartado: que «un segundo Ctrl+C» fuerce el `SIGKILL`, como proponía la primera versión. Por A9, un solo Ctrl+C ya llega como dos `SIGINT`, así que mataría turbo al momento y dejaría las tareas huérfanas, con 3000 y 3001 ocupados (revisión, B1).
+- Descartado también: una ventana de 1 s para agrupar señales. Da el mismo resultado con un temporizador más.
+- Quien necesite matarlo todo ya puede hacerlo desde otra terminal.
+
+El total es como mucho de 9 s, dentro de los 10 s de «Parada con Ctrl+C». Medido (A5): con `SIGINT` al grupo, los puertos se liberan en menos de 1 s. La verificación final repite la medida **a través de `pnpm dev:demo`** en una terminal real, no con el binario de turbo a pelo (tasks, 6.5).
 
 - **El CRM se protege solo**: termina al recibir `{type: 'stop'}`, `SIGTERM` o al perder el canal IPC (`disconnect`, si el arranque muere de golpe), y **ignora `SIGINT`**. Así una carrera entre el Ctrl+C y el aviso de salida no se confunde con «el CRM se ha parado».
 - **Límite aceptado**: si el arranque recibe `SIGKILL`, turbo y sus tareas quedan huérfanos, igual que con `pnpm dev`.
@@ -187,17 +211,20 @@ Descartado: generar la copia al sembrar a partir del ejemplo. No tendría deriva
   - Conexión rechazada o cortada antes de responder: `unreachable`.
   - Plazo agotado: `timeout`.
   - 503 `database_unavailable`: un motivo propio. Es el caso «Postgres parado», que la API responde rápido (`database-unavailable.e2e-spec.ts`).
+  - 500 a la primera lectura: el motivo «sin migraciones» (C5).
+- **Del cuerpo de un error** solo se imprime el campo `error`, y solo si cumple `^[a-z_]{1,64}$`. Si no, se omite. Así un cuerpo inesperado, o de otro servicio en ese puerto, no puede meter texto en la salida.
 - El arranque usa el mismo cliente para esperar a la API (D13).
 
 ### D12. Semilla idempotente contra la API real
 
-Recorre la lista de flujos de la demo, que hoy tiene uno, y aplica el algoritmo de C5. En resumen:
+Siembra **un solo flujo**, `captacion-leads-local`, con el algoritmo de C5. No hay una lista de flujos: hoy solo hay una copia, y generalizar es trivial cuando llegue la de `faq-ia` (FOLLOW-UP 7.1). En resumen:
 - Lee el flujo.
 - Si no existe, lo crea. Si el `id` está reservado, lo dice.
 - Si el borrador no es igual a la copia como JSON (`util.isDeepStrictEqual` sobre el `flow` leído), no lo toca.
 - Si lo es, publica con `If-Match` (el `ETag` leído), y un 201 o un 200 dicen qué ha pasado.
+- Si la primera lectura responde 500, apunta a las migraciones sin aplicar (A11, «Semilla sin migraciones»).
 
-Es idempotente porque publicar sin cambios devuelve 200 con la última versión, sin escribir, y no cambia `revision` (A4). El `If-Match` evita publicar un borrador que alguien cambió entre la lectura y la publicación. Un `unreachable`, un `timeout` o un `database_unavailable` cortan la semilla entera, porque afectan a todos los flujos.
+Es idempotente porque publicar sin cambios devuelve 200 con la última versión, sin escribir, y no cambia `revision` (A4). El `If-Match` evita publicar un borrador que alguien cambió entre la lectura y la publicación. Un `unreachable`, un `timeout`, un `database_unavailable` cortan la semilla entera, porque afectan a todos los flujos.
 
 ### D13. Espera a la API antes de sembrar
 
@@ -216,6 +243,7 @@ Tras `listening` del CRM y el lanzamiento de turbo, el arranque pide `GET /` a l
 - **e2e** (`pnpm test:e2e`, con la base del `globalSetup`):
   - Los escenarios de `http-host` con `startWorld` (la red del test) y con el proceso real para el arranque.
   - La semilla contra el proceso real de la API (`startApi` con `inject('databaseUrl')` y `PORT=0`).
+  - «Base de datos sin migraciones para la semilla»: el test crea una base vacía en el mismo Postgres (el usuario de los e2e puede crearla: el `globalSetup` ya lo hace), arranca contra ella otra API real y la borra al terminar.
   - La cadena de la demo con el proceso real, `systemNetwork()` y el CRM simulado de verdad en un puerto libre. Como el puerto cambia, la copia se publica con **solo** el puerto de la `url` sustituido.
     - Es el único test que prueba toda la conexión de producción de los nombres locales: entorno → `main.ts` → módulo → `resolveName` → política → `net.connect`.
     - `crm.franca.test` no resuelve en ninguna máquina (`.test`), así que si se llegara a consultar el DNS, la petición no llegaría al CRM.
@@ -224,9 +252,11 @@ Tras `listening` del CRM y el lanzamiento de turbo, el arranque pide `GET /` a l
 
 Entradas nuevas en `apps/api/test/mutations.json`. El `find` exacto se fija al escribir el código, y cada una debe aparecer exactamente una vez.
 
+**Solo matan los tests que ejecutan `src/`** en el mismo proceso de Vitest: unit, y e2e con `startWorld` o `createTestApp`. `scripts/mutate.mjs` compila `dist/` **antes** de mutar, así que los tests que lanzan `dist/main.js` (`http-host-local-names-startup.e2e-spec.ts` y `demo.e2e-spec.ts`) nunca ven el mutante. No van en ninguna lista de «Lo matan» (revisión). Por eso cada valor de «Nombres locales no admitidos» tiene también un caso en el unit.
+
 | id | Fichero | Qué rompe | Lo matan |
 |---|---|---|---|
-| `localNameAnySuffix` | `local-names.ts` | Acepta nombres que no terminan en `.test` | `src/http-host/local-names.spec.ts`, `test/http-host-local-names-startup.e2e-spec.ts` («Nombres locales no admitidos»: `crm.example.com=…`, `localhost=…`) |
+| `localNameAnySuffix` | `local-names.ts` | Acepta nombres que no terminan en `.test` | `src/http-host/local-names.spec.ts` (los valores de «Nombres locales no admitidos»: `crm.example.com=…`, `localhost=…`) |
 | `localNameNotSerialized` | `local-names.ts` | Quita la comparación con la serialización WHATWG | Los mismos (`CRM.franca.test=…`, la entrada con espacio) |
 | `localNameAnyIpv4` | `local-names.ts` | Cualquier IPv4 bien escrita vale como dirección | Los mismos (`10.0.0.5`, `1.2.3.4`) |
 | `localNameAnyIpv6` | `local-names.ts` | Cualquier IPv6 entre corchetes vale | Los mismos (`[::2]`, `[::ffff:127.0.0.1]`) |
@@ -234,7 +264,7 @@ Entradas nuevas en `apps/api/test/mutations.json`. El `find` exacto se fija al e
 | `localNameAlsoResolves` | `http-host.ts` | Pregunta además al resolutor (con `catch`) y usa lo local | Ídem («CRM con nombre local», «Nombre local en mayúsculas en la url») |
 | `localNameFirstAddressOnly` | `local-names.ts` | Se queda solo con la primera dirección de un nombre | Ídem («Orden de las direcciones de un nombre local») |
 | `localNameMatchesAnyTest` | `local-names.ts` | `lookup` devuelve las direcciones del primer nombre local para cualquier host `.test` | Ídem («Nombres que no son locales») |
-| `localNamesNotWired` | `http-host.module.ts` | La fábrica no pasa `localNames` | Ídem («CRM con nombre local») y `test/demo.e2e-spec.ts` |
+| `localNamesNotWired` | `http-host.module.ts` | La fábrica no pasa `localNames` | Ídem («CRM con nombre local»: `startWorld` crea el módulo desde `src/`) |
 
 Además, **`ignoreTimeout` se reapunta** (A3) a `src/http-host/attempt-budget.ts`: `find` `      else controller.abort();` y `replace` `      else void 0;`, con los mismos tests. No es un mutante nuevo: es la reparación del que ya existe.
 
@@ -304,7 +334,7 @@ Las herramientas de la demo no tienen mutantes: no son un componente de segurida
 | 4 | Cuerpo de 64 KiB como mucho, UTF-8, que `JSON.parse` convierte en un objeto (ni `null` ni array) | 400 `{"error":"invalid_body"}` |
 | — | Todo bien: `n += 1` | 201 `{"id":"L-<n>"}` |
 
-- **Respuestas**: siempre `Content-Type: application/json` y `Connection: close`. Los errores no repiten nada de la petición, y el contador solo sube en un 201. Con 404 y 401 el cuerpo no se lee (se descarta).
+- **Respuestas**: siempre `Content-Type: application/json` y `Connection: close`. Los errores no repiten nada de la petición, y el contador solo sube en un 201. Con 404 y 401 el cuerpo no se interpreta: se drena con `req.resume()` **antes** de responder, para que el cliente no reciba un `ECONNRESET` mientras aún envía.
 - **Registro**: una línea por petición, `[crm simulado] <MÉTODO> <ruta> <status>[ L-<n>]`.
   - La ruta va sin consulta, cortada a 200 caracteres, y lo que no es ASCII visible se escribe como `?`.
   - Al escuchar: `[crm simulado] escuchando en 127.0.0.1:<port>`.
@@ -337,21 +367,22 @@ Las herramientas de la demo no tienen mutantes: no son un componente de segurida
 | Semilla correcta | `Lista: abre http://localhost:3000 y prueba «Captación de leads (local)». Ctrl+C para parar.` | — |
 | Semilla fallida | `La semilla no ha terminado bien (motivo arriba); la demo sigue en marcha. Puedes repetirla con pnpm demo:seed.` | — |
 | API sin respuesta | `La API no ha respondido en 120 s; la demo sigue en marcha. Cuando arranque, siembra con pnpm demo:seed.` | — |
-| Parada | `Parando…` y después `Parada.` | 130 / 143 |
+| Parada | `Parando…` y después `Parada.` Las señales que lleguen durante la parada no escriben nada ni cambian el código | 130 / 143 / 129 |
 | El CRM termina | `El CRM simulado se ha parado (código <c>); paro la API y la web.` | 1 |
 | turbo termina | `pnpm dev ha terminado (código <c>); paro el CRM simulado.` | `<c>`, o 1 si fue 0 o una señal |
-| Puerto ocupado tras parar | `Atención: algo sigue escuchando en 127.0.0.1:<p>; búscalo con lsof -nP -iTCP:<p> -sTCP:LISTEN.` | 1 |
+| Puerto ocupado tras parar | `Atención: algo sigue escuchando en <127.0.0.1 \| [::1]>:<p>; búscalo con lsof -nP -iTCP:<p> -sTCP:LISTEN.` | 1 |
 
 ### C5. Semilla (`pnpm demo:seed` → `node apps/api/demo/seed.mjs`)
 
 **Exporta**: `seedDemo({ env, write, request? })` → `Promise<{ ok: boolean }>`, y `requestApi`. Como proceso: código 0 si `ok` y 1 si no.
 
-**Algoritmo**, para cada flujo `F` de la lista con `copia = JSON.parse(fichero)`:
+**Algoritmo**, con `F` = `captacion-leads-local` y `copia = JSON.parse(fichero)`:
 
 1. Valida `FRANCA_API_URL` (D11). Si no vale, escribe el error y termina con 1 sin peticiones.
 2. `GET /flows/F`:
-   - **200**: si `isDeepStrictEqual(body.flow, copia)` es falso, `F` queda «no tocado» (mal) y se pasa al siguiente. Si es cierto, `etag = ETag` y se va al paso 4.
+   - **200**: si `isDeepStrictEqual(body.flow, copia)` es falso, `F` queda «no tocado» (mal). Si es cierto, `etag = ETag` y se va al paso 4.
    - **404 `flow_not_found`**: paso 3.
+   - **500** (en la primera lectura, no al repetirla tras un 409): «sin migraciones» (mal).
    - Cualquier otra respuesta: «inesperada».
 3. `POST /flows` con `JSON.stringify(copia)` y `Content-Type: application/json`:
    - **201**: `etag = ETag` y se marca «creado»; paso 4.
@@ -364,7 +395,7 @@ Las herramientas de la demo no tienen mutantes: no son un componente de segurida
    - **412 `revision_mismatch`**: «cambió mientras se sembraba» (mal).
    - Cualquier otra respuesta: «inesperada».
    - En los dos casos buenos se comprueba además `isDeepStrictEqual(body.flow, copia)`; si no coincide, «inesperada».
-5. En cualquier paso, `unreachable`, `timeout` o 503 `database_unavailable` cortan la semilla entera con su mensaje.
+5. En cualquier paso, `unreachable`, `timeout` o 503 `database_unavailable` cortan la semilla con su mensaje.
 
 **Mensajes** (una línea cada uno, prefijo `[semilla] `):
 
@@ -380,9 +411,10 @@ Las herramientas de la demo no tienen mutantes: no son un componente de segurida
 | Sin conexión | `No puedo conectar con la API de Franca en http://<hostHeader>. ¿Está arrancada (pnpm dev o pnpm dev:demo)?` |
 | Plazo agotado | `La API de Franca en http://<hostHeader> no ha respondido a tiempo.` |
 | Sin base de datos | `La base de datos de la API no responde: arráncala con docker compose up -d y repite pnpm demo:seed.` |
+| Sin migraciones | `captacion-leads-local: la API ha respondido 500 al leerlo. Si la base de datos es nueva, aplica las migraciones con pnpm --filter @franca/api db:migrate y repite pnpm demo:seed.` |
 | `FRANCA_API_URL` | El mensaje de `ApiUrlError`, que nombra la variable |
 
-`<error>` es el código estable `error` del cuerpo, si viene; del cuerpo no se escribe nada más.
+`<error>` es el campo `error` del cuerpo, solo si cumple `^[a-z_]{1,64}$` (D11). Del cuerpo no se escribe nada más.
 
 ### C6. Paridad de la copia
 
@@ -393,7 +425,7 @@ Las herramientas de la demo no tienen mutantes: no son un componente de segurida
 - [x] Cada variable de C3 la lee la API (`loadHttpHostConfig`) y la deja pasar turbo (`passThroughEnv`): `FRANCA_HTTP_LOCAL_NAMES` es la única nueva.
 - [x] Cada valor de C3 coincide con la copia (test cruzado de D10) y con la spec («Configuración de la salida http de la demo»).
 - [x] El CRM responde 201 con `{"id":…}`; la copia no lee la respuesta (`enviar-crm` no tiene `saveAs`), y el motor acepta cualquier 2xx.
-- [x] Cada error de la API que puede ver la semilla tiene su rama: 404, 409 ×2, 412, 503 y el resto como «inesperada».
+- [x] Cada error de la API que puede ver la semilla tiene su rama: 404, 409 ×2, 412, 500 (primera lectura), 503 y el resto como «inesperada».
 - [x] Ningún mensaje de la demo, la semilla ni el CRM interpola un valor de secreto, de `FRANCA_API_URL` o de una variable en conflicto.
 - [x] Constantes espejadas: copia ↔ ejemplo (C6), copia ↔ C3 (D10) y `parseApiUrl` importado, no copiado (D11).
 - [x] Ficheros ajenos que abre el diseño: los tres tests de A2 (necesarios: la línea cambia por la spec), `mutations.json` (A3), `http-host-config.ts`, `http-host.ts` y `http-host.module.ts` (el requisito es suyo), y la configuración y la documentación de la tabla «Ficheros». Ni `apps/web` ni `packages/` ni `main.ts`.
@@ -411,7 +443,7 @@ Criterio de diff: `git diff --name-only main...HEAD` solo puede listar estos fic
 | `apps/api/src/http-host/http-host.module.ts` | pasa `localNames` a `createHttpHost` | 1 |
 | `apps/api/src/http-host/http-host-config.spec.ts` | 2 literales de la línea de arranque (A2) | 1 |
 | `apps/api/src/http-host/http-host-config-edges.spec.ts` | 1 literal de la línea de arranque (A2) | 1 |
-| `turbo.json` | `FRANCA_HTTP_LOCAL_NAMES` en `@franca/api#dev`; tarea `@franca/api#test` con `inputs` (D6) | 1 |
+| `turbo.json` | `FRANCA_HTTP_LOCAL_NAMES` en `@franca/api#dev`; tareas `@franca/api#test`, `#lint` y `#typecheck` con `inputs` (D6) | 1 |
 | `apps/api/test/http-host-local-names.e2e-spec.ts` | nuevo: 5 escenarios de resolución | 2 |
 | `apps/api/test/http-host-local-names-startup.e2e-spec.ts` | nuevo: 3 escenarios de arranque (proceso real) | 2 |
 | `apps/api/test/mutations.json` | 9 mutantes nuevos y `ignoreTimeout` reapuntado (D15) | 2 |
@@ -423,7 +455,7 @@ Criterio de diff: `git diff --name-only main...HEAD` solo puede listar estos fic
 | `apps/api/demo/tsconfig.json` | nuevo: proyecto `checkJs` (D2) | 3 |
 | `apps/api/package.json` | `lint` con `demo/` y `typecheck` con el proyecto de la demo | 3 |
 | `package.json` | `dev:demo` y `demo:seed` | 3 |
-| `apps/api/test/demo/demo-modules.ts` | nuevo: cargador tipado (D2) | 3 |
+| `apps/api/test/demo/mjs-modules.d.ts` | nuevo: `declare module '*.mjs';` (D2) | 3 |
 | `apps/api/test/demo/demo-config.spec.ts`, `captacion-leads-local.spec.ts`, `crm.spec.ts`, `seed.spec.ts` | nuevos: unit | 3 |
 | `apps/api/test/demo/dev-demo.spec.ts` | nuevo: unit del arranque con dobles y proceso real con conflictos | 4 |
 | `apps/api/test/demo-seed.e2e-spec.ts` | nuevo: la semilla contra el proceso real | 4 |
@@ -449,7 +481,7 @@ Los de `http-host` llevan un `it` con el título exacto (lo exige `spec-coverage
 | Nombres que no son locales | ídem |
 | Salida de arranque con nombres locales | `test/http-host-local-names-startup.e2e-spec.ts` |
 | Lead de punta a punta en la demo | manual (6.2) + `test/demo.e2e-spec.ts` («Leads consecutivos», a nivel de API) |
-| Demo sin Internet | manual (6.3) + `test/http-host-local-names.e2e-spec.ts` (sin resolución) |
+| Demo sin Internet | manual (6.3: la demo funciona sin red; con la red **conectada** se observa que la API y el CRM solo abren conexiones a loopback) + `test/http-host-local-names.e2e-spec.ts` (sin resolución) |
 | Copia local sin la demo | `test/demo.e2e-spec.ts` (`startWorld` sin variables) |
 | Línea de arranque de la API en la demo | `test/demo.e2e-spec.ts` (proceso real con `demoHttpVariables` por defecto) + manual |
 | Token de la ejecución fuera de la salida | `test/demo/dev-demo.spec.ts` (salida sin el token y dos tokens distintos) + manual (6.4) |
@@ -464,9 +496,10 @@ Los de `http-host` llevan un `it` con el título exacto (lo exige `spec-coverage
 | Lead fuera del registro del CRM | `test/demo.e2e-spec.ts` (el `log` del CRM capturado) |
 | Paridad con el ejemplo canónico | `test/demo/captacion-leads-local.spec.ts` |
 | Primera siembra · Siembra repetida · Copia creada sin publicar · Borrador cambiado a mano · Id reservado por un borrado · API no disponible para la semilla | `test/demo-seed.e2e-spec.ts` |
+| Base de datos sin migraciones para la semilla | `test/demo-seed.e2e-spec.ts` (API real contra una base vacía creada por el test) + manual (6.1) |
 | Dirección de la API no admitida en la semilla | `test/demo/seed.spec.ts` (`request` espía: cero llamadas) |
 | Siembra fallida al arrancar | `test/demo/dev-demo.spec.ts` (sigue en marcha) + manual (6.7) |
-| Parada con Ctrl+C | `test/demo/dev-demo.spec.ts` (señal al grupo y escalada) + manual (6.5) |
+| Parada con Ctrl+C | `test/demo/dev-demo.spec.ts` (señal al grupo, dos `SIGINT` que no escalan, `SIGKILL` solo a los 7 s, `SIGHUP`) + manual a través de `pnpm dev:demo` (6.5) |
 | CRM simulado que termina | `test/demo/dev-demo.spec.ts` + manual (6.5) |
 | Arranque de la API y la web que termina | `test/demo/dev-demo.spec.ts` |
 
@@ -485,7 +518,7 @@ Los de `http-host` llevan un `it` con el título exacto (lo exige `spec-coverage
 - **E2E opción-al-menos-una-vez (no aplica)**: la web no cambia. El recorrido en el navegador se hace a mano (6.2).
 - **Smoke de ruta (no aplica)**: no hay rutas nuevas.
 - **Mutación (aplica)**: D15. `pnpm --filter @franca/api mutate --only <ids nuevos>,ignoreTimeout` en la fase 2, y la ejecución completa en la verificación final.
-- **Manual (aplica)**: tasks, fase 6, con la red de la máquina desconectada en 6.3.
+- **Manual (aplica)**: tasks, fase 6. Desconectar la red solo demuestra que la demo funciona sin Internet: un intento de salida fallaría en silencio. Las conexiones se observan con la red conectada (6.3).
 
 ## Plan de Ejecución
 
@@ -504,12 +537,16 @@ Resumen; el detalle con ficheros y gates está en `tasks.md`.
 
 - **R1 (variable de seguridad)**: la mitigación es lo que no puede hacer la variable. Solo cambia la resolución, la política sigue mandando, y no admite nada fuera de `.test` ni de loopback. Hay 9 mutantes y la revisión adversarial. Llevada a otra instalación, no abre nada que `FRANCA_HTTP_ALLOWED_DESTINATIONS` no abra ya.
 - **R2 (`pnpm check` en rojo)**: lo está desde `139869e` por 8 `it` de `http-host`, y vuelve a verde al cerrar la fase 2. La fase 1 lo declara en su gate. Nadie empuja en ese estado.
-- **R3 (procesos)**: es lo que más se ha medido (A5). Queda el hueco de que turbo no reenvíe la señal en otra versión o en Linux. La comprobación de puertos al parar lo haría visible (C4), y la ficha de la wiki dice qué medir.
+- **R3 (procesos)**: es lo que más se ha medido (A5), y el doble `SIGINT` de pnpm (A9) ya no escala.
+  - Queda el hueco de que turbo no reenvíe la señal en otra versión o en Linux.
+  - La comprobación de puertos al parar, en `127.0.0.1` y `::1`, lo haría visible (C4).
+  - La ficha de la wiki dice qué medir, y 6.5 mide a través de `pnpm dev:demo`.
 - **R4 (primera compilación lenta)**: tras 120 s la demo sigue en marcha y lo dice (C4).
-- **R5 (deriva de la copia)**: la paridad está en `pnpm check`.
+- **R5 (deriva de la copia)**: la paridad está en `pnpm check`. En la base de una persona que actualiza el repositorio, el borrador sembrado queda antiguo y la semilla dice «no tocado». El README explica cómo ponerlo al día: sustituir el borrador por la copia o, si no hay nada que conservar, `docker compose down -v`.
 - **R6 (4010 ocupado)**: lo detecta el propio `listen` (D8). Ningún test usa el 4010.
 - **R7 (token en el entorno)**: D5.
-- **R8 (acoplamiento con la web)**: la semilla importa un fichero de `apps/web`. Si la web lo mueve, fallan el typecheck y los tests de la API, y la tarea `@franca/api#test` lo vigila en la caché (D6).
+- **R8 (acoplamiento con la web)**: la semilla importa un fichero de `apps/web`. Si la web lo mueve, fallan el typecheck, el lint y los tests de la API, y las tareas `@franca/api#test`, `#lint` y `#typecheck` lo vigilan en la caché (D6).
+- **R10 (herramientas que llaman a casa)**: Next y turbo tienen la telemetría desactivada (D6). Prisma y pnpm pueden intentar sus comprobaciones. La promesa de la demo es que la llamada http del flujo y Claude no salen de la máquina, no que ningún proceso intente salir (`proposal.md`).
 - **R9 (`--ui=stream`)**: el aspecto de la salida de turbo en la demo puede diferir del de `pnpm dev` en una terminal. Es una diferencia de presentación; las tareas son las mismas.
 
 ## Migration Plan
@@ -518,6 +555,4 @@ No hay migración: no cambian ni la base ni el formato, y la variable nueva es o
 
 ## Open Questions
 
-Ninguna bloqueante. Una que puede resolver el usuario:
-
-- **¿Se aprovecha la tarea nueva `@franca/api#test` para añadir también `$TURBO_ROOT$/openspec/**` a sus `inputs`?** Es una línea, y cerraría para la API el FOLLOW-UP 7.6 de `web-chat` (la caché que oculta `spec-coverage`, R2 de la propuesta). La propuesta lo dejaba «abierto: no se toca». Por eso el diseño **no** lo hace, salvo que el usuario lo pida.
+Ninguna. La de la primera versión (`openspec/**` en los `inputs` de los tests de la API) está resuelta: entra en D6 y cierra el FOLLOW-UP 7.6 de `web-chat`.

@@ -54,11 +54,11 @@ Por eso este cambio añade a la salida http una lista de **nombres locales**, qu
 | Semilla que no pisa un borrador cambiado | Si alguien edita la copia en la API, perder ese cambio en silencio es peor que pedirle que decida. Las versiones publicadas son inmutables, pero el borrador no |
 | `pnpm dev:demo` aparte, `pnpm dev` intacto | `pnpm dev` es el contrato de `CLAUDE.md` y de los E2E (puerto 3000 libre). Un cuarto proceso y variables impuestas sorprenderían a quien no quiere la demo |
 | Negarse si la shell define una variable de la demo | Pisarla o mezclarla en silencio dejaría a la API con una configuración que nadie escribió. Mismo patrón que la API: un valor que no encaja impide arrancar y el mensaje nombra la variable |
-| La demo quita la clave de Claude | La demo promete que nada sale de la máquina. Quien tenga clave puede seguir usando `pnpm dev` |
+| La demo quita la clave de Claude | La demo promete que ni la llamada http del flujo ni Claude salen de la máquina. Además desactiva la telemetría de Next y de turbo, pero no promete cortar las comprobaciones de otras herramientas, como Prisma o pnpm. Quien tenga clave puede seguir usando `pnpm dev` |
 
 ### Qué ve cada consumidor
 
-- **Quien clona el repo**: `pnpm install`, `docker compose up -d`, `DATABASE_URL` y `pnpm dev:demo`. Abre `http://localhost:3000`, prueba «Captación de leads (local)» y la conversación termina en `lead-empresa` o `lead-pyme`. El panel «Detalles de la prueba» muestra el evento `http` con status 201.
+- **Quien clona el repo**: con `DATABASE_URL` exportada, cuatro comandos: `pnpm install`, `docker compose up -d`, `pnpm --filter @franca/api db:migrate` y `pnpm dev:demo`. Abre `http://localhost:3000`, prueba «Captación de leads (local)» y la conversación termina en `lead-empresa` o `lead-pyme`. El panel «Detalles de la prueba» muestra el evento `http` con status 201.
 - **API**: una variable opcional más en la salida http. Sin ella, nada cambia.
 - **Web**: sin cambios. Recibe un flujo publicado más.
 - **CI y E2E**: no arrancan la demo. Los tests nuevos usan puertos que elige el sistema, así que tampoco dependen de que el 4010 esté libre.
@@ -111,7 +111,7 @@ Por eso este cambio añade a la salida http una lista de **nombres locales**, qu
 |---|---|
 | `web-chat` pregunta abierta 1 y 7.1 | **Cerrado** con la demo local de `captacion-leads` |
 | `api-http-host` 5.1 (servidor simulado de CRM y soporte) | **Cerrado** para el CRM; el soporte queda fuera (non-goal) |
-| `web-chat` 7.6 (`inputs` de turbo del `test` de la API que leen `openspec/`) | **Sigue abierto**: no se toca. Ver Riesgos (R2) |
+| `web-chat` 7.6 (`inputs` de turbo del `test` de la API que leen `openspec/`) | **Cerrado**: la tarea `@franca/api#test` declara `openspec/**` en sus `inputs` (`design.md`, D6) |
 
 ## Plan de verificación por capas
 
@@ -127,20 +127,23 @@ Por eso este cambio añade a la salida http una lista de **nombres locales**, qu
   - Un e2e con la red de producción (`systemNetwork()`, como `http-host-system-network.e2e-spec.ts`): la copia local, el CRM simulado en un puerto libre y el nombre local terminan en `lead-empresa` sin consultar el DNS.
   - La semilla contra la API de los e2e.
 - **E2E opción-al-menos-una-vez (no aplica)**: la web no cambia y sus E2E ya cubren un flujo que termina. El recorrido de punta a punta de la demo se comprueba a mano en la verificación final (siguiente línea).
-- **Verificación manual (aplica, en la verificación final)**: `pnpm dev:demo` con la red de la máquina desconectada. Dos conversaciones en el navegador (`lead-empresa` y `lead-pyme`), la consola limpia y la pestaña de red solo hacia `localhost:3000`, Ctrl+C sin procesos huérfanos y `git status` limpio.
+- **Verificación manual (aplica, en la verificación final)**: `pnpm dev:demo` con la red conectada y después desconectada.
+  - Dos conversaciones en el navegador (`lead-empresa` y `lead-pyme`), la consola limpia y la pestaña de red solo hacia `localhost:3000`.
+  - Las conexiones de la API y del CRM observadas con la red conectada.
+  - Ctrl+C a través de `pnpm dev:demo`, sin procesos huérfanos, y `git status` limpio.
 - **Smoke de ruta (no aplica)**: no hay rutas nuevas en la web ni en la API.
 - **Mutación (aplica)**: mutantes nuevos en `apps/api/test/mutations.json`. Uno ignora el sufijo `.test`, otro deja que un nombre local salte la política de destinos y otro consulta el resolutor también para un nombre local; cada uno lo debe matar un escenario del delta.
 
 ## Métricas de éxito
 
-- Desde un clon limpio, con Postgres en marcha, una persona completa `captacion-leads-local` hasta `lead-empresa` con tres comandos (`pnpm install`, `docker compose up -d`, `pnpm dev:demo`) y sin leer la spec de `http-host`.
-- Durante la demo, ningún proceso abre conexiones fuera de loopback (comprobado con la red desconectada).
+- Desde un clon limpio, una persona completa `captacion-leads-local` hasta `lead-empresa` con `DATABASE_URL` exportada y cuatro comandos (`pnpm install`, `docker compose up -d`, `pnpm --filter @franca/api db:migrate` y `pnpm dev:demo`), sin leer la spec de `http-host`.
+- Durante la demo, la API y el CRM simulado no abren conexiones fuera de loopback. Se observa con la red **conectada**, porque desconectada un intento de salir fallaría en silencio. Con la red desconectada, la demo llega igual a `lead-empresa`.
 - `pnpm check` y `pnpm test:e2e` siguen verdes y no tardan más de un 5 % que en `main`.
 
 ## Riesgos
 
 - **R1. Una variable nueva en un componente de seguridad.** `FRANCA_HTTP_LOCAL_NAMES` cambia la resolución de la salida http. Mitigación: solo `.test` y loopback, la política intacta, los mutantes y la revisión adversarial del diseño. Si alguien la copia a otra instalación, no abre nada que `FRANCA_HTTP_ALLOWED_DESTINATIONS` no abra ya.
-- **R2. `pnpm check` en rojo entre la spec y el backend.** `apps/api/test/spec-coverage.spec.ts` aplica los deltas activos y exige un `it` por escenario de `http-host`. Desde el commit de esta spec y hasta que la fase de backend añada los tests, `pnpm check` falla, y el Stop hook lo dirá. Es lo esperado en spec-first; nadie debe tomarlo como regresión ni empujar en ese estado. Además, la caché de turbo puede ocultarlo (FOLLOW-UP 7.6 de `web-chat`).
+- **R2. `pnpm check` en rojo entre la spec y el backend.** `apps/api/test/spec-coverage.spec.ts` aplica los deltas activos y exige un `it` por escenario de `http-host`. Desde el commit de esta spec y hasta que la fase de backend añada los tests, `pnpm check` falla, y el Stop hook lo dirá. Es lo esperado en spec-first; nadie debe tomarlo como regresión ni empujar en ese estado. La caché de turbo ya no lo oculta: este cambio cierra el FOLLOW-UP 7.6 de `web-chat` (`design.md`, D6).
 - **R3. Orquestar procesos.** `nest start --watch` y `next dev` no terminan solos cuando algo falla, y una señal mal propagada deja puertos ocupados (el 3000 bloquea los E2E de la web). Mitigación: el arranque es dueño de los procesos que lanza, «Parada de la demo» lo exige y la verificación final lo comprueba.
 - **R4. Primera compilación lenta.** En un clon limpio, `pnpm dev` compila la spec y la API antes de escuchar. Si pasa de 120 s, la semilla no corre en el arranque. Mitigación: la demo sigue en marcha y dice que se puede repetir con `pnpm demo:seed`.
 - **R5. Deriva de la copia.** Si alguien cambia `captacion-leads`, la copia se queda atrás. Mitigación: el test de paridad está en `pnpm check`.

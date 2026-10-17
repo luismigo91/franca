@@ -2,6 +2,12 @@
 
 Las fases van en orden: cada una empieza cuando la anterior pasa su gate. El comportamiento está en `specs/` y el cómo, en `design.md` (D1-D16, «Contrato» C1-C6, «Ficheros» y «Cobertura»).
 
+**Revisión 2**, tras el FAIL de `popi:architecture-reviewer`:
+- **B1.** Una parada no escala por señales: un Ctrl+C llega como dos `SIGINT` por pnpm (D7).
+- **B2.** `openspec/**` en los `inputs` de los tests de la API, lo que cierra el 7.6 de `web-chat` (D6).
+- **B3.** Las migraciones entran en la receta y la semilla las detecta (A11, C5).
+- Además, los no bloqueantes y las simplificaciones de la revisión.
+
 **Reglas para todas las fases**:
 - **Solo se tocan los ficheros de «Ficheros» de `design.md`.** `git diff --name-only main...HEAD -- apps/web packages apps/api/src/main.ts apps/api/prisma .github pnpm-lock.yaml pnpm-workspace.yaml` no imprime nada en ningún gate. Si falta un fichero, se añade antes al diseño, con su porqué.
 - **Ningún test**:
@@ -15,7 +21,7 @@ Las fases van en orden: cada una empieza cuando la anterior pasa su gate. El com
 
 **Estado de partida (2026-10-17)**:
 - `pnpm check` falla desde `139869e`: a `spec-coverage.spec.ts` le faltan los 8 `it` del delta de `http-host`. Es lo esperado en spec-first (R2) y se cierra en la fase 2.
-- `pnpm exec openspec validate dev-servicios-simulados --strict` pasa (`d3de23f`).
+- `pnpm exec openspec validate dev-servicios-simulados --strict` pasa (`09a430c`).
 - `pnpm --filter @franca/api mutate` aborta antes de mutar nada, por el mutante obsoleto `ignoreTimeout` (A3). Se repara en 2.4.
 
 **Modo recomendado: `apply normal`**. La elección es del usuario (`design.md`, «Plan de Ejecución»).
@@ -34,7 +40,9 @@ Las fases van en orden: cada una empieza cuando la anterior pasa su gate. El com
 - [ ] 1.3 `http-host.ts`: `localNames?: LocalNames` en `HttpHostDeps`, y la búsqueda en `resolveName` después de `literalEntries` y antes del resolutor (D3). `http-host.module.ts` pasa `createLocalNames(config.localNames)`. `main.ts` no cambia.
 - [ ] 1.4 `turbo.json` (D6):
   - `FRANCA_HTTP_LOCAL_NAMES` en el `passThroughEnv` de `@franca/api#dev`.
-  - Tarea `@franca/api#test` con `dependsOn: ["^build", "db:generate"]` e `inputs: ["$TURBO_DEFAULT$", "$TURBO_ROOT$/apps/web/src/server/config/api-url.mjs"]`. Añade `openspec/**` solo si el usuario lo pide (Open Questions).
+  - Tarea `@franca/api#test` con `dependsOn: ["^build", "db:generate"]` e `inputs: ["$TURBO_DEFAULT$", "$TURBO_ROOT$/apps/web/src/server/config/api-url.mjs", "$TURBO_ROOT$/openspec/**", "$TURBO_ROOT$/packages/engine/tests/helpers/spec-text.ts"]`. Esto cierra el FOLLOW-UP 7.6 de `web-chat`.
+  - Tareas `@franca/api#lint` y `@franca/api#typecheck` con `dependsOn: ["^build", "db:generate"]` e `inputs: ["$TURBO_DEFAULT$", "$TURBO_ROOT$/apps/web/src/server/config/api-url.mjs"]`.
+  - Comprobación a mano: tras un `pnpm check` en verde, un cambio de solo un espacio en `openspec/changes/dev-servicios-simulados/specs/http-host/spec.md` hace que el siguiente `pnpm check` ejecute de nuevo `@franca/api#test`, sin `cache hit`. Después se revierte.
 - [ ] 1.5 `apps/api/src/http-host/local-names.spec.ts` (unit):
   - Cada valor no admitido de «Nombres locales no admitidos» y de «Entradas vacías…» da un `ConfigError` que contiene `FRANCA_HTTP_LOCAL_NAMES` y no contiene el valor.
   - Los valores admitidos y `""` / ausente dan la lista esperada.
@@ -83,7 +91,7 @@ Commit: `feat(api): nombres locales en la salida http (FRANCA_HTTP_LOCAL_NAMES)`
 - [ ] 2.5 Mutación: `DATABASE_URL=… pnpm --filter @franca/api mutate --only localNameAnySuffix,localNameNotSerialized,localNameAnyIpv4,localNameAnyIpv6,localNameSkipsPolicy,localNameAlsoResolves,localNameFirstAddressOnly,localNameMatchesAnyTest,localNamesNotWired,ignoreTimeout`. Todos muertos y la línea base en verde. Si alguno sobrevive, se añade el test que falta, no se quita el mutante.
 
 **Gate 2**:
-- `pnpm check` pasa por primera vez desde `139869e` (con `--force` de turbo o tras tocar un fichero de la API, por la caché de 7.6).
+- `pnpm check` pasa por primera vez desde `139869e`. Desde 1.4, la caché de turbo ya no puede ocultar un cambio en `openspec/`.
 - `pnpm --filter @franca/api test:e2e` pasa.
 - Se pega la salida de la mutación de 2.5.
 
@@ -98,18 +106,26 @@ Commit: `test(api): escenarios y mutantes de los nombres locales`.
   - `CRM_HOST`, `CRM_PORT` (4010), `CRM_NAME`, `DEMO_FLOW_NAME`, `WEB_URL` (`http://localhost:3000`) y `DEMO_VARIABLE_NAMES`.
   - `demoHttpVariables({ token, crmPort })`, `findConflicts(env)`, `buildApiEnvironment(env, token)` (sin `FRANCA_ANTHROPIC_API_KEY`) y `createRunToken()`.
   - Todo con `// @ts-check` y JSDoc.
-- [ ] 3.3 `apps/api/demo/crm.mjs` (C2): `createCrmHandler`, `startCrm` y el modo proceso con IPC. Detrás de un `if` sobre `import.meta.url` y `process.argv[1]`, para que importarlo no arranque nada.
+- [ ] 3.3 `apps/api/demo/crm.mjs` (C2): `createCrmHandler`, `startCrm` y el modo proceso con IPC.
+  - Con 404 y 401, `req.resume()` antes de responder con `Connection: close`.
+  - El modo proceso va detrás de un `if` sobre `import.meta.url` y `process.argv[1]`, para que importarlo no arranque nada.
 - [ ] 3.4 `apps/api/demo/seed.mjs` (C5, D11):
   - `requestApi` con `node:http`, `agent: false` y sin `Origin`.
-  - `seedDemo` y el modo proceso (código 0/1).
+  - `seedDemo` para **un solo flujo**, sin lista (D12), y el modo proceso (código 0/1).
+  - Un 500 a la primera lectura da el mensaje «sin migraciones».
+  - El `error` del cuerpo solo se imprime si cumple `^[a-z_]{1,64}$` (D11, C5).
   - Importa `parseApiUrl` de `../../web/src/server/config/api-url.mjs`.
 - [ ] 3.5 `apps/api/demo/dev-demo.mjs` (C4, D6-D9, D13):
   - `runDemo(deps)` con la secuencia y los mensajes de C4.
   - `main` con los procesos reales:
     - `fork` del CRM con `detached`, `stdio: ['ignore', 'inherit', 'inherit', 'ipc']`, `env: { PATH }` y `execArgv: []`;
-    - `spawn` de `node_modules/.bin/turbo run dev --ui=stream` con `detached`, `stdio: ['ignore', 'inherit', 'inherit']` y el entorno de `buildApiEnvironment`;
-    - las señales del proceso.
-  - `stopAll` con la señal al grupo, 7 s de margen, `SIGKILL` y la comprobación de puertos.
+    - `spawn` de `node_modules/.bin/turbo run dev --ui=stream --no-daemon` con `detached`, `stdio: ['ignore', 'inherit', 'inherit']` y el entorno de `buildApiEnvironment`. Ese entorno no tiene la clave de Claude y sí tiene las cuatro variables de C3, `NEXT_TELEMETRY_DISABLED=1` y `TURBO_TELEMETRY_DISABLED=1`;
+    - las señales del proceso: `SIGINT`, `SIGTERM` y `SIGHUP`.
+  - `stopAll` (D7):
+    - la señal al grupo y 7 s de margen;
+    - `SIGKILL` **solo** al vencer ese plazo;
+    - las señales que lleguen durante la parada se ignoran;
+    - la comprobación de puertos en `127.0.0.1` y `::1`.
 - [ ] 3.6 `apps/api/demo/tsconfig.json` (D2). `apps/api/package.json`:
   - `"lint": "oxlint --type-aware src/ test/ demo/"`
   - `"typecheck": "tsc --noEmit -p tsconfig.json && tsc -p demo/tsconfig.json"`
@@ -118,21 +134,24 @@ Commit: `test(api): escenarios y mutantes de los nombres locales`.
   - `"dev:demo": "node apps/api/demo/dev-demo.mjs"`
   - `"demo:seed": "node apps/api/demo/seed.mjs"`
 - [ ] 3.7 Tests unit, junto al código que cubren (TDD):
-  - `apps/api/test/demo/demo-modules.ts`: el cargador tipado, y un test de que los nombres exportados de cada módulo son exactamente los declarados.
+  - `apps/api/test/demo/mjs-modules.d.ts`: `declare module '*.mjs';` (D2). Los tests importan los `.mjs` directamente.
   - `demo-config.spec.ts`:
     - `demoHttpVariables` por defecto da los cuatro valores exactos de la spec.
     - El token cumple `^Bearer [A-Za-z0-9_-]{43}$` y dos llamadas dan valores distintos.
     - `findConflicts` cubre los cuatro nombres y `""`.
-    - `buildApiEnvironment` no contiene la clave de Claude y no modifica su entrada.
+    - `buildApiEnvironment` no contiene la clave de Claude, sí contiene `NEXT_TELEMETRY_DISABLED=1` y `TURBO_TELEMETRY_DISABLED=1`, y no modifica su entrada.
   - `captacion-leads-local.spec.ts`: **«Paridad con el ejemplo canónico»** (C6) y el cruce copia ↔ C3 (D10).
   - `crm.spec.ts`, con `startCrm` en `127.0.0.1:0`:
-    - **«Rutas y cuerpos que rechaza»**: los 7 casos, el cuerpo de error y ningún `id` asignado (el siguiente 201 es `L-1`).
+    - **«Rutas y cuerpos que rechaza»**: los 7 casos, el cuerpo de error y ningún `id` asignado (el siguiente 201 es `L-1`). Un `POST /api/leads` de 32 KiB sin `Authorization` recibe el 401 entero, sin `ECONNRESET` en el cliente.
     - 201 con `L-1` y `L-2`, y una línea de registro por petición sin cabeceras, consulta ni cuerpo.
     - Un tipo `application/json; charset=utf-8` se acepta, y un cuerpo de más de 64 KiB da 400.
     - **«CRM solo en loopback»**: `[::1]:<puerto>` rechazado, y la primera IPv4 no interna de `os.networkInterfaces()` también, con `it.skipIf` si no hay ninguna.
     - **«Puerto del CRM ocupado»** (la parte del CRM): `startCrm` sobre un puerto ocupado del test rechaza con `EADDRINUSE`.
     - El modo proceso: `fork` real con `{start, port: 0}` responde `listening`, atiende una petición, y `stop` y `disconnect` lo terminan.
-  - `seed.spec.ts`: **«Dirección de la API no admitida en la semilla»** (`http://192.168.1.10:3001` y `""`): código 1, la salida nombra `FRANCA_API_URL` y el `request` espía no se llama ninguna vez.
+  - `seed.spec.ts`:
+    - **«Dirección de la API no admitida en la semilla»** (`http://192.168.1.10:3001` y `""`): código 1, la salida nombra `FRANCA_API_URL` y el `request` espía no se llama ninguna vez.
+    - Con un `request` que devuelve el 500 real de la API (`{"message":"error interno","error":"internal_error"}`, copiado de `api-error.ts`), la salida nombra `pnpm --filter @franca/api db:migrate`.
+    - Un `error` como `<script>` o de 65 caracteres no se imprime.
 
 **Gate 3**:
 - `pnpm check` pasa (lint y typecheck de `demo/` incluidos).
@@ -148,6 +167,8 @@ Commit: `feat(api): demo local con CRM simulado, semilla y pnpm dev:demo`.
     - Los dobles de proceso no se llaman.
     - La salida nombra las dos variables y no contiene `no-mostrar-3` ni `127.0.0.1:8080`, y el código es 1.
     - Además, un proceso real: `node apps/api/demo/dev-demo.mjs` con `PATH` y esas variables da un código distinto de 0 y la misma salida.
+      - Se lanza con `detached: true` y un plazo de 5 s.
+      - Al terminar, pase lo que pase, se mata su grupo (`process.kill(-pid, 'SIGKILL')` en un `finally`, sin fallar si ya no existe). Así un fallo que lanzara turbo no deja procesos.
   - **«Variable vacía en la shell»**: lo mismo con `FRANCA_HTTP_LOCAL_NAMES` = `""`.
   - **«Clave de Claude en la shell»** (la parte del arranque):
     - El entorno que recibe el doble de turbo no tiene `FRANCA_ANTHROPIC_API_KEY`.
@@ -161,8 +182,10 @@ Commit: `feat(api): demo local con CRM simulado, semilla y pnpm dev:demo`.
     - `SIGINT` lleva a `SIGINT` al grupo de turbo (`-pid`) y a `stop` del CRM, con código 130.
     - Si los dobles no salen, a los 7 s hay `SIGKILL` al grupo.
     - Un puerto que sigue ocupado tras parar da su aviso y el código 1.
-    - Un segundo `SIGINT` lleva a `SIGKILL` al momento.
-    - Con `SIGTERM`, el código es 143.
+    - **Dos `SIGINT` con menos de 50 ms entre ellos** (el Ctrl+C reenviado por pnpm, A9) dan un único `SIGINT` al grupo y ningún `SIGKILL` antes de los 7 s, y el código es 130.
+    - Un `SIGTERM` o un `SIGHUP` durante la parada no cambian nada.
+    - Con `SIGTERM`, el código es 143; con `SIGHUP`, 129, y en los dos hay señal al grupo.
+    - La comprobación de puertos mira `127.0.0.1` y `::1`.
   - **«CRM simulado que termina»**: el CRM sale sin que se le pida, hay `SIGINT` al grupo de turbo, el mensaje de C4 y el código 1.
   - **«Arranque de la API y la web que termina»**: turbo sale, se pide `stop` al CRM, aparece el mensaje de C4 y el código es distinto de 0.
   - La API que no responde en 120 s da su mensaje, y la demo sigue en marcha.
@@ -176,6 +199,10 @@ Commit: `feat(api): demo local con CRM simulado, semilla y pnpm dev:demo`.
     - Primera ronda: un puerto cerrado.
     - Segunda ronda: un `startApi` con la base falsa (`127.0.0.1:59999`).
     - Cada ronda termina en menos de 15 s, medido.
+  - **«Base de datos sin migraciones para la semilla»**:
+    - El test crea una base vacía en el Postgres de los e2e (`CREATE DATABASE` con un nombre `franca_e2e_*_vacia`) y arranca contra ella otra API real.
+    - La semilla termina con 1 y nombra `pnpm --filter @franca/api db:migrate`.
+    - La base se borra en un `finally`.
 - [ ] 4.3 `apps/api/test/demo.e2e-spec.ts`:
   - Un CRM simulado real (`startCrm` en `127.0.0.1:0` con un token de prueba y `log` capturado).
   - La API real con `demoHttpVariables({ token, crmPort })`, sin `NODE_EXTRA_CA_CERTS` ni red del test.
@@ -193,6 +220,8 @@ Commit: `feat(api): demo local con CRM simulado, semilla y pnpm dev:demo`.
   - Se quita `delete` de la clave de Claude: falla el test de la clave.
   - Se registra `req.headers` en el CRM: falla «Lead fuera del registro del CRM».
   - Se hace que la semilla publique sin comparar el borrador: falla «Borrador cambiado a mano».
+  - Se quita el «ignorar señales durante la parada»: falla el caso de dos `SIGINT` en menos de 50 ms.
+  - Se quita el saneado de `<error>`: falla el caso de `<script>`.
 
 **Gate 4**: `pnpm check` y `pnpm test:e2e` pasan (con Postgres, `DATABASE_URL`, Chromium y el puerto 3000 libre), y se pegan los resultados de 4.4 y 4.6.
 
@@ -204,7 +233,14 @@ Commit: `test(api): demo local (arranque, semilla y cadena con el CRM simulado)`
   - Entran en «Comandos» `pnpm dev:demo` y `pnpm demo:seed`, con lo que necesitan (Postgres, `DATABASE_URL`, los puertos 3000, 3001 y 4010 libres) y la nota de que `pnpm dev` no cambia.
   - Entra en «Variables de entorno» `FRANCA_HTTP_LOCAL_NAMES`: la forma, solo `.test` y loopback, que no salta `FRANCA_HTTP_ALLOWED_DESTINATIONS` y que un valor mal escrito impide arrancar.
   - Solo nombres, nunca valores de secreto. El valor de ejemplo `crm.franca.test=127.0.0.1` no es un secreto.
-- [ ] 5.2 `README.md` (sección «Desarrollo»): demo local en tres comandos, qué abrir, qué esperar, que `faq-ia` sigue en `llm_not_configured` y cómo recuperar el `id` reservado. `apps/api/README.md`: la variable y la carpeta `demo/`.
+- [ ] 5.2 `README.md` (sección «Desarrollo»):
+  - La demo local desde un clon limpio, en cuatro comandos: `pnpm install`, `docker compose up -d`, `pnpm --filter @franca/api db:migrate` (con `DATABASE_URL` exportada) y `pnpm dev:demo`.
+  - Qué abrir y qué esperar.
+  - Que `faq-ia` sigue en `llm_not_configured`.
+  - Cómo recuperar el `id` reservado.
+  - Una línea sobre la deriva de la copia: tras actualizar el repositorio, la semilla puede decir «no tocado». Para ponerla al día, se sustituye el borrador por `apps/api/demo/captacion-leads-local.json` (`PUT` con `If-Match`) o, si no hay nada que conservar, `docker compose down -v` y las migraciones.
+
+  `apps/api/README.md`: la variable y la carpeta `demo/`. `CLAUDE.md` (5.1) incluye la misma receta de cuatro comandos.
 - [ ] 5.3 Wiki (D16):
   - El apartado «Nombres locales» en `decision-salida-http-politica.md`, con los mutantes en su `enforcement`.
   - `gotcha-turbo-senal-al-grupo.md`, con `metadata.enforcement`.
@@ -219,7 +255,11 @@ Commit: `docs: demo local y FRANCA_HTTP_LOCAL_NAMES`.
 
 Con Postgres en marcha (`docker compose up -d`) y `DATABASE_URL` exportada, desde la raíz. Se anota cada paso con lo observado.
 
-- [ ] 6.1 `pnpm dev:demo` desde un estado limpio (`docker compose down -v && docker compose up -d`, y aplicar las migraciones). Se comprueban en la salida:
+- [ ] 6.1 `pnpm dev:demo` desde un estado limpio, con la receta de cuatro comandos (5.2).
+  - **Antes** de aplicar las migraciones (`docker compose down -v && docker compose up -d`):
+    - Se arranca la API con `pnpm dev`, y `pnpm demo:seed` nombra `pnpm --filter @franca/api db:migrate`: es «Base de datos sin migraciones para la semilla» con la base real.
+    - Se para con Ctrl+C.
+  - Después, `pnpm --filter @franca/api db:migrate` y `pnpm dev:demo`. Se comprueban en la salida:
   - la línea del CRM;
   - la línea `salida http:` exacta de C1 (contiene `CRM_TOKEN`, `http://crm.franca.test:4010`, `127.0.0.1:4010` y `crm.franca.test`);
   - el aviso de Claude;
@@ -229,14 +269,25 @@ Con Postgres en marcha (`docker compose up -d`) y `DATABASE_URL` exportada, desd
   - Con «Ana», «ana@example.com» y «Más de 50»: aparece el mensaje final de `lead-empresa`, y «Detalles de la prueba» muestra el evento `http` con status 201. El CRM registra `POST /api/leads 201 L-1`.
   - Una segunda conversación con «1 a 10» termina en `lead-pyme`, con `L-2`.
   - La consola del navegador está limpia, y la pestaña de red solo muestra peticiones a `localhost:3000`.
-- [ ] 6.3 **«Demo sin Internet»**: con la Wi-Fi y cualquier otra red desconectadas, se repite 6.1 y una conversación hasta `lead-empresa`. Mientras tanto, `lsof -nP -iTCP -sTCP:ESTABLISHED`, filtrado por los procesos de la demo, solo muestra loopback.
+- [ ] 6.3 **«Demo sin Internet»**, en dos partes. Desconectar la red **no** basta para dar por probado que nada sale: un intento fallaría en silencio.
+  - **Con la red conectada**, durante una conversación hasta `lead-empresa`:
+    - Cada 0,5 s, `lsof -nP -iTCP -a -p <pids>` sobre la API, el CRM y `next-server`. Los pids se toman de `lsof -nP -iTCP:3001,4010,3000 -sTCP:LISTEN`.
+    - La API y el CRM solo tienen conexiones con `127.0.0.1` o `::1`.
+    - Se anota cualquier conexión de otra herramienta (Prisma, pnpm…) como observación (R10), sin hacerla fallar.
+    - `ps eww -p <pid de next-server> | tr ' ' '\n' | grep -E '^(NEXT|TURBO)_TELEMETRY_DISABLED=1$'` confirma que las dos variables de telemetría llegan (A10).
+  - **Con la Wi-Fi y cualquier otra red desconectadas**, se repite 6.1 y una conversación hasta `lead-empresa`, con el mismo resultado.
 - [ ] 6.4 **«Token de la ejecución fuera de la salida»**:
   - Dos ejecuciones seguidas, cada una con un `lead-empresa`, con la salida copiada **fuera del repositorio** (`pnpm dev:demo 2>&1 | tee "$TMPDIR/demo-1.log"`).
   - `grep -E 'Bearer [A-Za-z0-9_-]{43}'` no encuentra nada en los dos ficheros.
   - `git status` está limpio.
   - Que los dos tokens son distintos lo prueba 4.1, sin leer el entorno de los procesos.
 - [ ] 6.5 **Parada**:
-  - **«Parada con Ctrl+C»**: la demo termina en menos de 10 s (se cronometra), y `lsof -nP -iTCP:3000 -iTCP:3001 -iTCP:4010 -sTCP:LISTEN` no muestra nada.
+  - **«Parada con Ctrl+C»**: se repite la medida de A5 **a través de `pnpm dev:demo`**, en una terminal real, con un solo Ctrl+C (B1).
+    - La demo termina en menos de 10 s (se cronometra).
+    - Su salida no dice que haya matado nada a la fuerza, y su código es 130.
+    - `lsof -nP -iTCP:3000 -iTCP:3001 -iTCP:4010 -sTCP:LISTEN` no muestra nada.
+    - Se repite tres veces.
+  - Se cierra la ventana de la terminal con la demo en marcha (`SIGHUP`). Desde otra terminal, los puertos quedan libres en menos de 10 s.
   - `ps -axo pid,command | grep -E 'turbo|nest|next|tsdown|crm.mjs'` no muestra procesos de la demo, ni un *daemon* de turbo.
   - **«CRM simulado que termina»**: con la demo en marcha, `kill <pid del CRM>` (se busca con `lsof -nP -iTCP:4010 -sTCP:LISTEN`). La demo para la API y la web, sale con un código distinto de 0 y dice que el CRM se ha parado.
 - [ ] 6.6 **Shell en conflicto y clave de Claude**:
@@ -263,4 +314,4 @@ Commit, si hay algún ajuste: `fix(api): …` o `test(api): …`, según toque. 
 - [ ] 7.2 FOLLOW-UP: los modos de fallo del CRM simulado (429, 503, lentitud), si el editor (8) los necesita.
 - [ ] 7.3 FOLLOW-UP: comprobar de antemano que los puertos 3000 y 3001 están libres en `pnpm dev:demo`. Hoy los detecta `pnpm dev`, sin que la demo lo diga.
 - [ ] 7.4 FOLLOW-UP: la métrica de tiempo de 4.5, si no se pudo medir en la CI de un PR.
-- [ ] 7.5 FOLLOW-UP (heredado y sin tocar): 7.6 de `web-chat`, `openspec/**` en los `inputs` de los tests de la API. Ver Open Questions de `design.md`.
+- [ ] 7.5 Cerrado por este cambio (1.4): el FOLLOW-UP 7.6 de `web-chat`, `openspec/**` en los `inputs` de los tests de la API. Se marca así al archivar, y queda anotado en la descripción del PR.
