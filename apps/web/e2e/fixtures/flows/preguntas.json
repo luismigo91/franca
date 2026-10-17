@@ -1,0 +1,214 @@
+{
+  "specVersion": "0.1",
+  "id": "preguntas",
+  "name": "Preguntas",
+  "locale": "es",
+  "settings": {
+    "typingDelayMs": 0
+  },
+  "variables": [
+    {
+      "name": "t",
+      "type": "string"
+    },
+    {
+      "name": "e",
+      "type": "email"
+    },
+    {
+      "name": "f",
+      "type": "phone"
+    },
+    {
+      "name": "n",
+      "type": "number"
+    },
+    {
+      "name": "u",
+      "type": "url"
+    },
+    {
+      "name": "d",
+      "type": "date"
+    },
+    {
+      "name": "b",
+      "type": "boolean"
+    },
+    {
+      "name": "p",
+      "type": "string"
+    },
+    {
+      "name": "x",
+      "type": "json"
+    }
+  ],
+  "start": "texto",
+  "nodes": [
+    {
+      "id": "texto",
+      "type": "input",
+      "inputType": "text",
+      "variable": "t",
+      "prompt": [
+        {
+          "kind": "text",
+          "text": "¿Texto?"
+        }
+      ],
+      "placeholder": "Escribe algo",
+      "next": "email"
+    },
+    {
+      "id": "email",
+      "type": "input",
+      "inputType": "email",
+      "variable": "e",
+      "prompt": [
+        {
+          "kind": "text",
+          "text": "¿Email?"
+        }
+      ],
+      "next": "telefono"
+    },
+    {
+      "id": "telefono",
+      "type": "input",
+      "inputType": "phone",
+      "variable": "f",
+      "prompt": [
+        {
+          "kind": "text",
+          "text": "¿Teléfono?"
+        }
+      ],
+      "next": "numero"
+    },
+    {
+      "id": "numero",
+      "type": "input",
+      "inputType": "number",
+      "variable": "n",
+      "prompt": [
+        {
+          "kind": "text",
+          "text": "¿Número?"
+        }
+      ],
+      "validation": {
+        "min": 1,
+        "max": 10
+      },
+      "next": "web"
+    },
+    {
+      "id": "web",
+      "type": "input",
+      "inputType": "url",
+      "variable": "u",
+      "prompt": [
+        {
+          "kind": "text",
+          "text": "¿Web?"
+        }
+      ],
+      "next": "fecha"
+    },
+    {
+      "id": "fecha",
+      "type": "input",
+      "inputType": "date",
+      "variable": "d",
+      "prompt": [
+        {
+          "kind": "text",
+          "text": "¿Fecha?"
+        }
+      ],
+      "next": "acepta"
+    },
+    {
+      "id": "acepta",
+      "type": "input",
+      "inputType": "boolean",
+      "variable": "b",
+      "prompt": [
+        {
+          "kind": "text",
+          "text": "¿Aceptas?"
+        }
+      ],
+      "next": "plan"
+    },
+    {
+      "id": "plan",
+      "type": "input",
+      "inputType": "choice",
+      "variable": "p",
+      "prompt": [
+        {
+          "kind": "text",
+          "text": "¿Plan?"
+        }
+      ],
+      "choices": [
+        {
+          "id": "basico",
+          "label": "Básico",
+          "imageUrl": "https://example.com/basico.png",
+          "next": "extras"
+        },
+        {
+          "id": "pro",
+          "label": "Pro",
+          "imageUrl": "javascript:alert(1)",
+          "next": "extras"
+        }
+      ]
+    },
+    {
+      "id": "extras",
+      "type": "input",
+      "inputType": "choice",
+      "multiple": true,
+      "variable": "x",
+      "prompt": [
+        {
+          "kind": "text",
+          "text": "¿Extras?"
+        }
+      ],
+      "validation": {
+        "max": 2
+      },
+      "choices": [
+        {
+          "id": "a",
+          "label": "Soporte"
+        },
+        {
+          "id": "b",
+          "label": "Formación"
+        },
+        {
+          "id": "c",
+          "label": "Informes"
+        }
+      ],
+      "next": "fin"
+    },
+    {
+      "id": "fin",
+      "type": "end",
+      "outcome": "completo",
+      "content": [
+        {
+          "kind": "text",
+          "text": "Gracias."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,268 @@
+[
+  {
+    "id": "allowJavascriptScheme",
+    "file": "src/lib/chat/url-filter.ts",
+    "find": "url.protocol === 'https:' || url.protocol === 'http:';",
+    "replace": "url.protocol === 'https:' || url.protocol === 'http:' || url.protocol === 'javascript:';",
+    "tests": [
+      "src/lib/chat/url-filter.test.ts"
+    ]
+  },
+  {
+    "id": "allowDataInImage",
+    "file": "src/lib/chat/url-filter.ts",
+    "find": "url.protocol === 'https:' || url.protocol === 'http:';",
+    "replace": "url.protocol === 'https:' || url.protocol === 'http:' || (kind === 'image' && url.protocol === 'data:');",
+    "tests": [
+      "src/lib/chat/url-filter.test.ts"
+    ]
+  },
+  {
+    "id": "allowHttpEmbed",
+    "file": "src/lib/chat/url-filter.ts",
+    "find": "kind === 'embed' ? url.protocol === 'https:' :",
+    "replace": "kind === 'embed' ? url.protocol === 'https:' || url.protocol === 'http:' :",
+    "tests": [
+      "src/lib/chat/url-filter.test.ts"
+    ]
+  },
+  {
+    "id": "allowCredentials",
+    "file": "src/lib/chat/url-filter.ts",
+    "find": "if (url.username !== '' || url.password !== '') return null;",
+    "replace": "// credenciales sin comprobar",
+    "tests": [
+      "src/lib/chat/url-filter.test.ts"
+    ]
+  },
+  {
+    "id": "allowRelative",
+    "file": "src/lib/chat/url-filter.ts",
+    "find": "if (typeof raw !== 'string' || !URL.canParse(raw)) return null;\n  const url = new URL(raw);",
+    "replace": "if (typeof raw !== 'string' || !URL.canParse(raw, 'https://example.com')) return null;\n  const url = new URL(raw, 'https://example.com');",
+    "tests": [
+      "src/lib/chat/url-filter.test.ts"
+    ]
+  },
+  {
+    "id": "renderRawUrl",
+    "file": "src/components/chat/media-item.tsx",
+    "find": "<img src={href} alt",
+    "replace": "<img src={item.url} alt",
+    "tests": [
+      "src/components/chat/media-item.test.tsx"
+    ]
+  },
+  {
+    "id": "iframeSameOrigin",
+    "file": "src/components/chat/media-item.tsx",
+    "find": "sandbox=\"allow-scripts\"",
+    "replace": "sandbox=\"allow-scripts allow-same-origin allow-top-navigation\"",
+    "tests": [
+      "src/components/chat/media-item.test.tsx"
+    ]
+  },
+  {
+    "id": "autolinkText",
+    "file": "src/components/chat/message-text.tsx",
+    "find": "return <p className=\"whitespace-pre-wrap [overflow-wrap:anywhere]\">{text}</p>;",
+    "replace": "return <p className=\"whitespace-pre-wrap [overflow-wrap:anywhere]\" dangerouslySetInnerHTML={{ __html: text.replace(/(https?:\\/\\/\\S+)/g, '<a href=\"$1\">$1</a>') }} />;",
+    "tests": [
+      "src/components/chat/message-text.test.tsx"
+    ]
+  },
+  {
+    "id": "skipHostCheck",
+    "file": "src/server/frontier.ts",
+    "find": "if (host === null || !isLocalHost(host)) return deny(403, null, request.pathname);",
+    "replace": "if (host === null) return deny(403, null, request.pathname);",
+    "tests": [
+      "src/server/frontier.test.ts"
+    ]
+  },
+  {
+    "id": "hostSuffixMatch",
+    "file": "src/server/frontier.ts",
+    "find": "if (host === null || !isLocalHost(host)) return deny(403, null, request.pathname);",
+    "replace": "if (host === null || !host.toLowerCase().replace(/:\\d+$/, '').endsWith('localhost')) return deny(403, null, request.pathname);",
+    "tests": [
+      "src/server/frontier.test.ts"
+    ]
+  },
+  {
+    "id": "readForwardedHost",
+    "file": "src/server/frontier.ts",
+    "find": "const host = request.headers.get('host');",
+    "replace": "const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host');",
+    "tests": [
+      "src/server/frontier.test.ts"
+    ]
+  },
+  {
+    "id": "allowMissingOrigin",
+    "file": "src/server/frontier.ts",
+    "find": "if (origin === null || origin !== `http://${host.toLowerCase()}`)",
+    "replace": "if (origin !== null && origin !== `http://${host.toLowerCase()}`)",
+    "tests": [
+      "src/server/frontier.test.ts"
+    ]
+  },
+  {
+    "id": "compareOriginToFixedHost",
+    "file": "src/server/frontier.ts",
+    "find": "origin !== `http://${host.toLowerCase()}`",
+    "replace": "origin !== 'http://localhost:3000'",
+    "tests": [
+      "src/server/frontier.test.ts"
+    ]
+  },
+  {
+    "id": "dropFrameHeaders",
+    "file": "src/server/frontier.ts",
+    "find": "    'Content-Security-Policy': \"frame-ancestors 'none'\",\n    'X-Frame-Options': 'DENY',\n",
+    "replace": "",
+    "tests": [
+      "src/server/frontier.test.ts"
+    ]
+  },
+  {
+    "id": "dropNoStore",
+    "file": "src/server/frontier.ts",
+    "find": "    'Cache-Control': 'no-store',\n",
+    "replace": "",
+    "tests": [
+      "src/server/frontier.test.ts"
+    ]
+  },
+  {
+    "id": "forwardBrowserHeaders",
+    "file": "src/server/api/transport.ts",
+    "find": "const headers: Record<string, string> = { Host: target.hostHeader, Connection: 'close' };",
+    "replace": "const headers: Record<string, string> = { Host: target.hostHeader, Connection: 'close', Cookie: 'sesion=1', 'X-Extra': '1' };",
+    "tests": [
+      "src/server/bff/handlers.test.ts",
+      "src/server/api/transport.test.ts"
+    ]
+  },
+  {
+    "id": "genericPassthrough",
+    "file": "src/server/api/operations.ts",
+    "find": "path: API_OPERATIONS.deleteConversation(conversationId)",
+    "replace": "path: API_OPERATIONS.deleteConversation(conversationId) + '/../../flows/hola'",
+    "tests": [
+      "src/server/bff/handlers.test.ts",
+      "src/server/api/operations.test.ts"
+    ]
+  },
+  {
+    "id": "unvalidatedConversationId",
+    "file": "src/server/ids.ts",
+    "find": "return typeof value === 'string' && CONVERSATION_ID.test(value);",
+    "replace": "return typeof value === 'string';",
+    "tests": [
+      "src/server/ids.test.ts",
+      "src/server/bff/handlers.test.ts"
+    ]
+  },
+  {
+    "id": "keepErrorMessage",
+    "file": "src/server/bff/responses.ts",
+    "find": "if (!isObject(event) || event.type !== 'error') return event;",
+    "replace": "return event;",
+    "tests": [
+      "src/server/bff/responses.test.ts",
+      "src/server/bff/handlers.test.ts"
+    ]
+  },
+  {
+    "id": "useGlobalAgent",
+    "file": "src/server/api/transport.ts",
+    "find": "      createConnection: () => openSocket(target),\n",
+    "replace": "      host: '127.0.0.1',\n      port: target.port,\n",
+    "tests": [
+      "tests/api-transport-env-proxy.test.ts"
+    ]
+  },
+  {
+    "id": "showErrorMessage",
+    "file": "src/lib/chat/transcript-view.ts",
+    "find": "        activity.push(event);",
+    "replace": "        activity.push(event.type === 'error' ? ({ ...event, message: (item.event as { message?: string }).message } as typeof event) : event);",
+    "tests": [
+      "src/lib/chat/transcript-view.test.ts"
+    ]
+  },
+  {
+    "id": "noIfMatch",
+    "file": "src/lib/web-client.ts",
+    "find": "const headers = { ...JSON_HEADERS, 'If-Match': `\"${revision}\"` };",
+    "replace": "const headers = { ...JSON_HEADERS };",
+    "tests": [
+      "src/lib/web-client.test.ts",
+      "src/lib/chat/conversation-session.test.ts"
+    ]
+  },
+  {
+    "id": "autoResendOnLoss",
+    "file": "src/lib/chat/conversation-session.ts",
+    "find": "    this.lost = { input, label, revision };\n    this.patch({ notice: { kind: 'lost_not_sent', text: COPY.lostNotSent, action: 'retry' } });",
+    "replace": "    await this.submit(input, label, revision);",
+    "tests": [
+      "src/lib/chat/conversation-session.test.ts"
+    ]
+  },
+  {
+    "id": "allowDoubleSend",
+    "file": "src/lib/chat/conversation-session.ts",
+    "find": "if (sending || !conversation || !pending",
+    "replace": "if (!conversation || !pending",
+    "tests": [
+      "src/lib/chat/conversation-session.test.ts"
+    ]
+  },
+  {
+    "id": "skipInspectorPatch",
+    "file": "scripts/local-only-preload.cjs",
+    "find": "for (const target of [inspector, inspectorPromises]) target.open = disabledOpen;",
+    "replace": "// inspector sin neutralizar",
+    "tests": [
+      "tests/local-only-preload.test.ts"
+    ]
+  },
+  {
+    "id": "skipHostGuard",
+    "file": "scripts/local-only-preload.cjs",
+    "find": "const GUARDED_REQUEST_EVENTS = new Set(['request', 'checkContinue', 'checkExpectation']);",
+    "replace": "const GUARDED_REQUEST_EVENTS = new Set([]);",
+    "tests": [
+      "tests/local-only-preload.test.ts"
+    ]
+  },
+  {
+    "id": "skipUpgradeGuard",
+    "file": "scripts/local-only-preload.cjs",
+    "find": "const GUARDED_UPGRADE_EVENTS = new Set(['upgrade', 'connect']);",
+    "replace": "const GUARDED_UPGRADE_EVENTS = new Set([]);",
+    "tests": [
+      "tests/local-only-preload.test.ts"
+    ]
+  },
+  {
+    "id": "skipUpgradeOrigin",
+    "file": "scripts/local-only-preload.cjs",
+    "find": "return headers.origin === 'http://' + String(headers.host).toLowerCase();",
+    "replace": "return true;",
+    "tests": [
+      "tests/local-only-preload.test.ts"
+    ]
+  },
+  {
+    "id": "skipWriteContinueGuard",
+    "file": "scripts/local-only-preload.cjs",
+    "find": "if (this.req && !isLocalHost(this.req.headers.host)) return;\n",
+    "replace": "",
+    "tests": [
+      "tests/local-only-preload.test.ts"
+    ]
+  }
+]

@@ -20,7 +20,7 @@ Las reglas en `.claude/rules/**` se cargan por contexto en sesiones de Claude Co
 | `always/gotchas.md` | pointer | apunta a código real |
 | `backend/architecture.md` | pointer | `apps/api/src/flows/` como referencia; e2e en `apps/api/test/` |
 | `backend/routes-and-errors.md` | advisory | e2e por endpoint |
-| `frontend/architecture.md` | advisory | ESLint de Next; verificación en navegador |
+| `frontend/architecture.md` | advisory | ESLint (`apps/web/eslint.config.mjs`), la guarda estática, la paridad y la cobertura de la spec en Vitest (`pnpm check`) y los E2E de Playwright (`pnpm test:e2e`) |
 | `spec/flow-spec.md` | enforced-invariant | `packages/spec/tests/validate.test.ts`, `pnpm validate` en CI |
 
 Pendientes cuando existan: auth (`backend/auth-patterns.md`, `frontend/auth-gates.md`) y analítica (`frontend/analytics.md`) de las skills `popi:stack-nestjs` / `popi:stack-nextjs`.

@@ -35,8 +35,19 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm build
+      # Chromium de los E2E de la web: cada versión de @playwright/test (fijada en el lockfile) fija su navegador.
+      - run: pnpm --filter @franca/web exec playwright install --with-deps chromium
       - run: pnpm test
       - run: pnpm test:e2e
         env:
           DATABASE_URL: postgresql://franca@127.0.0.1:5432/franca
       - run: pnpm validate
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: web-e2e-resultados
+          path: |
+            apps/web/test-results/
+            apps/web/playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore

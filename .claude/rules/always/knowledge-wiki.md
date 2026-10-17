@@ -31,6 +31,10 @@
 - [jsonb reordena las claves](../../wiki/gotcha-jsonb-reordena-claves.md) — por qué el flujo se guarda como text con un único JSON.stringify
 - [query_timeout de pg duplica la espera](../../wiki/gotcha-pg-query-timeout-duplica-con-rollback.md) — por qué query_timeout es 4 s (el ROLLBACK sobre una conexión muda espera otro) y statement_timeout 3,5 s: un servidor mudo acaba en 8 s y no en 16 s
 - [node:http sobre un socket propio](../../wiki/gotcha-node-http-createconnection-y-proxy.md) — agent false ignora createConnection, keep-alive y chunked por defecto, el 101 cierra sin response y NODE_USE_ENV_PROXY desvía globalAgent y fetch
+- [Next escucha antes de cargar la config](../../wiki/gotcha-next-escucha-antes-de-cargar-la-config.md) — por qué FRANCA_API_URL la valida el lanzador y no next.config
+- [type=email recorta el valor](../../wiki/gotcha-input-email-recorta-el-valor.md) — por qué las preguntas de texto del chat usan type=text con inputMode
+- [Cache Components: Activity y prerender](../../wiki/gotcha-cache-components-activity-y-prerender.md) — un GET sin connection() se prerenderiza y Activity conserva rutas y DOM
+- [next dev fuera de la frontera](../../wiki/gotcha-next-dev-fuera-de-la-frontera.md) — recursos de desarrollo antes de proxy.ts, inspector y DNS rebinding; por qué el preload y no un guardián, y --inspect desaconsejado
 - [El SDK de Anthropic lee el entorno](../../wiki/gotcha-sdk-anthropic-lee-el-entorno.md) — ANTHROPIC_CUSTOM_HEADERS pisa x-api-key y apiKey/defaultHeaders no lo impiden; por qué la API pasa por una puerta de salida que reconstruye URL y cabeceras
 
 ### Decisiones
@@ -39,6 +43,8 @@
 - [Coste y reintentos del llm en el adaptador](../../wiki/decision-llm-coste-y-reintentos-en-el-adaptador.md) — por qué el proveedor calcula el coste, el motor solo aplica el tope de parada y los reintentos son del SDK; lo facturado puede superar lo contabilizado
 - [matches con regex lineal propia](../../wiki/decision-matches-regex-lineal.md) — por qué no RegExp nativo, timeout ni RE2 en packages/engine
 - [Política de la salida http](../../wiki/decision-salida-http-politica.md) — secretos en variables con origen exacto, resolución mezclada bloqueada entera, http:// solo hacia pares permitidos y nada registrado de una llamada; límites (NAT64 de operador, fecha de IANA)
+- [Frontera local de la web](../../wiki/decision-frontera-local-de-la-web.md) — proxy en el servidor y no lista de orígenes; Host en bruto más Origin, sin Server Actions ni marcos, ocho operaciones y fetch en modo cors
+- [Filtro de URLs sobre lo parseado](../../wiki/decision-filtro-de-urls-sobre-lo-parseado.md) — href y no el texto, sin next/image (SSRF) ni Referer, iframe sin allow-same-origin
 - [Reclamar, motor sin transacción, aplicar](../../wiki/decision-reclamacion-fuera-de-transaccion.md) — testigo, epoch del contacto, orden de bloqueos contacto -> conversación y los límites aceptados (COMMIT incierto sin If-Match, entrada reclamada antes de caducar)
 
 ### Dominio

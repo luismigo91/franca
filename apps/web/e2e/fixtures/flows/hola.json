@@ -1,0 +1,12 @@
+{
+  "specVersion": "0.1",
+  "id": "hola",
+  "name": "Hola",
+  "start": "fin",
+  "nodes": [
+    {
+      "id": "fin",
+      "type": "end"
+    }
+  ]
+}

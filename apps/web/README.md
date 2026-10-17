@@ -1,36 +1,56 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Franca — chat web de prueba
 
-## Getting Started
+Chat de prueba de Franca (`apps/web`, Next.js 16): una persona abre la web en su máquina, elige un flujo publicado en
+la API, conversa con él como lo haría un usuario final y puede reabrir, repetir y borrar sus conversaciones.
 
-First, run the development server:
+La web es una herramienta **local**: el navegador nunca habla con la API. Lo hace el servidor de la web, que es la
+frontera local del chat (solo ocho operaciones fijas, `Host` local en toda petición y `Origin` propio en las que
+cambian algo). Mientras la API no tenga autenticación, no se expone fuera de la máquina.
+
+## Arrancar
+
+Necesita la API en marcha (`pnpm --filter @franca/api dev`, con Postgres: `docker compose up -d`).
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm dev                      # desde la raíz: la API y la web
+pnpm --filter @franca/web dev # solo la web
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Después, `http://localhost:3000`. La web escucha **solo** en `127.0.0.1:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+`dev` y `start` pasan por `scripts/local-only.mjs`, que valida `FRANCA_API_URL` antes de ejecutar `next` y carga
+`scripts/local-only-preload.cjs`. No arranques `next` a mano: se saltaría la guarda local.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable | Por defecto | Qué hace |
+|---|---|---|
+| `FRANCA_API_URL` | `http://127.0.0.1:3001` | Dirección de la API. Solo `http://` hacia `127.0.0.1`, `[::1]` o `localhost`, con puerto opcional y sin ruta, consulta, usuario ni contraseña. Con otro valor, también vacío, la web no arranca. |
 
-## Learn More
+## Probar
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+pnpm --filter @franca/web test   # Vitest: unit, marcado, integración con una API simulada y guardas estáticas
+pnpm test:e2e                    # desde la raíz: la API y la web, en serie (necesita Postgres y DATABASE_URL)
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Los E2E usan Chromium con Playwright, la API real, Postgres y el puerto 3000 libre (para `pnpm dev` antes):
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+docker compose up -d
+pnpm --filter @franca/web exec playwright install chromium
+DATABASE_URL=postgresql://franca@127.0.0.1:5432/franca pnpm test:e2e
+```
 
-## Deploy on Vercel
+Nada de lo anterior llama a Internet ni a Anthropic.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Advertencia: el inspector de Node está desactivado
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+La guarda local (`scripts/local-only-preload.cjs`) neutraliza `inspector.open` en todo el árbol de procesos de Next,
+porque un recurso de desarrollo de `next dev` lo abría y, con DNS rebinding, dejaba ejecutar código en el proceso.
+Consecuencias:
+
+- El botón de adjuntar el depurador de Node de las herramientas de desarrollo de Next responde 500.
+- **`next start --inspect` deja de funcionar** (Next sale con 1: «Failed to start the Node.js inspector»).
+- **No uses `NODE_OPTIONS=--inspect`**: abre el inspector al arrancar sin pasar por `open`, y deja su puerto en
+  `127.0.0.1:9229` abierto a **cualquier proceso local** durante toda la sesión.
+
+Esto es una advertencia, no una receta: no hay una forma recomendada de depurar el servidor de la web con el inspector.

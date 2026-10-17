@@ -1,0 +1,26 @@
+{
+  "specVersion": "0.1",
+  "id": "saludo-contacto",
+  "name": "Saludo",
+  "variables": [
+    {
+      "name": "email",
+      "type": "email",
+      "scope": "contact",
+      "pii": true
+    }
+  ],
+  "start": "fin",
+  "nodes": [
+    {
+      "id": "fin",
+      "type": "end",
+      "content": [
+        {
+          "kind": "text",
+          "text": "Hola, {{email}}."
+        }
+      ]
+    }
+  ]
+}
