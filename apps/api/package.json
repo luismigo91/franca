@@ -24,6 +24,8 @@
     "db:migrate:dev": "prisma migrate dev"
   },
   "dependencies": {
+    "@franca/engine": "workspace:*",
+    "@franca/llm-anthropic": "workspace:*",
     "@franca/spec": "workspace:*",
     "@nestjs/common": "^12.0.1",
     "@nestjs/core": "^12.0.1",

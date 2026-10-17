@@ -14,6 +14,12 @@ importers:
 
   apps/api:
     dependencies:
+      '@franca/engine':
+        specifier: workspace:*
+        version: link:../../packages/engine
+      '@franca/llm-anthropic':
+        specifier: workspace:*
+        version: link:../../packages/llm-anthropic
       '@franca/spec':
         specifier: workspace:*
         version: link:../../packages/spec

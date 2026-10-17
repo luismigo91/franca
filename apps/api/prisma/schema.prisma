@@ -46,3 +46,93 @@ model FlowVersion {
   @@id([flowId, version])
   @@map("flow_versions")
 }
+
+// Conversaciones (design.md de api-conversations, D2). Sin claves foráneas hacia `flows` ni `flow_versions`: un
+// `TRUNCATE flow_versions, flows` sin CASCADE (resetDatabase) fallaría; la integridad la da la aplicación.
+
+enum ConversationStatus {
+  waiting
+  ended
+  failed
+
+  @@map("conversation_status")
+}
+
+enum TranscriptRole {
+  user
+  flow
+
+  @@map("transcript_role")
+}
+
+/// Un contacto opaco que elige el cliente. Sus valores se comparten entre todos los flujos de la instalación.
+model Contact {
+  /// COLLATE "C" a mano en la migración.
+  id            String         @id @map("contact_id")
+  /// Cambia si el contacto se borra y se vuelve a crear: la creación en curso de una conversación lo detecta.
+  epoch         String         @db.Uuid
+  values        ContactValue[]
+  conversations Conversation[]
+
+  @@map("contacts")
+}
+
+/// Valor guardado de una variable `scope: contact`. «Sin valor» borra la fila.
+model ContactValue {
+  /// COLLATE "C" a mano en la migración.
+  contactId String  @map("contact_id")
+  /// COLLATE "C" a mano; puede llamarse `__proto__`.
+  name      String
+  /// `JSON.stringify` del valor (nunca `null`).
+  valueJson String  @map("value_json")
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, name])
+  @@map("contact_values")
+}
+
+/// Una conversación: una sesión del motor fijada a `(flowId, version)`. `expired` no se guarda: se deriva al leer.
+model Conversation {
+  id               String              @id @db.Uuid
+  /// COLLATE "C" a mano en la migración; sin clave foránea.
+  flowId           String              @map("flow_id")
+  version          Int
+  /// COLLATE "C" a mano en la migración.
+  contactId        String?             @map("contact_id")
+  status           ConversationStatus
+  revision         Int
+  /// `JSON.stringify(SessionState)`; solo en `waiting`. `text` y no `jsonb`: jsonb reordena claves.
+  state            String?
+  pendingInputJson String?             @map("pending_input_json")
+  outcome          String?
+  errorCode        String?             @map("error_code")
+  errorNodeId      String?             @map("error_node_id")
+  costUsd          Float               @map("cost_usd")
+  costLimitReached Boolean             @map("cost_limit_reached")
+  transcriptLength Int                 @map("transcript_length")
+  claimToken       String?             @map("claim_token") @db.Uuid
+  claimedAt        DateTime?           @map("claimed_at") @db.Timestamptz(3)
+  createdAt        DateTime            @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime            @map("updated_at") @db.Timestamptz(3)
+  expiresAt        DateTime?           @map("expires_at") @db.Timestamptz(3)
+  contact          Contact?            @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  entries          ConversationEntry[]
+
+  @@index([updatedAt(sort: Desc), id])
+  @@index([contactId])
+  @@map("conversations")
+}
+
+/// Una entrada de la transcripción: lo que escribió el usuario o un evento del motor.
+model ConversationEntry {
+  conversationId String       @map("conversation_id") @db.Uuid
+  seq            Int
+  at             DateTime     @db.Timestamptz(3)
+  role           TranscriptRole
+  /// `JSON.stringify` del input o del evento.
+  payload        String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, seq])
+  @@map("conversation_entries")
+}
