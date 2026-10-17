@@ -1,0 +1,48 @@
+// Modelo de datos de la API de flujos (design.md, D4). La URL de la base vive en prisma.config.ts.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Un flujo: su borrador y los indicadores que se mantienen bajo el bloqueo de la fila.
+model Flow {
+  /// El `id` del JSON del flujo. COLLATE "C" va a mano en la migración (Prisma no modela la colación).
+  id                 String        @id
+  /// `JSON.stringify(flow.name)`: el nombre como literal JSON, para listar sin leer borradores de megabytes.
+  nameJson           String        @map("name_json")
+  /// Texto de la forma JSON del borrador (`JSON.stringify` de lo validado). `text` y no `jsonb`: jsonb reordena claves.
+  draft              String
+  revision           Int
+  latestVersion      Int?          @map("latest_version")
+  unpublishedChanges Boolean       @map("unpublished_changes")
+  createdAt          DateTime      @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime      @map("updated_at") @db.Timestamptz(3)
+  /// Borrado lógico: el `id` queda reservado para siempre.
+  deletedAt          DateTime?     @map("deleted_at") @db.Timestamptz(3)
+  versions           FlowVersion[]
+
+  @@index([updatedAt(sort: Desc), id])
+  @@map("flows")
+}
+
+/// Una versión publicada, inmutable.
+model FlowVersion {
+  /// COLLATE "C" a mano en la migración, igual que `flows.id`, para que la clave foránea compare igual.
+  flowId      String   @map("flow_id")
+  version     Int
+  nameJson    String   @map("name_json")
+  /// Texto de la forma JSON publicada.
+  definition  String
+  publishedAt DateTime @map("published_at") @db.Timestamptz(3)
+  flow        Flow     @relation(fields: [flowId], references: [id], onDelete: Restrict)
+
+  @@id([flowId, version])
+  @@map("flow_versions")
+}
