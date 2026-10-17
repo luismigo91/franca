@@ -33,7 +33,7 @@ interface Call {
 function recordingNetwork(): { send: Send; calls: Call[] } {
   const calls: Call[] = [];
   const send: Send = async (url, init) => {
-    calls.push({ url: String(url), init: init ?? {} });
+    calls.push({ url: typeof url === 'string' ? url : url instanceof URL ? url.href : url.url, init: init ?? {} });
     return new Response(JSON.stringify({ type: 'error', error: { type: 'invalid_request_error', message: 'prueba' } }), {
       status: 400,
       headers: { 'content-type': 'application/json' },
