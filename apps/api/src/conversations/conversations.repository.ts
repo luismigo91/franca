@@ -318,9 +318,19 @@ async function writeEntries(tx: Prisma.TransactionClient, conversationId: string
   });
 }
 
+/**
+ * Escribe los cambios de contacto en dos sentencias como mucho, sin importar cuántos sean: un flujo de 1 MiB admite
+ * miles de variables de contacto y un `upsert` por fila mantendría el bloqueo del contacto segundos. Los nombres no se
+ * repiten (salen de un objeto) y `unnest` conserva claves como `__proto__`.
+ */
 async function writeContactChanges(tx: Prisma.TransactionClient, contactId: string, write: Pick<AdvanceWrite, 'contactUpserts' | 'contactDeletes'>): Promise<void> {
-  for (const [name, valueJson] of write.contactUpserts) {
-    await tx.contactValue.upsert({ where: { contactId_name: { contactId, name } }, create: { contactId, name, valueJson }, update: { valueJson } });
+  if (write.contactUpserts.length > 0) {
+    const names = write.contactUpserts.map(([name]) => name);
+    const values = write.contactUpserts.map(([, valueJson]) => valueJson);
+    await tx.$executeRaw`
+      INSERT INTO contact_values (contact_id, name, value_json)
+      SELECT ${contactId}, t.name, t.value_json FROM unnest(${names}::text[], ${values}::text[]) AS t(name, value_json)
+      ON CONFLICT (contact_id, name) DO UPDATE SET value_json = EXCLUDED.value_json`;
   }
   if (write.contactDeletes.length > 0) await tx.contactValue.deleteMany({ where: { contactId, name: { in: write.contactDeletes } } });
 }
