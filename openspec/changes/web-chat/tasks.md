@@ -106,7 +106,7 @@ Reglas para todas las fases:
 
 ## 2. Servidor de la web: frontera, transporte y rutas — dueño: `popi:frontend-developer`
 
-- [ ] 2.1 `src/server/frontier.ts` + test (D2, D24):
+- [x] 2.1 `src/server/frontier.ts` + test (D2, D24):
   - Matriz de `Host` sobre la cabecera `host` **en bruto**: los cuatro locales; `localhost.evil.example`, `127.0.0.1.nip.io`, `localhost.`, vacío y ausente; y **`Host: evil.example:3000` con `X-Forwarded-Host: localhost:3000` → 403**.
   - Matriz de `Origin` por método (`https://evil.example`, `null`, `http://127.0.0.1:3000` con `Host: localhost:3000`, ausente, el bueno; `GET` y `HEAD` sin exigirlo).
   - Ruta de conversación con `%2F`, mayúsculas y `%` mal formado.
@@ -114,7 +114,7 @@ Reglas para todas las fases:
   - `/_next/static/` sin `no-store`.
 
   Además, `src/proxy.ts` sin `matcher`.
-- [ ] 2.2 `src/server/api/transport.ts` (D4) y `tests/helpers/fake-api.ts` (servidor `node:http` en el proceso, puerto 0, que registra y guioniza; lo reutiliza el E2E). Test de integración:
+- [x] 2.2 `src/server/api/transport.ts` (D4) y `tests/helpers/fake-api.ts` (servidor `node:http` en el proceso, puerto 0, que registra y guioniza; lo reutiliza el E2E). Test de integración:
   - Cabeceras exactas, con `Host` de `FRANCA_API_URL` y sin nada más.
   - `Content-Length` y `Connection: close`.
   - Plazos con un valor corto inyectado, y que los de producción sean ≥ 180 000 y ≥ 15 000.
@@ -122,8 +122,8 @@ Reglas para todas las fases:
   - `unreachable` con un puerto cerrado, un cierre sin respuesta y un cierre a medio cuerpo.
   - `invalid` solo con status fuera de 200-599 o más de 32 MiB.
   - `localhost` conecta a loopback, también si la API solo escucha en `::1`.
-- [ ] 2.3 `src/server/api/operations.ts` + test: exactamente ocho funciones, rutas y consultas exactas (`published=true`, `limit` fijo) y argumentos ya validados.
-- [ ] 2.4 `src/server/bff/request.ts`, `responses.ts` y `handlers.ts` + test de integración contra `fake-api.ts` (D8):
+- [x] 2.3 `src/server/api/operations.ts` + test: exactamente ocho funciones, rutas y consultas exactas (`published=true`, `limit` fijo) y argumentos ya validados.
+- [x] 2.4 `src/server/bff/request.ts`, `responses.ts` y `handlers.ts` + test de integración contra `fake-api.ts` (D8):
   - El cuerpo **solo** se lee en los dos `POST`. Un `GET` o un `DELETE` con cuerpo no lo leen ni lo reenvían.
   - Cuerpos reenviados reconstruidos (`{"flowId"}`, `{"flowId","contactId"}` y `{"input":…}`, con los espacios).
   - `contactId: ""` llega tal cual a la API: el servidor de la web no convierte.
@@ -141,10 +141,10 @@ Reglas para todas las fases:
   - Estados conservados.
   - 502 con `api_unreachable`.
   - Una cookie o una cabecera `X-Extra` del navegador no llegan a la API.
-- [ ] 2.5 Los seis ficheros de `src/app/api/**/route.ts` (las ocho operaciones), con `await connection()` como primera sentencia de cada manejador y una línea hacia `handlers.ts`, y el comodín `src/app/api/[...rest]/route.ts` (404 `not_found` en todos los métodos, sin llamar a la API).
-- [ ] 2.6 `src/server/log.ts` (D17) + test: formato con la plantilla de la ruta y sin cuerpo, ruta real ni cabeceras.
-- [ ] 2.7 `tests/api-transport-env-proxy.test.ts`, `vitest.hostile.config.ts` y `tests/hostile/env-proxy.hostile.ts` (D19): con `NODE_USE_ENV_PROXY=1` y las variables de proxy hacia una trampa, la API simulada recibe la petición y la trampa nada. El mutante `useGlobalAgent` (`createConnection` sustituido por `host` y `port`) debe hacer que la **trampa reciba la conexión** y el test falle por eso. Se comprueba una vez a mano, antes de registrarlo en 4.3.
-- [ ] 2.8 `tests/static-guard.test.ts` (D19):
+- [x] 2.5 Los seis ficheros de `src/app/api/**/route.ts` (las ocho operaciones), con `await connection()` como primera sentencia de cada manejador y una línea hacia `handlers.ts`, y el comodín `src/app/api/[...rest]/route.ts` (404 `not_found` en todos los métodos, sin llamar a la API).
+- [x] 2.6 `src/server/log.ts` (D17) + test: formato con la plantilla de la ruta y sin cuerpo, ruta real ni cabeceras.
+- [x] 2.7 `tests/api-transport-env-proxy.test.ts` (con un control: el mismo entorno hostil desvía un `http.request` normal a la trampa), `vitest.hostile.config.mts` (**desviación**: `.mts`) y `tests/hostile/env-proxy.hostile.ts` (D19): con `NODE_USE_ENV_PROXY=1` y las variables de proxy hacia una trampa, la API simulada recibe la petición y la trampa nada. El mutante `useGlobalAgent` (`createConnection` sustituido por `host` y `port`) debe hacer que la **trampa reciba la conexión** y el test falle por eso. Se comprueba una vez a mano, antes de registrarlo en 4.3.
+- [x] 2.8 `tests/static-guard.test.ts` (D19):
   - `connection()` en cada manejador.
   - Ningún `'use server'`.
   - Ninguna caché de Next.
@@ -154,7 +154,7 @@ Reglas para todas las fases:
   - Ningún `mode:` en `fetch` y ningún `<form` con `action=` o `method=`.
   - La frontera no lee `x-forwarded-*`, `nextUrl.host` ni `request.url`.
   - Los *scripts* `dev` y `start`, exactamente `node scripts/local-only.mjs <dev|start> --hostname 127.0.0.1 --port 3000`, sin `--experimental-https`. Esta comprobación se añade en 2.9, junto con los *scripts*.
-- [ ] 2.9 D26, *preload* de la guarda local y lanzador. Aquí cambian los *scripts* `dev` y `start` de `package.json` a `node scripts/local-only.mjs <dev|start> --hostname 127.0.0.1 --port 3000`:
+- [x] 2.9 (**HMR y overlay en el navegador: se comprueban en 3.6**; lo demás, medido a mano el 2026-10-17: `Host: evil.example` contra el puerto real da 403 en `/__nextjs_attach-nodejs-inspector` y en `/__nextjs_launch-editor`, solo escucha `127.0.0.1:3000` y no aparece el 9229) D26, *preload* de la guarda local y lanzador. Aquí cambian los *scripts* `dev` y `start` de `package.json` a `node scripts/local-only.mjs <dev|start> --hostname 127.0.0.1 --port 3000`:
   - `scripts/local-only-preload.cjs`: `inspector.open` sustituido; guarda de `Host` en los cinco eventos (`request`, `checkContinue`, `checkExpectation`, `upgrade` y `connect`) de `http.Server` y `https.Server`; en `upgrade` y `connect`, además, `Origin` exactamente igual a `'http://' + host` en minúsculas (si no, también sin `Origin`, 403 y cierre); y cabeceras de marcos.
   - `scripts/local-only.mjs`: valida `FRANCA_API_URL`, añade `--require` al `NODE_OPTIONS` existente, ejecuta `next` y propaga señales y código.
   - `tests/local-only-preload.test.ts` y `tests/local-only-launcher.test.ts` (D26). El primero cubre:
@@ -171,7 +171,7 @@ Reglas para todas las fases:
 
   Mutantes `skipInspectorPatch`, `skipHostGuard`, `skipUpgradeGuard` y `skipUpgradeOrigin` en 4.3.
 
-- [ ] 2.10 **Gate 2** (incluye la verificación manual de 2.9):
+- [x] 2.10 **Gate 2** (incluye la verificación manual de 2.9):
   - `pnpm check` en verde.
   - Con `docker compose up -d`, la API en marcha (`pnpm --filter @franca/api dev`), `pnpm --filter @franca/web build` y `pnpm --filter @franca/web start`, se comprueba con `curl -i`:
     - `GET /` con `Host: evil.example:3000` → 403 sin cuerpo, también con `X-Forwarded-Host: localhost:3000`.

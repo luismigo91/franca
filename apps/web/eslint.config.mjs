@@ -57,8 +57,12 @@ const eslintConfig = defineConfig([
         ),
       ],
       "no-console": "error",
-      "react/no-danger": "error",
     },
+  },
+  {
+    // El plugin de React solo existe para estos ficheros.
+    files: ["src/**/*.{ts,tsx}"],
+    rules: { "react/no-danger": "error" },
   },
   {
     files: ["src/components/chat/**/*.{ts,tsx}"],
@@ -91,6 +95,11 @@ const eslintConfig = defineConfig([
     // El único sitio con `console`: el registro mínimo del servidor (D17).
     files: ["src/server/log.ts"],
     rules: { "no-console": "off" },
+  },
+  {
+    // Los .cjs son CommonJS a propósito (se cargan con --require).
+    files: ["**/*.cjs"],
+    rules: { "@typescript-eslint/no-require-imports": "off" },
   },
   {
     // Los tests escriben y leen lo que prohíben las reglas (servidores de prueba, almacenamiento para comprobar que está vacío).

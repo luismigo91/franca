@@ -4,9 +4,9 @@
   "private": true,
   "license": "MIT",
   "scripts": {
-    "dev": "next dev --port 3000",
+    "dev": "node scripts/local-only.mjs dev --hostname 127.0.0.1 --port 3000",
     "build": "next build",
-    "start": "next start",
+    "start": "node scripts/local-only.mjs start --hostname 127.0.0.1 --port 3000",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
