@@ -22,7 +22,12 @@ La API SHALL dar al motor, en cada avance de una conversación, una capacidad `h
 - **AND** la conversación termina con `outcome` `"lead-empresa"`
 
 ### Requirement: Orden de un intento
-Cada intento SHALL comprobar en este orden y detenerse en la primera que falle: los secretos de sus cabeceras (`missing_secret`, sin resolver el nombre), la resolución del nombre (ver «Resolución de nombres»), la política de destinos (`blocked`, sin conectar), la conexión y TLS, y el envío y la lectura. El `timeoutMs` del intento cuenta desde el primer paso.
+Cada intento SHALL comprobar en este orden y detenerse en la primera que falle: los secretos de sus cabeceras (`missing_secret`, sin resolver), el plazo del avance (`timeout`, sin resolver; ver «Tiempo máximo de un avance» de `conversations-api`), la resolución del nombre, la política de destinos (`blocked`, sin conectar), la conexión y TLS, y el envío y la lectura. El `timeoutMs` cuenta desde el primer paso. No hay espera entre intentos.
+
+#### Scenario: Secreto ausente fuera de plazo
+- **GIVEN** la API sin secretos, `llm-http` (de `conversations-api`) con la cabecera `{"Authorization": {"secret": "API_TOKEN"}}` en `h`, publicado, y un proveedor cuyo turno hace avanzar el reloj de la API 91 segundos y devuelve `{kind: "turn", text: "Hola", slots: {}, done: true, costUsd: 0.01}`
+- **WHEN** se crea una conversación de ese flujo
+- **THEN** queda en `failed` con `error` `{code: "missing_secret", nodeId: "h"}` (no `timeout`), sin evento `http`, y la API no ha pedido resolver `api.example.com`
 
 #### Scenario: Secreto ausente sin resolver el nombre
 - **GIVEN** la API sin secretos, `crm.example.com` resolviendo a `10.0.0.5` y una conversación de `captacion-leads` lista para enviar
@@ -171,12 +176,13 @@ La salida http SHALL conectar directamente con la dirección que validó, sin pr
 - **THEN** la conversación termina con `outcome` `"lead-empresa"`, el CRM ha recibido la petición y el servidor del proxy no ha recibido ninguna conexión
 
 ### Requirement: Cabeceras que añade la API
-Además de las cabeceras del nodo, la petición SHALL llevar solo `Host` (el host de la `url`, con el puerto si no es el de por defecto), `Content-Length` si hay body, `Connection: close`, y `Accept-Encoding: gzip, deflate, br` y `User-Agent: Franca` si el nodo no las define. Nunca añade cookies, credenciales ni cabeceras del entorno.
+Además de las cabeceras del nodo, la petición SHALL llevar solo `Host` (el host de la `url`, con el puerto si no es el de por defecto), `Content-Length` si hay body (y `Content-Length: 0` en un `POST`, `PUT` o `PATCH` sin body, como recomienda RFC 9110), `Connection: close`, y `Accept-Encoding: gzip, deflate, br` y `User-Agent: Franca` si el nodo no las define. Nunca añade cookies, credenciales ni cabeceras del entorno.
 
 #### Scenario: Cabeceras que recibe el servidor
 - **GIVEN** `api.example.com` resolviendo a `P` y un servidor del test en `P:443`, con certificado de `api.example.com`, que responde 200 con `Set-Cookie: s=1`
 - **WHEN** la API ejecuta dos veces un `http` `POST` a `https://api.example.com/x` con `body` `{"a": 1}` y la cabecera `{"X-Id": "1"}`, y después un `GET` con las cabeceras `{"User-Agent": "Otro", "Accept-Encoding": "identity"}`
-- **THEN** las dos primeras llegan con exactamente las cabeceras `host`, `content-length`, `connection`, `accept-encoding`, `user-agent`, `x-id` y `content-type`, y el `GET` con `user-agent` `Otro` y `accept-encoding` `identity`, sin `cookie`
+- **THEN** las dos primeras llegan con exactamente las cabeceras `host`, `content-length`, `connection`, `accept-encoding`, `user-agent`, `x-id` y `content-type`, y el `GET` con `user-agent` `Otro` y `accept-encoding` `identity`, sin `cookie` ni `content-length`
+- **AND** un `POST` y un `DELETE` a `https://api.example.com/x` sin `body` llegan, respectivamente, con `content-length` `0` y sin `content-length`
 
 ### Requirement: Una conexión por intento
 Cada intento SHALL abrir su propia conexión, tras resolver y validar el destino, y cerrarla al terminar. Ninguna conexión se reutiliza entre intentos, nodos ni conversaciones.
@@ -193,6 +199,14 @@ Un fallo antes de enviar ningún byte de la petición (resolución, conexión re
 - **GIVEN** el CRM del test con un servidor que lee la petición entera y cierra la conexión sin responder, y una conversación de `captacion-leads` lista para enviar
 - **WHEN** se envía `{input: {choice: "grande"}}`
 - **THEN** el servidor ha recibido una sola petición, el evento `http` de `enviar-crm` es `{attempts: 1, status: null, error: "network_error"}` y la conversación termina con `outcome` `"lead-sin-enviar"`
+
+### Requirement: Respuestas que el motor no admite
+Una respuesta con un status fuera de 200 a 599, o cuyo cuerpo comprimido no se puede descomprimir, SHALL dar `{kind: "network_error", requestSent: true}`: el motor no admite ese status y haría fallar la conversación con `http_host_error`.
+
+#### Scenario: Status fuera de rango
+- **GIVEN** `api.example.com` resolviendo a `P` y un servidor del test en `P:443`, con certificado de `api.example.com`, que responde con el status `600` y, en otra ronda, con `Content-Encoding: gzip` y un cuerpo que no es gzip
+- **WHEN** la API ejecuta en cada ronda un `http` `GET` a `https://api.example.com/x` con `retries` 0
+- **THEN** cada evento `http` es `{attempts: 1, status: null, error: "network_error"}` (con su `type` y `nodeId`) y ninguna conversación falla con `http_host_error`
 
 ### Requirement: Registros de la salida http
 La API SHALL no registrar nada de una llamada `http` (URL, origen, dirección, cabeceras, body, valores de secretos ni cuerpos de respuesta), tenga o no `containsPii`, salvo los avisos de «Aviso de secreto no disponible» y «Aviso de destino bloqueado».
@@ -211,7 +225,7 @@ Cuando un intento da `missing_secret`, la API SHALL registrar un aviso con el `i
 - **THEN** la salida contiene una línea con el `id` de la primera, `enviar-crm`, `missing_secret`, `CRM_TOKEN` y `not_configured`, y otra con el `id` de la segunda, `enviar-crm`, `CRM_TOKEN` y `origin_not_allowed`
 
 ### Requirement: Aviso de destino bloqueado
-Cuando un intento da `blocked`, la API SHALL registrar un aviso con el `id` de la conversación, el `nodeId`, `blocked` y el motivo: `internal_destination` (alguna dirección no es unicast global ni de un par permitido) o `insecure_transport` (`http://` hacia un destino que no es un par permitido), sin el nombre ni las direcciones.
+Cuando un intento da `blocked`, la API SHALL registrar un aviso con el `id` de la conversación, el `nodeId`, `blocked` y el motivo: `internal_destination` (alguna dirección no es unicast global ni de un par permitido) o `insecure_transport` (`http://` hacia un destino que no es un par permitido), sin el nombre ni las direcciones. Si se dan los dos, el motivo es `internal_destination`.
 
 #### Scenario: Avisos de destino en el registro
 - **GIVEN** el CRM del test con `crm.example.com` resolviendo a `10.0.0.5`, y una conversación de `captacion-leads` lista para enviar

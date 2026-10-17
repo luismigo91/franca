@@ -50,7 +50,7 @@ La API SHALL ejecutar los nodos `http` con su salida http (`http-host`): el moto
 - **THEN** las tres responden 400 `invalid_request` y `revision` sigue en 1
 
 ### Requirement: Tiempo máximo de un avance
-Un avance SHALL pedir turnos `llm` y hacer intentos `http` solo durante sus primeros 90 segundos, medidos con el reloj de la API. Pasado ese plazo, un turno se resuelve como `{kind: "failed", costUsd: 0}` sin llamar al proveedor, y un intento como `{kind: "timeout"}` sin resolver ni conectar. Un intento empezado dentro del plazo termina, como mucho, al acabar el plazo. Un turno en curso no se corta: lo acota el adaptador (60 s por defecto).
+Un avance SHALL pedir turnos `llm` y hacer intentos `http` solo durante sus primeros 90 segundos, medidos con el reloj de la API. Pasado ese plazo, un turno se resuelve como `{kind: "failed", costUsd: 0}` sin llamar al proveedor, y un intento como `{kind: "timeout"}` sin resolver ni conectar (los secretos se comprueban antes: ver «Orden de un intento» de `http-host`). Un intento empezado dentro del plazo termina, como mucho, al acabar el plazo. Un turno en curso no se corta: lo acota el adaptador (60 s por defecto).
 
 #### Scenario: Segundo llm fuera de plazo
 - **GIVEN** `doble-llm` publicado y un proveedor cuyo primer turno hace avanzar el reloj de la API 91 segundos y devuelve `{kind: "turn", text: "Hola", slots: {}, done: true, costUsd: 0.01}`
