@@ -1,9 +1,9 @@
 ---
 name: decision-salida-http-politica
-description: Por qué la salida http de la API guarda los secretos en variables con origen exacto, bloquea una resolución mezclada entera, solo permite http:// hacia pares permitidos y no registra nada de una llamada; límites conocidos y fecha de los CSV de IANA
+description: Por qué la salida http de la API guarda los secretos en variables con origen exacto, bloquea una resolución mezclada entera, solo permite http:// hacia pares permitidos, no registra nada de una llamada y resuelve nombres .test locales solo a loopback y debajo de la política; límites conocidos y fecha de los CSV de IANA
 metadata:
   type: project
-  enforcement: apps/api/src/http-host/destination-policy.spec.ts, apps/api/test/http-host-destinations.e2e-spec.ts, apps/api/test/http-host-secrets.e2e-spec.ts, apps/api/test/http-host-logging.e2e-spec.ts, apps/api/test/mutations.json
+  enforcement: apps/api/src/http-host/destination-policy.spec.ts, apps/api/test/http-host-destinations.e2e-spec.ts, apps/api/test/http-host-secrets.e2e-spec.ts, apps/api/test/http-host-logging.e2e-spec.ts, apps/api/test/http-host-local-names.e2e-spec.ts, apps/api/src/http-host/local-names.spec.ts, apps/api/test/mutations.json
 ---
 
 # La política de la salida http de la API (`api-http-host`)
@@ -18,6 +18,13 @@ Sustituye a la ficha antigua «http deshabilitado en las conversaciones»: desde
 - **Los secretos se comprueban antes de resolver el nombre**: una petición que no va a salir no filtra el nombre al DNS, y `missing_secret` gana al plazo.
 - **De una llamada no se registra nada**, ni siquiera el origen (el host de una URL puede salir de una plantilla con datos del usuario). Solo dos avisos de plantilla fija: `missing_secret` y `blocked`.
 - **La instalación es el único tenant** mientras la API no tenga autenticación; el arnés de conformidad crea un host por tenant.
+
+**Nombres locales (`FRANCA_HTTP_LOCAL_NAMES`, demo local)**
+- **Solo `.test` y solo loopback.** `.test` está reservado por el RFC 6761 y nunca existe en el DNS público, así que un nombre local no puede tapar un dominio real; la dirección es `127.0.0.0/8` o `[::1]`, así que una configuración mal copiada a otra instalación no abre ningún destino que `FRANCA_HTTP_ALLOWED_DESTINATIONS` no abra ya.
+- **Encima de la costura de red y debajo de la política.** La búsqueda vive en `resolveName` (`http-host.ts`), después de las IP literales y antes del resolutor. Dentro de la costura (`HttpNetwork.resolver`) desaparecería en los e2e, que la sustituyen siempre ([[harness-red-del-test-http]]), y el escenario «la API no ha pedido resolver» no probaría nada. Lo que devuelve un nombre local entra en `decideDestination` como cualquier resolución: `127.0.0.1` no es unicast global, así que sin su par permitido el resultado es `blocked` `internal_destination`. No hay un segundo camino de red.
+- **No `localtest.me` ni `/etc/hosts`.** `localtest.me` es el DNS de un tercero (necesita Internet y algunos routers filtran las respuestas a loopback); `/etc/hosts` pide permisos de administrador y deja la máquina cambiada.
+- **Comparación exacta** con el host que entrega WHATWG (minúsculas): `otro.franca.test` o `crm.franca.test.` no son locales y se resuelven como siempre.
+- Enforcement: los mutantes `localName*` y `localNamesNotWired` de `apps/api/test/mutations.json` y `apps/api/test/http-host-local-names.e2e-spec.ts`. Solo matan los tests que ejecutan `src/` en el mismo proceso de Vitest: `mutate` compila `dist/` antes de mutar, así que los e2e que lanzan `dist/main.js` nunca ven un mutante.
 
 **Límites conocidos**
 - Los prefijos NAT64 propios de un operador (RFC 6052, distintos de `64:ff9b::/96`) no se pueden detectar: una IPv6 global de ese prefijo que traduzca a una IPv4 interna pasaría.

@@ -38,6 +38,26 @@ pnpm validate   # valida los flujos de ejemplo contra la spec
 
 Una sola app: `pnpm --filter @franca/api dev`.
 
+### Demo local
+
+Para ver un flujo llegar a su final feliz en el chat sin Internet ni credenciales reales, desde un clon limpio:
+
+```
+pnpm install
+docker compose up -d
+export DATABASE_URL=postgresql://franca@127.0.0.1:5432/franca
+pnpm --filter @franca/api db:migrate
+pnpm dev:demo
+```
+
+`pnpm dev:demo` arranca un CRM simulado en `127.0.0.1:4010` y lo mismo que `pnpm dev` (la API en `:3001` y la web en `:3000`), siembra la copia local de `captacion-leads` y, cuando escribe «Lista», se abre `http://localhost:3000` y se prueba **Captación de leads (local)**: al responder el nombre, el email y el tamaño de empresa, el flujo envía el lead al CRM simulado y termina en su final feliz. El CRM escribe una línea por petición en la terminal. Necesita los puertos 3000, 3001 y 4010 libres, y Ctrl+C lo para todo.
+
+- **Qué fija la demo.** Solo para esa ejecución, la salida http de la API recibe `FRANCA_HTTP_LOCAL_NAMES`, `FRANCA_HTTP_ALLOWED_DESTINATIONS`, `FRANCA_HTTP_SECRET_ORIGINS` y `FRANCA_SECRET_CRM_TOKEN` (un token aleatorio nuevo que no se escribe en ninguna parte). Si tu shell ya define alguna, la demo no arranca y las nombra: usa `unset` o `pnpm dev`. `pnpm dev` no cambia.
+- **Sin Claude.** La demo arranca la API sin `FRANCA_ANTHROPIC_API_KEY`, aunque la shell la tenga: los flujos con nodos `llm` (por ejemplo `faq-ia`) terminan en `llm_not_configured`.
+- **`pnpm demo:seed`** repite la siembra (es idempotente) y dice qué hizo. Si el borrador de `captacion-leads-local` ya no es la copia (por ejemplo, porque el repositorio la actualizó), responde que no lo ha tocado. Para ponerlo al día, sustituye el borrador por `apps/api/demo/captacion-leads-local.json` (`PUT` con `If-Match`) o, si no hay nada que conservar, `docker compose down -v` y las migraciones otra vez.
+- **Id reservado.** Si borras `captacion-leads-local` con `DELETE`, la API no deja reutilizar su `id`. Solo se recupera borrando la base de datos local con `docker compose down -v`, que borra todos los flujos y conversaciones.
+- **Sin migraciones.** Si la semilla dice que la API respondió 500, aplica `pnpm --filter @franca/api db:migrate` y repítela.
+
 ## API
 
 Guarda y valida flujos en Postgres y conversa con los publicados (conversaciones, transcripción y valores de contacto). Solo atiende desde la propia máquina (`127.0.0.1` o `::1`) y todavía no tiene autenticación. Arranque, variables y tests en [`apps/api/README.md`](apps/api/README.md); el contrato completo, en [`openspec/specs/flows-api/spec.md`](openspec/specs/flows-api/spec.md) (flujos) y [`openspec/specs/conversations-api/spec.md`](openspec/specs/conversations-api/spec.md) (conversaciones).
