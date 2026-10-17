@@ -28,6 +28,8 @@
 - [Variables llamadas __proto__ o constructor](../../wiki/gotcha-variables-nombre-proto.md) — por qué el motor usa Map y Object.fromEntries
 - [Prisma no modela la colación](../../wiki/gotcha-prisma-no-modela-colacion.md) — el COLLATE "C" de flows.id y flow_versions.flow_id va a mano en la migración; vale para el flow_id de tablas futuras
 - [Turbo filtra variables de entorno](../../wiki/gotcha-turbo-filtra-variables-de-entorno.md) — por qué DATABASE_URL, HOST y PORT van en passThroughEnv
+- [jsonb reordena las claves](../../wiki/gotcha-jsonb-reordena-claves.md) — por qué el flujo se guarda como text con un único JSON.stringify
+- [query_timeout de pg duplica la espera](../../wiki/gotcha-pg-query-timeout-duplica-con-rollback.md) — por qué el adaptador lleva también statement_timeout y una espera de bloqueo acaba en 7,5 s y no en 16 s
 
 ### Decisiones
 - [JSON Schema como fuente de verdad](../../wiki/decision-esquema-json-fuente-de-verdad.md) — por qué no Zod ni tipos TS a mano en packages/spec
