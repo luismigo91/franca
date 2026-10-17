@@ -85,11 +85,15 @@ export class FlowsRepository {
     return this.prisma.flow.findFirst({ where: { id, deletedAt: null } });
   }
 
-  /** Página de resúmenes (sin `draft`) y total, en la misma transacción. */
+  /**
+   * Página de resúmenes (sin `draft`) y total. Dos consultas simultáneas y sin transacción: con `READ COMMITTED` el lote
+   * de Prisma tampoco daba una instantánea común, y su `timeout` por defecto (5 s) caducaba con `P2028` antes que el
+   * corte de la base, que es lo que debe dar 503.
+   */
   async list(filter: { published?: boolean }, page: Paging): Promise<{ items: FlowSummaryRow[]; total: number }> {
     const where: Prisma.FlowWhereInput = { deletedAt: null };
     if (filter.published !== undefined) where.latestVersion = filter.published ? { not: null } : null;
-    const [items, total] = await this.prisma.$transaction([
+    const [items, total] = await Promise.all([
       this.prisma.flow.findMany({
         where,
         select: SUMMARY_SELECT,
@@ -107,9 +111,9 @@ export class FlowsRepository {
     return this.prisma.flowVersion.findUnique({ where: { flowId_version: { flowId, version } } });
   }
 
-  /** Página de resúmenes de versión (sin `definition`), de la más nueva a la más antigua, y total. */
+  /** Página de resúmenes de versión (sin `definition`), de la más nueva a la más antigua, y total (sin transacción: ver `list`). */
   async listVersions(flowId: string, page: Paging): Promise<{ items: VersionSummaryRow[]; total: number }> {
-    const [items, total] = await this.prisma.$transaction([
+    const [items, total] = await Promise.all([
       this.prisma.flowVersion.findMany({
         where: { flowId },
         select: VERSION_SUMMARY_SELECT,
