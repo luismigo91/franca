@@ -114,6 +114,10 @@ describe('lanzador local-only', () => {
 
   it('reenvía SIGTERM a next y termina con su código', async () => {
     rmSync(marker + '.sigterm', { force: true });
+    // Sin esto, el marcador del test anterior ya existe y el bucle de espera no espera: con la máquina cargada, SIGTERM llega
+    // antes de que el lanzador instale su manejador y sale con 143 en vez de 0. El `next` simulado escribe el marcador
+    // después de instalar el suyo, así que esperar al marcador nuevo es determinista.
+    rmSync(marker, { force: true });
     const child = spawn(process.execPath, [join(root, 'scripts/local-only.mjs'), 'start'], { env: { NODE_ENV: 'test', PATH: process.env.PATH ?? '', FAKE_WAIT: '1' }, stdio: 'ignore' });
     const exited = new Promise<number | null>((resolve) => child.on('exit', (code) => resolve(code)));
     for (let waited = 0; !existsSync(marker) && waited < 100; waited++) await new Promise((resolve) => setTimeout(resolve, 50));
