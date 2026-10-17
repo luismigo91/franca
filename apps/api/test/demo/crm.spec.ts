@@ -150,7 +150,7 @@ describe('CRM simulado', () => {
     await new Promise<void>((resolve) => holder.listen(0, '127.0.0.1', resolve));
     closers.push(() => new Promise<void>((resolve) => holder.close(() => resolve())));
     const { port } = holder.address() as { port: number };
-    await expect(startCrm({ token: TOKEN, port, log: () => undefined })).rejects.toBe('EADDRINUSE');
+    await expect(startCrm({ token: TOKEN, port, log: () => undefined })).rejects.toMatchObject({ code: 'EADDRINUSE' });
   });
 });
 

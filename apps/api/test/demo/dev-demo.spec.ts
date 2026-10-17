@@ -242,7 +242,8 @@ describe('arranque de la demo (dobles de procesos)', () => {
     });
 
     it('un puerto que sigue ocupado tras parar da su aviso y el código 1', async () => {
-      const run = start({ checkPorts: async () => [{ host: '127.0.0.1', port: 3001 }, { host: '::1', port: 3000 }] });
+      // Libres al empezar (sondeo único, margen 0); ocupados al parar.
+      const run = start({ checkPorts: async (_ports, timeoutMs) => (timeoutMs === 0 ? [] : [{ host: '127.0.0.1', port: 3001 }, { host: '::1', port: 3000 }]) });
       await settle();
       run.signals.emit('SIGINT');
       expect(await run.finished).toBe(1);
@@ -331,7 +332,8 @@ describe('arranque de la demo (dobles de procesos)', () => {
       const run = start({
         crm: crmDouble({ exitsOnStop: false }),
         turbo: turboDouble({ exitsOnSigint: false }),
-        checkPorts: () => new Promise(() => undefined),
+        // La primera comprobación (antes de lanzar nada) responde; la de la parada no.
+        checkPorts: vi.fn().mockResolvedValueOnce([]).mockImplementation(() => new Promise(() => undefined)),
       });
       await settle();
       run.signals.emit('SIGINT');
@@ -393,7 +395,8 @@ describe('arranque de la demo (dobles de procesos)', () => {
     expect(await run.finished).toBe(1);
     expect(run.crm.stop).toHaveBeenCalledOnce();
     expect(run.text()).toContain('pnpm dev ha terminado (código 0); paro el CRM simulado.');
-    expect(run.turbo.signalGroup).not.toHaveBeenCalled();
+    // Aunque el lanzador haya muerto, su grupo puede tener vivos el binario nativo, la API y la web.
+    expect(run.turbo.signalGroup.mock.calls).toEqual([['SIGINT']]);
 
     const failing = start();
     await settle();
@@ -405,6 +408,71 @@ describe('arranque de la demo (dobles de procesos)', () => {
     killed.turbo.exit({ code: null, signal: 'SIGKILL' });
     expect(await killed.finished).toBe(1);
     expect(killed.text()).toContain('código SIGKILL');
+  });
+});
+
+describe('puertos y dirección de la API antes de lanzar nada', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('Puertos de la API o la web ocupados', async () => {
+    const rounds = [
+      { busy: [{ host: '127.0.0.1', port: 3001 }], where: '127.0.0.1:3001', lsof: 'lsof -nP -iTCP:3001' },
+      { busy: [{ host: '::1', port: 3000 }], where: '[::1]:3000', lsof: 'lsof -nP -iTCP:3000' },
+    ];
+    for (const { busy, where, lsof } of rounds) {
+      const run = start({ checkPorts: async () => busy });
+      expect(await run.finished, where).toBe(1);
+      expect(run.launchCrm, where).not.toHaveBeenCalled();
+      expect(run.launchTurbo, where).not.toHaveBeenCalled();
+      expect(run.checkPorts, where).toHaveBeenCalledOnce();
+      expect(run.checkPorts, where).toHaveBeenCalledWith([3000, 3001], 0);
+      expect(run.text(), where).toContain(`La demo no arranca: algo ya escucha en ${where}`);
+      expect(run.text(), where).toContain('otro pnpm dev abierto');
+      expect(run.text(), where).toContain(lsof);
+    }
+  });
+
+  it('el puerto de la API que se comprueba antes de lanzar nada es el de PORT', async () => {
+    const run = start({ env: { PATH: '/bin', PORT: '3333' }, checkPorts: async () => [{ host: '127.0.0.1', port: 3333 }] });
+    expect(await run.finished).toBe(1);
+    expect(run.checkPorts).toHaveBeenCalledWith([3000, 3333], 0);
+  });
+
+  it('una FRANCA_API_URL que no vale se rechaza antes de lanzar el CRM o turbo, con un solo punto final', async () => {
+    const run = start({ env: { PATH: '/bin', FRANCA_API_URL: 'http://192.168.1.10:3001' } });
+    expect(await run.finished).toBe(1);
+    expect(run.launchCrm).not.toHaveBeenCalled();
+    expect(run.launchTurbo).not.toHaveBeenCalled();
+    expect(run.checkPorts).not.toHaveBeenCalled();
+    expect(run.text()).toContain('FRANCA_API_URL');
+    expect(run.text()).not.toContain('192.168.1.10');
+    expect(run.text()).not.toMatch(/\.\.\s*$/);
+  });
+
+  it('el aviso de un fallo inesperado de arranque no duplica el punto final', async () => {
+    const run = start({ probeApi: async () => { throw new Error('algo falló.'); } });
+    await settle();
+    expect(run.text()).toContain('La demo no arranca: algo falló.');
+    expect(run.text()).not.toContain('..');
+    await run.finished;
+  });
+
+  it('SIGINT al grupo de turbo tolera que el grupo ya no exista (ESRCH)', async () => {
+    const turbo = turboDouble({ exitsOnSigint: false });
+    turbo.signalGroup.mockImplementation(() => {
+      throw Object.assign(new Error('kill ESRCH'), { code: 'ESRCH' });
+    });
+    const run = start({ turbo });
+    await settle();
+    turbo.exit({ code: null, signal: 'SIGKILL' });
+    expect(await run.finished).toBe(1);
+    expect(turbo.signalGroup).toHaveBeenCalledWith('SIGINT');
+    expect(run.crm.stop).toHaveBeenCalledOnce();
   });
 });
 

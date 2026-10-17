@@ -129,12 +129,12 @@ export function createCrmHandler({ token, log }) {
  * @param {number} [options.port] Puerto; `0` elige uno libre.
  * @param {(line: string) => void} options.log Recibe las líneas de registro.
  * @returns {Promise<{ port: number, close: () => Promise<void> }>} El puerto real y el cierre.
- * @throws {string} El `code` del sistema (`EADDRINUSE`…) si no puede escuchar.
+ * @throws {Error & { code: string }} Con el `code` del sistema (`EADDRINUSE`…) si no puede escuchar.
  */
 export function startCrm({ token, port = CRM_PORT, log }) {
   return new Promise((resolve, reject) => {
     const server = createServer(createCrmHandler({ token, log }));
-    server.once('error', (/** @type {NodeJS.ErrnoException} */ error) => reject(error.code ?? 'ERROR'));
+    server.once('error', (/** @type {NodeJS.ErrnoException} */ error) => reject(Object.assign(new Error(`el CRM simulado no puede escuchar (${error.code ?? 'ERROR'})`), { code: error.code ?? 'ERROR' })));
     server.listen(port, CRM_HOST, () => {
       const address = server.address();
       const actual = typeof address === 'object' && address !== null ? address.port : port;
@@ -183,7 +183,7 @@ function runAsProcess() {
         running = crm;
         send({ type: 'listening', port: crm.port });
       },
-      (code) => send({ type: 'failed', code: String(code) }, () => process.exit(1)),
+      (error) => send({ type: 'failed', code: String(error?.code ?? 'ERROR') }, () => process.exit(1)),
     );
   });
 }

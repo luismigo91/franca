@@ -4,7 +4,7 @@
 import { fork, spawn } from 'node:child_process';
 import { connect } from 'node:net';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { parseApiUrl } from '../../web/src/server/config/api-url.mjs';
+import { ApiUrlError, parseApiUrl } from '../../web/src/server/config/api-url.mjs';
 import {
   ANTHROPIC_KEY_VARIABLE,
   buildApiEnvironment,
@@ -142,6 +142,26 @@ export async function runDemo(deps) {
     return 1;
   }
 
+  // Antes de lanzar nada: una dirección de la API que no vale no puede descubrirse con turbo ya en marcha.
+  try {
+    parseApiUrl(deps.env.FRANCA_API_URL);
+  } catch (error) {
+    say(`La demo no arranca: ${error instanceof ApiUrlError ? error.message : 'FRANCA_API_URL no es válida.'}`);
+    return 1;
+  }
+
+  // Un `pnpm dev` abierto (o una API huérfana) ya ocupa los puertos: la demo sembraría contra la API equivocada.
+  const apiPort = apiPortOf(deps.env);
+  const occupied = await deps.checkPorts([3000, apiPort], 0);
+  if (occupied.length > 0) {
+    for (const { host, port } of occupied) {
+      say(
+        `La demo no arranca: algo ya escucha en ${host.includes(':') ? `[${host}]` : host}:${port} (¿hay otro pnpm dev abierto?). Páralo y repite; búscalo con lsof -nP -iTCP:${port} -sTCP:LISTEN.`,
+      );
+    }
+    return 1;
+  }
+
   const token = deps.createToken();
   say(
     `La demo no usa Claude: la API arranca sin ${ANTHROPIC_KEY_VARIABLE} y los nodos llm terminan en llm_not_configured.${
@@ -156,7 +176,6 @@ export async function runDemo(deps) {
   let stopping = false;
   let exitCode = 0;
   let crmExited = false;
-  let turboExited = false;
   /** @type {TurboProcess | undefined} */
   let turbo;
 
@@ -202,7 +221,8 @@ export async function runDemo(deps) {
     deadline.unref?.();
     // No espera a la semilla ni al sondeo de la API: los cancela.
     cancel.abort();
-    if (turbo !== undefined && !turboExited) signalTurbo('SIGINT');
+    // Siempre al grupo, aunque el lanzador haya muerto (kill -9): el binario nativo, la API y la web pueden seguir vivos.
+    if (turbo !== undefined) signalTurbo('SIGINT');
     if (!crmExited) {
       try {
         crm.stop();
@@ -218,7 +238,7 @@ export async function runDemo(deps) {
     clearTimeout(graceTimer);
     if (outcome === 'late') killAll();
 
-    const ports = [3000, apiPortOf(deps.env), CRM_PORT];
+    const ports = [3000, apiPort, CRM_PORT];
     const busy = await deps.checkPorts(ports, PORT_CHECK_MS);
     for (const { host, port } of busy) {
       say(`Atención: algo sigue escuchando en ${host.includes(':') ? `[${host}]` : host}:${port}; búscalo con lsof -nP -iTCP:${port} -sTCP:LISTEN.`);
@@ -254,7 +274,6 @@ export async function runDemo(deps) {
     if (stopping) return;
     turbo = deps.launchTurbo(buildApiEnvironment(deps.env, token));
     void turbo.exited.then(({ code, signal }) => {
-      turboExited = true;
       if (stopping) return;
       const exit = code !== null && code !== 0 ? code : 1;
       void stopAll(exit, `pnpm dev ha terminado (código ${code ?? signal}); paro el CRM simulado.`);
@@ -278,7 +297,7 @@ export async function runDemo(deps) {
     );
   };
   void startup().catch((error) => {
-    say(`La demo no arranca: ${error instanceof Error ? error.message : 'error inesperado'}.`);
+    say(`La demo no arranca: ${error instanceof Error ? error.message.replace(/\.$/, '') : 'error inesperado'}.`);
     void stopAll(1, 'Parando…');
   });
 
