@@ -26,9 +26,9 @@ beforeAll(() => {
     join(root, 'node_modules/next/dist/bin/next'),
     `#!/usr/bin/env node
 const fs = require('node:fs');
-fs.writeFileSync(${JSON.stringify(marker)}, JSON.stringify({ argv: process.argv.slice(2), nodeOptions: process.env.NODE_OPTIONS ?? null, api: process.env.FRANCA_API_URL ?? null }));
 process.on('SIGTERM', () => { fs.writeFileSync(${JSON.stringify(marker + '.sigterm')}, 'sí'); process.exit(0); });
 process.on('SIGINT', () => { fs.writeFileSync(${JSON.stringify(marker + '.sigint')}, 'sí'); process.exit(0); });
+fs.writeFileSync(${JSON.stringify(marker)}, JSON.stringify({ argv: process.argv.slice(2), nodeOptions: process.env.NODE_OPTIONS ?? null, api: process.env.FRANCA_API_URL ?? null }));
 if (process.env.FAKE_EXIT) process.exit(Number(process.env.FAKE_EXIT));
 if (process.env.FAKE_WAIT) setInterval(() => {}, 1000);
 `,

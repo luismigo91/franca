@@ -126,7 +126,7 @@ export async function startFakeApi(options: { port?: number } = {}): Promise<Fak
       forwardPort = next;
     },
     stop,
-    start: () => listen(port),
+    start: () => (server.listening ? Promise.resolve() : listen(port)),
     reset() {
       requests.length = 0;
       handler = null;

@@ -114,6 +114,8 @@ const eslintConfig = defineConfig([
       "no-restricted-globals": "off",
       "no-restricted-properties": "off",
       "no-console": "off",
+      // La función `use` de las fixtures de Playwright no es un hook de React.
+      "react-hooks/rules-of-hooks": "off",
     },
   },
 ]);

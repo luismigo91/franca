@@ -12,7 +12,7 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "test:e2e": "turbo run test:e2e",
+    "test:e2e": "turbo run test:e2e --concurrency=1",
     "validate": "turbo run validate",
     "check": "node scripts/guard-mutate.mjs && turbo run lint typecheck test",
     "wiki:lint": "node scripts/wiki-lint.mjs --changed",

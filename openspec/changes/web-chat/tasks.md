@@ -234,7 +234,7 @@ Reglas para todas las fases:
 
 ## 5. E2E — dueño: `popi:qa-tester` (modo e2e)
 
-- [ ] 5.1 `apps/web/playwright.config.ts` (`workers: 1`) y `e2e/support/*` (D20):
+- [x] 5.1 `apps/web/playwright.config.ts` (`workers: 1`) y `e2e/support/*` (D20):
   - **Una sola pila**: base con `pg` y `prisma migrate deploy` de la API, API real con entorno mínimo, API simulada (`tests/helpers/fake-api.ts`) que reenvía y registra, y `pnpm --filter @franca/web start` en `127.0.0.1:3000`, **sin entorno hostil**.
   - Aborta con un mensaje claro si el 3000 está ocupado.
   - `stack.restartWeb(env?)`.
@@ -249,17 +249,17 @@ Reglas para todas las fases:
     DATABASE_URL=postgresql://franca@127.0.0.1:5432/franca pnpm test:e2e
     ```
     con `pnpm dev` parado.
-- [ ] 5.2 `e2e/fixtures/flows/*.json` y `tests/flow-fixtures.test.ts`: cada *fixture* es igual al JSON de su spec (`web-chat`, `conversations-api` y `flows-api`) y válido sin avisos.
-- [ ] 5.3 `e2e/fake-api-shapes.e2e.ts`: las claves y el orden de los recursos simulados coinciden con respuestas reales (recurso, resumen, avance, página de transcripción, página de flujos y error 412). Además, el 204 de `DELETE` tiene el estado, las cabeceras y el cuerpo vacío de la API real. Lo medido se copia en el *fixture* de 2.4.
-- [ ] 5.4 `e2e/home.e2e.ts` (11 escenarios), `e2e/conversation-page.e2e.ts` (7) y `e2e/questions.e2e.ts` (9), con los títulos exactos de la tabla «Escenario → test».
-- [ ] 5.5 `e2e/rhythm.e2e.ts` (3; «Avance largo» con `@lento` y 200 s de plazo, en la misma ejecución en serie), `e2e/concurrency.e2e.ts` (9; «Ocupada al enviar» con `page.clock`) y `e2e/lifecycle.e2e.ts` (9; «Borrar y cancelar» ejerce el 204).
-- [ ] 5.6 `e2e/frontier.e2e.ts` (10) y `e2e/accessibility.e2e.ts` (2):
+- [x] 5.2 `e2e/fixtures/flows/*.json` y `tests/flow-fixtures.test.ts`: cada *fixture* es igual al JSON de su spec (`web-chat`, `conversations-api` y `flows-api`) y válido sin avisos.
+- [x] 5.3 `e2e/fake-api-shapes.e2e.ts`: las claves y el orden de los recursos simulados coinciden con respuestas reales (recurso, resumen, avance, página de transcripción, página de flujos y error 412). Además, el 204 de `DELETE` tiene el estado, las cabeceras y el cuerpo vacío de la API real. Lo medido se copia en el *fixture* de 2.4.
+- [x] 5.4 (los títulos son los de la spec: las anotaciones «(simulada)» de la tabla son del diseño, no del escenario) `e2e/home.e2e.ts` (11 escenarios), `e2e/conversation-page.e2e.ts` (7) y `e2e/questions.e2e.ts` (9), con los títulos exactos de la tabla «Escenario → test».
+- [x] 5.5 `e2e/rhythm.e2e.ts` (3; «Avance largo» con `@lento` y 200 s de plazo, en la misma ejecución en serie), `e2e/concurrency.e2e.ts` (9; «Ocupada al enviar» con `page.clock`) y `e2e/lifecycle.e2e.ts` (9; «Borrar y cancelar» ejerce el 204).
+- [x] 5.6 `e2e/frontier.e2e.ts` (10) y `e2e/accessibility.e2e.ts` (2):
   - En `frontier.e2e.ts`, «El chat dentro de un marco ajeno» lleva la excepción de consola de `frame-ancestors` y el origen contenedor permitido en `context.route`.
   - «Otra interfaz de la máquina» y «Direcciones no admitidas» paran y restauran la web de la pila.
   - La variante `dev` comprueba también, **solo con `Host: evil.example`**, que `/__nextjs_attach-nodejs-inspector` da 403 y que no aparece ningún puerto nuevo en escucha (D26).
   - «Direcciones no admitidas» sale con 1 sin escuchar, a través del lanzador.
-- [ ] 5.7 `tests/spec-coverage.test.ts`, `tests/helpers/spec-text.ts` (copia byte a byte de `packages/engine/tests/helpers/spec-text.ts`) y `tests/spec-text-parity.test.ts` (D22): al menos 41 requisitos y 63 escenarios, sin títulos repetidos, y cada uno con su test.
-- [ ] 5.8 `turbo.json`:
+- [x] 5.7 `tests/spec-coverage.test.ts`, `tests/helpers/spec-text.ts` (copia byte a byte de `packages/engine/tests/helpers/spec-text.ts`) y `tests/spec-text-parity.test.ts` (D22): al menos 41 requisitos y 63 escenarios, sin títulos repetidos, y cada uno con su test.
+- [x] 5.8 (comprobado: `FRANCA_API_URL=http://api.example.com:3001 pnpm exec turbo run dev --filter=@franca/web` no arranca; tocar la spec cambia el hash de `@franca/web#test` (30cb2dd9… → 145c57f7…) y tocar `README.md` no) `turbo.json`:
   - `@franca/web#dev` con `FRANCA_API_URL`.
   - `@franca/web#test:e2e`.
   - `@franca/web#test` con `inputs: ["$TURBO_DEFAULT$", "$TURBO_ROOT$/apps/api/src/http/api-error.ts", "$TURBO_ROOT$/openspec/**", "$TURBO_ROOT$/packages/engine/tests/helpers/spec-text.ts"]`.
@@ -271,7 +271,7 @@ Reglas para todas las fases:
   Se comprueba:
   - Con `FRANCA_API_URL=http://api.example.com:3001 pnpm exec turbo run dev --filter=@franca/web`, la web no arranca, de modo que la variable llega a través de turbo.
   - Tocar `openspec/changes/web-chat/specs/web-chat/spec.md` invalida la caché de `@franca/web#test` (`pnpm exec turbo run test --filter=@franca/web --dry=json` cambia el *hash*), y tocar un fichero que no lee no la invalida.
-- [ ] 5.9 **Gate 5**:
+- [x] 5.9 **Gate 5** (`pnpm check --force` en verde; `pnpm test:e2e` desde la raíz en verde dos veces seguidas: 61 de la web en 4,1 min y 804 de la API, 6 min 8 s en total en el portátil, solo como referencia. Un fallo de la primera ejecución era del test: `getByRole('alert')` casaba con el anunciador de rutas de Next, ahora se mira dentro de `main`):
   - `pnpm check` en verde, con `spec-coverage` incluido.
   - `pnpm test:e2e` en verde en local, con Postgres de `docker compose` (API y web en serie), y la duración anotada como referencia, no como medida.
   - Commit `test(web): E2E del chat de prueba contra la API real`.
@@ -279,12 +279,12 @@ Reglas para todas las fases:
 
 ## 6. Documentación, wiki y verificación final — dueño: `popi:frontend-developer`
 
-- [ ] 6.1 `CLAUDE.md`:
+- [x] 6.1 `CLAUDE.md`:
   - Fila de `@franca/web` (Vitest y Playwright, `127.0.0.1:3000`).
   - Comandos: `pnpm --filter @franca/web test`, `test:e2e` (necesita Postgres, `DATABASE_URL`, Chromium instalado y el 3000 libre) y `playwright install chromium`.
   - `FRANCA_API_URL` (web, opcional, por defecto `http://127.0.0.1:3001`, solo `http://` a loopback, y un valor inválido impide arrancar), solo con el nombre.
   - `test:e2e` serializado.
-- [ ] 6.2 `.claude/rules/always/gotchas.md`:
+- [x] 6.2 `.claude/rules/always/gotchas.md`:
   - La web escucha solo en `127.0.0.1:3000` y valida `FRANCA_API_URL` antes de `next` (enforced: `static-guard.test.ts`, `frontier.e2e.ts`).
   - Cada ruta de la web empieza con `await connection()` (enforced: `static-guard.test.ts`).
   - El servidor de la web no usa `fetch` (enforced: ESLint y `api-transport-env-proxy.test.ts`).
@@ -294,7 +294,7 @@ Reglas para todas las fases:
   `.claude/rules/frontend/architecture.md`: la frontera (`proxy.ts`, ocho operaciones, `WEB_ENDPOINTS` y `API_OPERATIONS`), el cliente único `web-client.ts`, las respuestas sin cuerpo y los tests de la web (Vitest en `pnpm check` y Playwright en `test:e2e`).
 
   `.claude/rules/README.md`: la fila de `frontend/architecture.md` pasa a declarar su respaldo, que es ESLint, la guarda estática, la paridad y la cobertura en Vitest (`pnpm check`) y los E2E de Playwright (`test:e2e`).
-- [ ] 6.3 Wiki (`/popi:wiki add`), cada ficha con su línea en `.claude/rules/always/knowledge-wiki.md`:
+- [x] 6.3 Wiki (`/popi:wiki add`), cada ficha con su línea en `.claude/rules/always/knowledge-wiki.md`:
   - `decision-frontera-local-de-la-web`: proxy en el servidor y no lista de orígenes; `Host` en bruto más `Origin`; sin Server Actions; sin marcos; ocho operaciones; `fetch` en modo `cors` por `no-referrer`.
   - `decision-filtro-de-urls-sobre-lo-parseado`: `href` y no el texto; sin `next/image` (SSRF); sin `Referer`; `iframe` sin `allow-same-origin`.
   - `gotcha-next-escucha-antes-de-cargar-la-config` (enforcement: `e2e/frontier.e2e.ts`, `tests/static-guard.test.ts`).

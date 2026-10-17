@@ -30,6 +30,12 @@
         "NODE_EXTRA_CA_CERTS"
       ]
     },
+    "@franca/web#dev": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "persistent": true,
+      "passThroughEnv": ["FRANCA_API_URL"]
+    },
     "lint": {
       "dependsOn": ["^build", "db:generate"]
     },
@@ -39,10 +45,24 @@
     "test": {
       "dependsOn": ["^build", "db:generate"]
     },
+    "@franca/web#test": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/apps/api/src/http/api-error.ts",
+        "$TURBO_ROOT$/openspec/**",
+        "$TURBO_ROOT$/packages/engine/tests/helpers/spec-text.ts"
+      ]
+    },
     "test:e2e": {
       "dependsOn": ["^build", "build", "db:generate"],
       "cache": false,
       "passThroughEnv": ["DATABASE_URL"]
+    },
+    "@franca/web#test:e2e": {
+      "dependsOn": ["^build", "build", "@franca/api#build"],
+      "cache": false,
+      "passThroughEnv": ["DATABASE_URL", "CI", "PLAYWRIGHT_BROWSERS_PATH"]
     },
     "validate": {
       "dependsOn": ["build"]
