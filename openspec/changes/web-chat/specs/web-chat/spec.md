@@ -454,7 +454,7 @@ El chat SHALL poderse usar solo con teclado: el foco va a la pregunta pendiente 
 - **THEN** la página no tiene desplazamiento horizontal y las dos opciones y el panel de detalles se pueden alcanzar
 
 ### Requirement: El foco no se pierde
-Mientras se envía una respuesta, o si el envío falla, el foco SHALL seguir en el campo o en el botón de la pregunta, con el texto intacto, y al terminar la conversación pasar al aviso de fin. Así el chat se usa solo con teclado.
+Mientras se envía una respuesta, o si el envío falla, el foco SHALL seguir en el campo o en el botón de la pregunta, con el texto intacto, y al terminar la conversación pasar al aviso de fin. Lo mismo en el inicio con «Probar», «Ver más» y «Reintentar»: el foco no cae a la página, y si la API rechaza el identificador de contacto va al campo del contacto. Así el chat se usa solo con teclado.
 
 #### Scenario: El foco no se pierde tras un envío fallido
 - **GIVEN** una conversación de `pregunta` esperando en `p`
@@ -465,3 +465,13 @@ Mientras se envía una respuesta, o si el envío falla, el foco SHALL seguir en 
 - **GIVEN** una conversación de `pregunta` esperando en `p`
 - **WHEN** se responde `Ana`
 - **THEN** la conversación termina y el foco está en el aviso «Conversación terminada»
+
+#### Scenario: Foco al rechazarse el contacto
+- **GIVEN** `pregunta` publicado
+- **WHEN** se escribe `ana@example.com` como identificador de contacto y se pulsa «Probar» en `Pregunta` con el teclado
+- **THEN** el foco está en el campo «Identificador de contacto»
+
+#### Scenario: Foco tras Ver más
+- **GIVEN** 21 flujos publicados
+- **WHEN** se pulsa «Ver más» de los flujos con el teclado
+- **THEN** el foco no está en la página: sigue en un elemento de la lista de flujos
