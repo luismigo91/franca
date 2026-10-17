@@ -22,6 +22,7 @@
 ### Gotchas
 - [tsdown --watch borra dist/ de la spec](../../wiki/gotcha-spec-watch-borra-dist.md) — por qué el dev de @franca/spec lleva --no-clean
 - [ajv y los errores de oneOf](../../wiki/gotcha-ajv-errores-oneof.md) — por qué validate.ts revalida cada nodo contra la definición de su tipo
+- [ajv con allErrors es cuadrático](../../wiki/gotcha-ajv-allerrors-cuadratico.md) — por qué validateFlow valida por piezas, con presupuesto de detalle, tope de issues y collapse lineal
 - [json-schema-to-typescript y las tuplas](../../wiki/gotcha-json-schema-to-typescript-tuplas.md) — ignoreMinAndMaxItems, no maxItems -1
 - [new URL de WHATWG normaliza en silencio](../../wiki/gotcha-url-whatwg-normaliza.md) — por qué url (input y http) rechaza controles, invisibles, % en el host e IPs antes de parsear
 - [Variables llamadas __proto__ o constructor](../../wiki/gotcha-variables-nombre-proto.md) — por qué el motor usa Map y Object.fromEntries
@@ -35,7 +36,7 @@
 ### Dominio
 - [Rechazos deliberados de input](../../wiki/domain-input-rechazos-deliberados.md) — por qué 1.500, más de 15 cifras o agotar reintentos se rechazan a propósito
 - [Solo el nodo llm puede saltar a sí mismo](../../wiki/domain-llm-puede-saltar-a-si-mismo.md) — solo con next, no con onExhausted; el motor conserva turnos y coste en el autosalto
-- [Flujos sin secretos](../../wiki/domain-flujos-sin-secretos.md) — secretos y proveedores por nombre, variables pii; implicaciones para api, editor y motor
+- [Flujos sin secretos](../../wiki/domain-flujos-sin-secretos.md) — secretos y proveedores por nombre, variables pii; la spec avisa, la API rechaza el literal (heurística) y el motor no ve el valor
 
 ### Harness e infra
 - [El Stop hook y mutate no pueden solaparse](../../wiki/harness-stop-hook-y-mutate.md) — pnpm check compilaba dist/ con un src/ mutado; candado guard-mutate y grupo de procesos de Vitest
