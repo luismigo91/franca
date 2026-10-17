@@ -36,7 +36,7 @@ export function parseBlocks(text: string): Blocks {
   };
   for (const line of text.split('\n')) {
     const requirement = /^### Requirement: (.+)$/.exec(line);
-    if (requirement || /^## /.test(line)) {
+    if (requirement || line.startsWith('## ')) {
       close();
       title = requirement ? requirement[1]! : undefined;
       lines = requirement ? [line] : [];
