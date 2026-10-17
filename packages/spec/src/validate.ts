@@ -1,158 +1,46 @@
 /**
  * Validador de la spec de flujos de Franca v0.
  *
- * Capa 1 (shape): forma, contra flow.schema.json (JSON Schema 2020-12).
+ * Capa 1 (shape): forma, contra flow.schema.json (JSON Schema 2020-12), por piezas (`shape.ts`).
  * Capa 2 (semantic): reglas que el esquema no puede expresar. Solo se
  * evalúa si la forma es correcta.
+ * Además de los errores, informa de avisos (`warnings.ts`) que no impiden ejecutar el flujo.
  */
-import { Ajv2020, type ErrorObject, type ValidateFunction } from 'ajv/dist/2020.js';
 import schema from '../flow.schema.json' with { type: 'json' };
+import { exceedsFlowDepth, MAX_FLOW_DEPTH } from './depth.js';
+import { capIssues, type FlowIssue } from './issues.js';
+import { shapeIssues } from './shape.js';
+import { TEMPLATE_VAR } from './template.js';
 import type { Flow, Node, Predicate } from './types.js';
+import { flowWarnings, type FlowWarning } from './warnings.js';
 
 export { schema };
-
-export interface FlowIssue {
-  layer: 'shape' | 'semantic';
-  /** JSON Pointer dentro del flujo ('' es la raíz). */
-  path: string;
-  /** Nodo afectado, si el error es de un nodo concreto. */
-  nodeId?: string;
-  message: string;
-}
+export type { FlowIssue };
 
 export type FlowValidationResult =
-  | { valid: true; flow: Flow; issues: [] }
-  | { valid: false; issues: FlowIssue[] };
-
-const NODE_DEFS: Record<string, string> = {
-  message: 'messageNode',
-  input: 'inputNode',
-  condition: 'conditionNode',
-  set: 'setNode',
-  http: 'httpNode',
-  llm: 'llmNode',
-  jump: 'jumpNode',
-  end: 'endNode',
-};
-
-const TEMPLATE_VAR = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g;
-
-const ajv = new Ajv2020({ allErrors: true, strictTypes: false });
-ajv.addSchema(schema);
-const validateShape = ajv.getSchema(schema.$id)!;
-const nodeValidators = new Map<string, ValidateFunction>();
-
-function nodeValidator(def: string): ValidateFunction {
-  let fn = nodeValidators.get(def);
-  if (!fn) {
-    fn = ajv.compile({ $ref: `${schema.$id}#/$defs/${def}` });
-    nodeValidators.set(def, fn);
-  }
-  return fn;
-}
-
-export function validateFlow(input: unknown): FlowValidationResult {
-  const shape = shapeIssues(input);
-  if (shape.length) return { valid: false, issues: shape };
-  const flow = input as Flow;
-  const semantic = semanticIssues(flow);
-  if (semantic.length) return { valid: false, issues: semantic };
-  return { valid: true, flow, issues: [] };
-}
-
-// ---------------------------------------------------------------- forma
-
-function shapeIssues(input: unknown): FlowIssue[] {
-  if (validateShape(input)) return [];
-  const errors = validateShape.errors ?? [];
-  const nodes = isObject(input) && Array.isArray(input.nodes) ? (input.nodes as unknown[]) : [];
-
-  // Un nodo mal formado falla el oneOf de `node` y ajv devuelve los errores
-  // de las ocho ramas. Se revalida contra la definición de su tipo para dar
-  // solo los errores que importan.
-  const badNodes = new Set<number>();
-  const issues: FlowIssue[] = [];
-  for (const e of collapse(errors)) {
-    const m = /^\/nodes\/(\d+)(?:\/|$)/.exec(e.instancePath);
-    if (m && nodes.length) badNodes.add(Number(m[1]));
-    else issues.push(toIssue(e));
-  }
-  for (const i of [...badNodes].sort((a, b) => a - b)) issues.push(...nodeShapeIssues(nodes[i], i));
-  return issues.sort((a, b) => a.path.localeCompare(b.path, 'en', { numeric: true }));
-}
-
-function nodeShapeIssues(node: unknown, index: number): FlowIssue[] {
-  const path = `/nodes/${index}`;
-  const nodeId = isObject(node) && typeof node.id === 'string' ? node.id : undefined;
-  const kind = isObject(node) ? node.type : undefined;
-  const def = typeof kind === 'string' ? NODE_DEFS[kind] : undefined;
-  if (!def) {
-    return [{ layer: 'shape', path, nodeId, message: `tipo de nodo desconocido: ${JSON.stringify(kind ?? null)}` }];
-  }
-  const validate = nodeValidator(def);
-  validate(node);
-  return collapse(validate.errors ?? []).map((e) => ({ ...toIssue(e, path), nodeId }));
-}
+  | { valid: true; flow: Flow; issues: []; warnings: FlowWarning[] }
+  | { valid: false; issues: FlowIssue[]; warnings: FlowWarning[] };
 
 /**
- * Deja los errores en el nivel de detalle útil: quita los `if` (ya llega el
- * error de su `then`/`else`) y sustituye los `oneOf` fallidos por un único
- * error, descartando los de cada rama.
+ * Valida un valor como flujo. No lanza con nada que produzca `JSON.parse`: la profundidad se comprueba antes
+ * de cualquier recorrido; los issues están acotados (`MAX_FLOW_ISSUES`) y el coste es lineal con el tamaño.
+ * `warnings` es la lista completa (sin recortar, ver `capWarnings`) y es `[]` si la forma es incorrecta.
+ *
+ * @param input Valor a validar (normalmente el resultado de `JSON.parse`).
+ * @returns El flujo si es válido; si no, los issues.
  */
-function collapse(errors: ErrorObject[]): ErrorObject[] {
-  const oneOfPaths = errors.filter((e) => e.keyword === 'oneOf').map((e) => e.instancePath);
-  return errors.filter((e) => {
-    if (e.keyword === 'if') return false;
-    if (e.keyword === 'oneOf') return !oneOfPaths.some((p) => p !== e.instancePath && isWithin(e.instancePath, p));
-    return !oneOfPaths.some((p) => isWithin(e.instancePath, p));
-  });
-}
-
-function isWithin(path: string, parent: string): boolean {
-  return path === parent || path.startsWith(`${parent}/`);
-}
-
-function toIssue(e: ErrorObject, prefix = ''): FlowIssue {
-  return { layer: 'shape', path: prefix + e.instancePath, message: shapeMessage(e) };
-}
-
-function shapeMessage(e: ErrorObject): string {
-  const p = e.params as Record<string, unknown>;
-  switch (e.keyword) {
-    case 'required':
-      return `falta la propiedad obligatoria '${p.missingProperty}'`;
-    case 'additionalProperties':
-      return `propiedad no permitida '${p.additionalProperty}'`;
-    case 'unevaluatedProperties':
-      return `propiedad no permitida '${p.unevaluatedProperty}'`;
-    case 'const':
-      return `debe ser ${JSON.stringify(p.allowedValue)}`;
-    case 'enum':
-      return `debe ser uno de: ${(p.allowedValues as unknown[]).map((v) => JSON.stringify(v)).join(', ')}`;
-    case 'type':
-      return `debe ser de tipo ${p.type}`;
-    case 'pattern':
-      return `no cumple el patrón ${p.pattern}`;
-    case 'minItems':
-      return `debe tener al menos ${p.limit} elemento(s)`;
-    case 'minLength':
-      return `debe tener al menos ${p.limit} carácter(es)`;
-    case 'maxLength':
-      return `debe tener como mucho ${p.limit} carácter(es)`;
-    case 'minimum':
-    case 'maximum':
-    case 'exclusiveMinimum':
-    case 'exclusiveMaximum':
-      return `debe ser ${p.comparison} ${p.limit}`;
-    case 'oneOf':
-      return 'no coincide con ninguna de las formas permitidas';
-    case 'not':
-      // El único `not` del esquema es el `else` de inputNode; ajv da la ruta relativa a la definición.
-      if (e.schemaPath === '#/else/not') return "'choices' solo se permite con inputType \"choice\"";
-      return e.message ?? 'valor no permitido';
-    default:
-      return e.message ?? 'valor no válido';
+export function validateFlow(input: unknown): FlowValidationResult {
+  if (exceedsFlowDepth(input)) {
+    const message = `el flujo supera la profundidad máxima de anidamiento (${MAX_FLOW_DEPTH})`;
+    return { valid: false, issues: [{ layer: 'shape', path: '', message }], warnings: [] };
   }
+  const shape = shapeIssues(input);
+  if (shape.length) return { valid: false, issues: shape, warnings: [] };
+  const flow = input as Flow;
+  const warnings = flowWarnings(flow);
+  const semantic = semanticIssues(flow);
+  if (semantic.length) return { valid: false, issues: capIssues(semantic, 'semantic'), warnings };
+  return { valid: true, flow, issues: [], warnings };
 }
 
 // ------------------------------------------------------------- semántica
@@ -199,16 +87,29 @@ function writtenVars(node: Node): string[] {
   }
 }
 
-function predicateVars(p: Predicate): string[] {
-  if ('variable' in p) return [p.variable];
-  return ('all' in p ? p.all : p.any).flatMap(predicateVars);
+/** Añade a `into` las variables que lee un predicado, con pila explícita (el anidamiento puede ser profundo). */
+function collectPredicateVars(predicate: Predicate, into: Set<string>): void {
+  const stack: Predicate[] = [predicate];
+  while (stack.length) {
+    const current = stack.pop()!;
+    if ('variable' in current) into.add(current.variable);
+    else for (const child of 'all' in current ? current.all : current.any) stack.push(child);
+  }
 }
 
-function templateVars(value: unknown): string[] {
-  if (typeof value === 'string') return [...value.matchAll(TEMPLATE_VAR)].map((m) => m[1]!);
-  if (Array.isArray(value)) return value.flatMap(templateVars);
-  if (isObject(value)) return Object.values(value).flatMap(templateVars);
-  return [];
+/** Añade a `into` los nombres de los marcadores de todos los textos de un valor, con pila explícita y una pasada. */
+function collectTemplateVars(value: unknown, into: Set<string>): void {
+  const stack: unknown[] = [value];
+  while (stack.length) {
+    const current = stack.pop();
+    if (typeof current === 'string') {
+      for (const match of current.matchAll(TEMPLATE_VAR)) into.add(match[1]!);
+    } else if (Array.isArray(current)) {
+      for (const item of current) if (typeof item === 'string' || (typeof item === 'object' && item !== null)) stack.push(item);
+    } else if (isObject(current)) {
+      for (const item of Object.values(current)) if (typeof item === 'string' || (typeof item === 'object' && item !== null)) stack.push(item);
+    }
+  }
 }
 
 function semanticIssues(flow: Flow): FlowIssue[] {
@@ -247,9 +148,9 @@ function semanticIssues(flow: Flow): FlowIssue[] {
     }
 
     const used = new Set(writtenVars(n));
-    if (n.type === 'condition') for (const r of n.rules) predicateVars(r.when).forEach((v) => used.add(v));
+    if (n.type === 'condition') for (const r of n.rules) collectPredicateVars(r.when, used);
     const { id: _id, type: _type, position: _position, ...rest } = n;
-    templateVars(rest).forEach((v) => used.add(v));
+    collectTemplateVars(rest, used);
     for (const v of [...used].filter((v) => !declared.has(v)).sort()) {
       add(path, `variable no declarada: ${v}`, n.id);
     }
