@@ -1,4 +1,5 @@
 import { HttpException } from '@nestjs/common';
+import { MAX_BODY_BYTES } from './limits.js';
 
 /** Errores del contrato de la API: el cliente decide por `error`, nunca por `message`. Lista cerrada. */
 export const API_ERROR_CODES = [
@@ -20,6 +21,14 @@ export const API_ERROR_CODES = [
   'precondition_required',
   'internal_error',
   'database_unavailable',
+  'invalid_request',
+  'invalid_input',
+  'conversation_not_found',
+  'flow_not_published',
+  'flow_version_invalid',
+  'conversation_busy',
+  'conversation_not_active',
+  'conversation_expired',
 ] as const;
 
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];
@@ -47,6 +56,14 @@ const DEFINITIONS: Record<ApiErrorCode, { status: number; message: string }> = {
   precondition_required: { status: 428, message: 'falta la cabecera If-Match con la revisión del borrador' },
   internal_error: { status: 500, message: 'error interno' },
   database_unavailable: { status: 503, message: 'la base de datos no está disponible' },
+  invalid_request: { status: 400, message: 'el cuerpo de la petición no es válido' },
+  invalid_input: { status: 400, message: 'la entrada no tiene la forma que pide la conversación' },
+  conversation_not_found: { status: 404, message: 'conversación no encontrada' },
+  flow_not_published: { status: 409, message: 'el flujo no tiene ninguna versión publicada' },
+  flow_version_invalid: { status: 409, message: 'la versión ya no es válida con el validador vigente' },
+  conversation_busy: { status: 409, message: 'la conversación está procesando otra entrada' },
+  conversation_not_active: { status: 409, message: 'la conversación ya terminó' },
+  conversation_expired: { status: 409, message: 'la conversación caducó por inactividad' },
 };
 
 /**
@@ -71,4 +88,17 @@ export class ApiException extends HttpException {
 /** Estado y mensaje de un código del contrato. */
 export function describeApiError(code: ApiErrorCode): { status: number; message: string } {
   return DEFINITIONS[code];
+}
+
+/**
+ * El 413 de un cuerpo que supera el máximo de su ruta. Con el máximo general (1 MiB) es exactamente el error del contrato
+ * de siempre; con otro, el mensaje dice ese máximo en KiB (el filtro esparce `extra` después de `message`, así que lo
+ * sustituye sin tocarse).
+ *
+ * @param limitBytes Máximo de bytes de la ruta.
+ * @returns La excepción `payload_too_large`.
+ */
+export function payloadTooLarge(limitBytes: number): ApiException {
+  if (limitBytes === MAX_BODY_BYTES) return new ApiException('payload_too_large');
+  return new ApiException('payload_too_large', { message: `el cuerpo supera el tamaño máximo de ${limitBytes / 1024} KiB` });
 }
