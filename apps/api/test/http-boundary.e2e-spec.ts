@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { connect } from 'node:net';
 import { gzipSync } from 'node:zlib';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -293,6 +294,31 @@ describe('frontera HTTP', () => {
       // Solo existe el primero (borrado): el segundo no llegó a validarse ni a guardarse.
       expect(await flowsCount()).toBe(1);
       expect((await prisma.flow.findUnique({ where: { id: 'hola' } }))?.revision).toBe(1);
+    });
+
+    it('Cuerpo que no llega entero', async () => {
+      // El plazo de producción (30 s) está fijado en el servidor de la app de este fichero.
+      expect(testApp.server.requestTimeout).toBe(30_000);
+      expect(testApp.server.headersTimeout).toBeLessThanOrEqual(testApp.server.requestTimeout);
+
+      // Con el plazo reducido, el mismo mecanismo cierra a los 300 ms y no a los 300 s de Node.
+      const short = await createTestApp({ requestTimeoutMs: 300 });
+      try {
+        const started = performance.now();
+        const received = await new Promise<string>((resolve, reject) => {
+          const socket = connect(short.port, '127.0.0.1');
+          let text = '';
+          socket.on('data', (chunk) => (text += chunk.toString()));
+          socket.on('close', () => resolve(text));
+          socket.on('error', reject);
+          socket.write(`POST /flows HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\nContent-Length: ${MIB + 1}\r\n\r\n1234567`);
+        });
+        expect(received.startsWith('HTTP/1.1 408 Request Timeout')).toBe(true);
+        expect(performance.now() - started).toBeLessThan(5000);
+        expect(await flowsCount()).toBe(0);
+      } finally {
+        await short.close();
+      }
     });
 
     it('JSON roto', async () => {

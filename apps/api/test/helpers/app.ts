@@ -30,6 +30,8 @@ export interface CreateTestAppOptions {
   logger?: LoggerService;
   /** Sustituye partes de la configuración (por ejemplo, `databaseUrl` hacia un puerto cerrado). */
   config?: Partial<AppConfig>;
+  /** Plazo para recibir la petición entera (`configureApp`); solo para probar el 408 sin esperar 30 s. */
+  requestTimeoutMs?: number;
   /** Sustituye proveedores (`overrideProvider(...).useValue(...)`) antes de compilar. */
   configure?: (builder: TestingModuleBuilder) => TestingModuleBuilder;
 }
@@ -48,7 +50,7 @@ export async function createTestApp(options: CreateTestAppOptions = {}): Promise
   if (options.configure) builder = options.configure(builder);
   const moduleRef = await builder.compile();
   const app = moduleRef.createNestApplication({ bodyParser: false });
-  configureApp(app);
+  configureApp(app, { requestTimeoutMs: options.requestTimeoutMs });
   await app.listen(0, '127.0.0.1');
   const server = app.getHttpServer() as Server;
   return { app, server, port: (server.address() as AddressInfo).port, close: () => app.close() };
