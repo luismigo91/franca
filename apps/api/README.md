@@ -29,7 +29,7 @@ Con Postgres parado la API arranca igual: el CRUD y las conversaciones responden
 | `FRANCA_HTTP_ALLOWED_DESTINATIONS` | ninguno | Pares `dirección:puerto` separados por comas (IPv4, o IPv6 entre corchetes) que la salida http permite aunque no sean unicast global, también con `http://`. Una entrada vacía o mal escrita impide arrancar |
 | `NODE_EXTRA_CA_CERTS` | sin definir | La lee Node: las autoridades TLS extra de la máquina (p. ej. una CA corporativa) también las acepta la salida http. `NODE_TLS_REJECT_UNAUTHORIZED` y las variables de proxy (`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NODE_USE_ENV_PROXY`) **no** cambian nada en la salida http |
 
-Los nodos `http` de las conversaciones salen por la salida http de la API (secretos por origen exacto, solo destinos unicast global o permitidos, `http://` solo hacia pares permitidos, sin proxy del entorno y sin registrar nada de la llamada). El contrato y sus escenarios están en [`openspec/changes/api-http-host/specs/http-host/spec.md`](../../openspec/changes/api-http-host/specs/http-host/spec.md).
+Los nodos `http` de las conversaciones salen por la salida http de la API (secretos por origen exacto, solo destinos unicast global o permitidos, `http://` solo hacia pares permitidos, sin proxy del entorno y sin registrar nada de la llamada). El contrato y sus escenarios están en [`openspec/specs/http-host/spec.md`](../../openspec/specs/http-host/spec.md).
 
 ## Tests
 
