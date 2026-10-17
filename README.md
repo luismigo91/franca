@@ -56,6 +56,8 @@ pnpm dev:demo
 - **Sin Claude.** La demo arranca la API sin `FRANCA_ANTHROPIC_API_KEY`, aunque la shell la tenga: los flujos con nodos `llm` (por ejemplo `faq-ia`) terminan en `llm_not_configured`.
 - **`pnpm demo:seed`** repite la siembra (es idempotente) y dice qué hizo. Si el borrador de `captacion-leads-local` ya no es la copia (por ejemplo, porque el repositorio la actualizó), responde que no lo ha tocado. Para ponerlo al día, sustituye el borrador por `apps/api/demo/captacion-leads-local.json` (`PUT` con `If-Match`) o, si no hay nada que conservar, `docker compose down -v` y las migraciones otra vez.
 - **Id reservado.** Si borras `captacion-leads-local` con `DELETE`, la API no deja reutilizar su `id`. Solo se recupera borrando la base de datos local con `docker compose down -v`, que borra todos los flujos y conversaciones.
+- **Puertos ocupados.** Si algo ya escucha en el 3000 o en el de la API (por ejemplo, otro `pnpm dev` abierto), la demo no arranca y lo dice. Páralo antes de repetir.
+- **Si se mató la demo con `kill -9`**, turbo, la API y la web quedan en marcha y la siguiente ejecución se negará a arrancar. Recupera con `lsof -nP -iTCP:3001 -sTCP:LISTEN` (pid de la API), `ps -o pgid= -p <pid>` y `kill -INT -<pgid>`; con `lsof -nP -iTCP:3000 -iTCP:3001 -iTCP:4010 -sTCP:LISTEN` vacío, ya puedes repetir.
 - **Sin migraciones.** Si la semilla dice que la API respondió 500, aplica `pnpm --filter @franca/api db:migrate` y repítela.
 
 ## API

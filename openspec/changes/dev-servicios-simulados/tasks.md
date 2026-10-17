@@ -336,10 +336,14 @@ Commits (rama `feat/dev-servicios-simulados`): `379bddd` (revisión 3 del diseñ
 - `pnpm validate`, `pnpm wiki:lint`, `pnpm exec openspec validate dev-servicios-simulados --strict`: verdes. `gitleaks git --log-opts="main..HEAD"`: 11 commits, sin hallazgos. `git diff --name-only main...HEAD -- apps/web packages apps/api/src/main.ts apps/api/prisma .github pnpm-lock.yaml pnpm-workspace.yaml`: vacío.
 - Verificación real de la demo (6.1-6.7): ver la entrega; todo lo observado coincide con los escenarios salvo lo anotado arriba.
 
+### Revisión 4 (QA y code review)
+
+Commits tras `1a5ae5f`: `58b32eb` (spec) y los de esta revisión. Hecho: M1 (puertos antes de lanzar nada, escenario nuevo), `stopAll` manda siempre `SIGINT` al grupo (ESRCH tolerado), `FRANCA_API_URL` validada antes de lanzar nada y sin doble punto, `dev-simulated-services` en `spec-coverage.spec.ts` con una lista explícita `MANUAL` (título → motivo) para los dos escenarios solo manuales, y los tres nits. **m1 no se implementa** (un envoltorio `detached` con IPC sobre turbo cambia el árbol de procesos medido en A5 para cubrir un `kill -9` a la propia demo): se documenta la recuperación en el README y en la ficha, y M1 lo detecta en la ejecución siguiente.
+
 ## 7. Seguimiento
 
 - [ ] 7.1 FOLLOW-UP: `dev-llm-simulado`, el proveedor `llm` simulado con el soporte simulado y la copia local de `faq-ia` (pregunta abierta 2 de la propuesta).
 - [ ] 7.2 FOLLOW-UP: los modos de fallo del CRM simulado (429, 503, lentitud), si el editor (8) los necesita.
-- [ ] 7.3 FOLLOW-UP: comprobar de antemano que los puertos 3000 y 3001 están libres en `pnpm dev:demo`. Hoy los detecta `pnpm dev`, sin que la demo lo diga.
+- [x] 7.3 Cerrado en la revisión 4: la demo comprueba 3000 y el puerto de la API antes de lanzar nada (la premisa «hoy los detecta `pnpm dev`» era falsa).
 - [ ] 7.4 FOLLOW-UP: la métrica de tiempo de 4.5, si no se pudo medir en la CI de un PR.
 - [ ] 7.5 Cerrado por este cambio (1.4): el FOLLOW-UP 7.6 de `web-chat`, `openspec/**` en los `inputs` de los tests de la API. Se marca así al archivar, y queda anotado en la descripción del PR.

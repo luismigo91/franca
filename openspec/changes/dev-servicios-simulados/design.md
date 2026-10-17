@@ -34,7 +34,7 @@ Leído en `main` + `139869e`: `apps/api/src/http-host/**`, `main.ts`, `apps/api/
 **Goals**: los de `proposal.md`. Un comando lleva `captacion-leads-local` a `lead-empresa` en el chat, sin Internet y sin credenciales reales. La salida http gana una vía de resolución acotada que no abre ningún destino nuevo.
 
 **Non-Goals**: los de `proposal.md`: `faq-ia`, soporte simulado, TLS local, modos de fallo del CRM, cambios en la web, integrar la demo en `pnpm dev` o en la CI, y Windows. A esto se suman dos más del diseño:
-- La demo no comprueba de antemano que los puertos 3000 y 3001 estén libres: eso es lo que ya hace `pnpm dev` (FOLLOW-UP 6.3).
+- ~~La demo no comprueba de antemano los puertos 3000 y 3001~~ (premisa falsa: `pnpm dev` no lo detecta; con otro `pnpm dev` abierto la demo sembraba contra la API equivocada y decía «Lista»). Revisión 4: la demo hace un sondeo único en `127.0.0.1` y `::1` de 3000 y del puerto de la API antes de lanzar nada, y termina con 1 si algo escucha (escenario «Puertos de la API o la web ocupados»). `FRANCA_API_URL` también se valida antes de lanzar nada.
 - No hay ninguna variable para cambiar el puerto 4010.
 
 ## Decisions
@@ -178,7 +178,7 @@ Pasos de `stopAll`:
 El total es como mucho de 9,5 s (H1), dentro de los 10 s de «Parada con Ctrl+C». Medido (A5): con `SIGINT` al grupo, los puertos se liberan en menos de 1 s. La verificación final repite la medida **a través de `pnpm dev:demo`** en una terminal real, no con el binario de turbo a pelo (tasks, 6.5).
 
 - **El CRM se protege solo**: termina al recibir `{type: 'stop'}`, `SIGTERM` o al perder el canal IPC (`disconnect`, si el arranque muere de golpe), y **ignora `SIGINT`**. Así una carrera entre el Ctrl+C y el aviso de salida no se confunde con «el CRM se ha parado».
-- **Límite aceptado**: si el arranque recibe `SIGKILL`, turbo y sus tareas quedan huérfanos, igual que con `pnpm dev`.
+- **Límite aceptado**: si el arranque recibe `SIGKILL`, turbo y sus tareas quedan huérfanos (`detached` crea una sesión nueva). La ejecución siguiente lo detecta (puertos 3000/3001 ocupados) y la receta de recuperación está en el README y en la ficha `gotcha-turbo-senal-al-grupo`. `stopAll` manda siempre `SIGINT` al grupo de turbo, también si el lanzador murió (`kill -9`), tolerando `ESRCH`.
 
 ### D8. Puerto 4010 ocupado: lo detecta el propio CRM, antes de turbo
 
@@ -496,6 +496,7 @@ Los de `http-host` llevan un `it` con el título exacto (lo exige `spec-coverage
 | Variable vacía en la shell | ídem |
 | Clave de Claude en la shell | `test/demo/dev-demo.spec.ts` (entorno de turbo sin la clave y salida) + manual (6.6) |
 | Puerto del CRM ocupado | `test/demo/crm.spec.ts` (`EADDRINUSE` real en un puerto libre ocupado) + `dev-demo.spec.ts` (sin turbo, mensaje con 4010) + manual |
+| Puertos de la API o la web ocupados | `test/demo/dev-demo.spec.ts` (sondeo único antes de lanzar nada, sin CRM ni turbo) + manual con `pnpm --filter @franca/api dev` en marcha |
 | CRM solo en loopback | `test/demo/crm.spec.ts` (`[::1]` y la primera IPv4 no interna con `it.skipIf`) |
 | Leads consecutivos | `test/demo.e2e-spec.ts` |
 | Lead con otro token | ídem |
