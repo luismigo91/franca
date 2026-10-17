@@ -1,0 +1,395 @@
+[
+  {
+    "id": "followRedirects",
+    "file": "src/http-host/transport.ts",
+    "find": "      const status = response.statusCode ?? 0;\n",
+    "replace": "      const status = response.statusCode ?? 0;\n      const location = response.headers.location;\n      if (status >= 300 && status < 400 && location !== undefined) {\n        response.destroy();\n        void sendRequest({ ...input, url: new URL(location, input.url) }).then(finish);\n        return;\n      }\n",
+    "tests": [
+      "test/conversations-conformance.e2e-spec.ts"
+    ]
+  },
+  {
+    "id": "reResolveOnConnect",
+    "file": "src/http-host/http-host.ts",
+    "find": "targets: decision.targets,",
+    "replace": "targets: await resolveName(deps.network, url, controller.signal).then((again) => (again.kind === 'entries' ? again.entries.map((entry) => ({ address: String(entry.address), family: (entry.family === 6 ? 6 : 4) as 4 | 6 })) : decision.targets)),",
+    "tests": [
+      "test/conversations-conformance.e2e-spec.ts",
+      "test/http-host-requests.e2e-spec.ts"
+    ]
+  },
+  {
+    "id": "allowAnyAddressOnResolution",
+    "file": "src/http-host/destination-policy.ts",
+    "find": "for (const entry of input.entries) {",
+    "replace": "for (const entry of input.entries.slice(0, 1)) {",
+    "tests": [
+      "test/http-host-destinations.e2e-spec.ts",
+      "src/http-host/destination-policy.spec.ts"
+    ]
+  },
+  {
+    "id": "allowAddressAnyPort",
+    "file": "src/http-host/destination-policy.ts",
+    "find": "return new Set(entries.map((entry) => entry.key));",
+    "replace": "return { has: (key: string) => entries.some((entry) => entry.key.split('|')[0] === key.split('|')[0]) };",
+    "tests": [
+      "test/http-host-destinations.e2e-spec.ts",
+      "src/http-host/destination-policy.spec.ts"
+    ]
+  },
+  {
+    "id": "noSizeCap",
+    "file": "src/http-host/response-body.ts",
+    "find": "export const MAX_RESPONSE_BYTES = 1_048_576;",
+    "replace": "export const MAX_RESPONSE_BYTES = 1_048_576_000_000;",
+    "tests": [
+      "src/http-host/response-body.spec.ts"
+    ]
+  },
+  {
+    "id": "unboundedDecompression",
+    "file": "src/http-host/response-body.ts",
+    "find": "      if (produced > MAX_RESPONSE_BYTES) finish({ kind: 'too_large' });\n      else chunks.push(chunk);",
+    "replace": "      chunks.push(chunk);",
+    "tests": [
+      "src/http-host/response-body.spec.ts"
+    ]
+  },
+  {
+    "id": "networkBytesCapOnly",
+    "file": "src/http-host/response-body.ts",
+    "find": "      produced += chunk.length;",
+    "replace": "      produced = received;",
+    "tests": [
+      "src/http-host/response-body.spec.ts"
+    ]
+  },
+  {
+    "id": "firstAnswerOnly",
+    "file": "src/http-host/http-host.ts",
+    "find": "entries: resolution.entries, port:",
+    "replace": "entries: resolution.entries.slice(0, 1), port:",
+    "tests": [
+      "test/http-host-destinations.e2e-spec.ts"
+    ]
+  },
+  {
+    "id": "idleTimeoutOnly",
+    "file": "src/http-host/transport.ts",
+    "find": "    input.signal.addEventListener('abort', onAbort, { once: true });\n    try {\n      // Sin `agent`",
+    "replace": "    socket.setTimeout(500, () => {\n      request?.destroy();\n      socket.destroy();\n      finish(ABORTED);\n    });\n    try {\n      // Sin `agent`",
+    "tests": [
+      "test/conversations-conformance.e2e-spec.ts"
+    ]
+  },
+  {
+    "id": "ignoreTimeout",
+    "file": "src/http-host/http-host.ts",
+    "find": "const timer = setTimeout(() => controller.abort(), budgetMs);",
+    "replace": "const timer = setTimeout(() => undefined, budgetMs);",
+    "tests": [
+      "test/conversations-conformance.e2e-spec.ts",
+      "test/http-host-tls-timing.e2e-spec.ts"
+    ]
+  },
+  {
+    "id": "secretsAnyOrigin",
+    "file": "src/http-host/secrets.ts",
+    "find": "      if (!secret.origins.has(origin)) return { kind: 'origin_not_allowed' };\n",
+    "replace": "",
+    "tests": [
+      "test/conversations-conformance.e2e-spec.ts",
+      "test/http-host-secrets.e2e-spec.ts",
+      "src/http-host/http-host-config.spec.ts"
+    ]
+  },
+  {
+    "id": "secretsAnyTenant",
+    "file": "src/http-host/secrets.ts",
+    "find": "export function createSecretStore(secrets: ReadonlyMap<string, InstalledSecret>): SecretStore {\n  return {\n    lookup(name, origin) {\n      const secret = secrets.get(name);",
+    "replace": "const ALL_MAPS = new Set<ReadonlyMap<string, InstalledSecret>>();\nexport function createSecretStore(secrets: ReadonlyMap<string, InstalledSecret>): SecretStore {\n  ALL_MAPS.add(secrets);\n  return {\n    lookup(name, origin) {\n      const secret = [...ALL_MAPS].map((candidate) => candidate.get(name)).find((candidate) => candidate !== undefined);",
+    "tests": [
+      "test/conversations-conformance.e2e-spec.ts"
+    ]
+  },
+  {
+    "id": "logUrl",
+    "file": "src/http-host/http-host.ts",
+    "find": "    let url: URL;\n    try {\n      url = new URL(request.url);",
+    "replace": "    (await import('@nestjs/common')).Logger.log(request.url, 'HttpHost');\n    let url: URL;\n    try {\n      url = new URL(request.url);",
+    "tests": [
+      "test/http-host-logging.e2e-spec.ts",
+      "test/conversations-conformance.e2e-spec.ts"
+    ]
+  },
+  {
+    "id": "rejectOnRefused",
+    "file": "src/http-host/transport.ts",
+    "find": "      if (socket === null) continue;",
+    "replace": "      if (socket === null) throw new Error('conexión rechazada');",
+    "tests": [
+      "test/conversations-conformance.e2e-spec.ts",
+      "test/http-host-destinations.e2e-spec.ts"
+    ]
+  },
+  {
+    "id": "keepCookies",
+    "file": "src/http-host/transport.ts",
+    "find": "      // Sin `agent` (ni `agent: false`, que ignora `createConnection`): Node usa este socket y no hay pool ni proxy del entorno.\n",
+    "replace": "      const jar: Map<string, string> = ((globalThis as any).__jar ??= new Map());\n      const stored = jar.get(input.url.origin);\n      queueMicrotask(() =>\n        request?.on('response', (res) => {\n          const raw = res.headers['set-cookie'];\n          if (raw) jar.set(input.url.origin, raw.map((cookie) => cookie.split(';')[0]).join('; '));\n        }),\n      );\n      if (stored !== undefined) wire = [...wire, ['Cookie', stored]];\n",
+    "tests": [
+      "test/conversations-conformance.e2e-spec.ts",
+      "test/http-host-requests.e2e-spec.ts"
+    ]
+  },
+  {
+    "id": "acceptBadTls",
+    "file": "src/http-host/transport.ts",
+    "find": "const VERIFY_PEER = true;",
+    "replace": "const VERIFY_PEER = false;",
+    "tests": [
+      "test/conversations-conformance.e2e-spec.ts",
+      "test/http-host-tls-timing.e2e-spec.ts"
+    ]
+  },
+  {
+    "id": "plainHttpToPublic",
+    "file": "src/http-host/destination-policy.ts",
+    "find": "    if (!isAllowed && !input.secure) hasInsecure = true;\n",
+    "replace": "",
+    "tests": [
+      "test/http-host-destinations.e2e-spec.ts",
+      "src/http-host/destination-policy.spec.ts"
+    ]
+  },
+  {
+    "id": "filterMixedResolution",
+    "file": "src/http-host/destination-policy.ts",
+    "find": "if (!isAllowed && !isGlobalUnicast(parsed)) hasInternal = true;",
+    "replace": "if (!isAllowed && !isGlobalUnicast(parsed)) continue;",
+    "tests": [
+      "test/http-host-destinations.e2e-spec.ts",
+      "src/http-host/destination-policy.spec.ts"
+    ]
+  },
+  {
+    "id": "noAddressFallback",
+    "file": "src/http-host/transport.ts",
+    "find": "      if (socket === null) continue;",
+    "replace": "      if (socket === null) return NOT_SENT;",
+    "tests": [
+      "test/http-host-destinations.e2e-spec.ts"
+    ]
+  },
+  {
+    "id": "mappedAsText",
+    "file": "src/http-host/destination-policy.ts",
+    "find": "    const address = canonicalIp(parsed);",
+    "replace": "    const address = String(entry.address);",
+    "tests": [
+      "test/http-host-destinations.e2e-spec.ts",
+      "src/http-host/destination-policy.spec.ts"
+    ]
+  },
+  {
+    "id": "nat64Global",
+    "file": "src/http-host/addresses.ts",
+    "find": "  if (embedded !== null) return isGlobalUnicast({ family: 4, bytes: embedded, zone: null });",
+    "replace": "  if (embedded !== null) return isInPrefix(parsed.bytes, NAT64, 96) || isGlobalUnicast({ family: 4, bytes: embedded, zone: null });",
+    "tests": [
+      "test/http-host-destinations.e2e-spec.ts",
+      "src/http-host/addresses.spec.ts"
+    ]
+  },
+  {
+    "id": "resolveBeforeSecrets",
+    "file": "src/http-host/http-host.ts",
+    "find": "    const headers: WireHeader[] = [];\n",
+    "replace": "    await deps.network.resolver.lookup(url.hostname).catch(() => undefined);\n    const headers: WireHeader[] = [];\n",
+    "tests": [
+      "test/http-host-secrets.e2e-spec.ts",
+      "src/http-host/http-host.spec.ts"
+    ]
+  },
+  {
+    "id": "windowBeforeSecrets",
+    "file": "src/http-host/http-host.ts",
+    "find": "    const headers: WireHeader[] = [];\n",
+    "replace": "    if (attemptBudget(request.timeoutMs, context.deadlineMs - context.now()) <= 0) return { kind: 'timeout' };\n    const headers: WireHeader[] = [];\n",
+    "tests": [
+      "test/http-host-secrets.e2e-spec.ts",
+      "src/http-host/http-host.spec.ts"
+    ]
+  },
+  {
+    "id": "reuseConnections",
+    "file": "src/http-host/transport.ts",
+    "find": "  const wire = buildRequestHeaders({ method: input.method, url: input.url, headers: input.headers, body: input.body });\n  const opened = new Set<Socket>();\n  try {\n    for (const target of input.targets) {\n      if (input.signal.aborted) return ABORTED;\n      const socket = await connectTo(input, target, opened);\n      if (socket === null) continue;",
+    "replace": "  const wire = buildRequestHeaders({ method: input.method, url: input.url, headers: input.headers, body: input.body }).map(([name, value]): WireHeader => (name === 'Connection' ? [name, 'keep-alive'] : [name, value]));\n  const opened = new Set<Socket>();\n  try {\n    for (const target of input.targets) {\n      if (input.signal.aborted) return ABORTED;\n      const pool: Map<string, Socket> = ((globalThis as any).__sockets ??= new Map());\n      const key = `${target.address}|${portOf(input.url)}`;\n      const cached = pool.get(key);\n      const socket = cached !== undefined && !cached.destroyed ? cached : await connectTo(input, target, opened);\n      if (socket === null) continue;\n      pool.set(key, socket);\n      opened.delete(socket);",
+    "tests": [
+      "test/http-host-requests.e2e-spec.ts"
+    ]
+  },
+  {
+    "id": "useEnvProxy",
+    "file": "src/http-host/transport.ts",
+    "find": "        createConnection: () => socket,\n",
+    "replace": "        agent: process.getBuiltinModule('node:http').globalAgent,\n        host: input.url.hostname,\n        port: portOf(input.url),\n",
+    "tests": [
+      "test/http-host-environment.e2e-spec.ts",
+      "src/http-host/static-guard.spec.ts"
+    ]
+  },
+  {
+    "id": "honorTlsRejectEnv",
+    "file": "src/http-host/transport.ts",
+    "find": "const VERIFY_PEER = true;\nconst peerVerification = () => ({ rejectUnauthorized: VERIFY_PEER });\nconst isPeerVerified = (socket: TLSSocket): boolean => !VERIFY_PEER || socket.authorized === true;",
+    "replace": "const peerVerification = () => ({});\nconst isPeerVerified = (socket: TLSSocket): boolean => process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0' || socket.authorized === true;",
+    "tests": [
+      "test/http-host-tls-timing.e2e-spec.ts",
+      "src/http-host/static-guard.spec.ts"
+    ]
+  },
+  {
+    "id": "tlsAgainstAddress",
+    "file": "src/http-host/transport.ts",
+    "find": "        ...(isIP(hostname) === 0 ? { servername: hostname } : {}),\n        ...peerVerification(),\n        checkServerIdentity: (_host, certificate) => checkServerIdentity(hostname, certificate),",
+    "replace": "        servername: target.address,\n        ...peerVerification(),\n        checkServerIdentity: (_host, certificate) => checkServerIdentity(target.address, certificate),",
+    "tests": [
+      "test/http-host-requests.e2e-spec.ts"
+    ]
+  },
+  {
+    "id": "noIdentityCheck",
+    "file": "src/http-host/transport.ts",
+    "find": "        checkServerIdentity: (_host, certificate) => checkServerIdentity(hostname, certificate),",
+    "replace": "        checkServerIdentity: () => undefined,",
+    "tests": [
+      "test/http-host-tls-timing.e2e-spec.ts"
+    ]
+  },
+  {
+    "id": "noAdvanceWindow",
+    "file": "src/conversations/conversations.service.ts",
+    "find": "deadlineMs: startedAtMs + LLM_WINDOW_MS",
+    "replace": "deadlineMs: Number.MAX_SAFE_INTEGER",
+    "tests": [
+      "test/conversations-llm.e2e-spec.ts"
+    ]
+  },
+  {
+    "id": "windowNotCapping",
+    "file": "src/http-host/http-host.ts",
+    "find": "const budgetMs = attemptBudget(request.timeoutMs, context.deadlineMs - context.now());",
+    "replace": "const budgetMs = context.deadlineMs - context.now() <= 0 ? 0 : request.timeoutMs;",
+    "tests": [
+      "test/conversations-llm.e2e-spec.ts"
+    ]
+  },
+  {
+    "id": "logOrigin",
+    "file": "src/http-host/http-host.ts",
+    "find": "    if (url.protocol !== 'https:' && url.protocol !== 'http:') return NETWORK_ERROR_NOT_SENT();\n",
+    "replace": "    if (url.protocol !== 'https:' && url.protocol !== 'http:') return NETWORK_ERROR_NOT_SENT();\n    (await import('@nestjs/common')).Logger.log(url.origin, 'HttpHost');\n",
+    "tests": [
+      "test/http-host-logging.e2e-spec.ts"
+    ]
+  },
+  {
+    "id": "envHeaders",
+    "file": "src/http-host/request-headers.ts",
+    "find": "  wire.push(['Connection', 'close']);\n",
+    "replace": "  wire.push(['X-Franca-Env', process.env.HOME ?? 'x']);\n  wire.push(['Connection', 'close']);\n",
+    "tests": [
+      "test/http-host-requests.e2e-spec.ts",
+      "src/http-host/request-headers.spec.ts"
+    ]
+  },
+  {
+    "id": "statusPassthrough",
+    "file": "src/http-host/transport.ts",
+    "find": "      if (status < 200 || status > 599) {",
+    "replace": "      if (false) {",
+    "tests": [
+      "test/http-host-requests.e2e-spec.ts"
+    ]
+  },
+  {
+    "id": "noZeroContentLength",
+    "file": "src/http-host/request-headers.ts",
+    "find": "  else if (METHODS_WITH_EMPTY_LENGTH.has(input.method)) wire.push(['Content-Length', '0']);\n",
+    "replace": "",
+    "tests": [
+      "test/http-host-requests.e2e-spec.ts",
+      "src/http-host/request-headers.spec.ts"
+    ]
+  },
+  {
+    "id": "insecureFirst",
+    "file": "src/http-host/destination-policy.ts",
+    "find": "  if (hasInternal) return { kind: 'blocked', reason: 'internal_destination' };\n  if (hasInsecure) return { kind: 'blocked', reason: 'insecure_transport' };",
+    "replace": "  if (hasInsecure) return { kind: 'blocked', reason: 'insecure_transport' };\n  if (hasInternal) return { kind: 'blocked', reason: 'internal_destination' };",
+    "tests": [
+      "src/http-host/destination-policy.spec.ts",
+      "src/http-host/http-host.spec.ts"
+    ]
+  },
+  {
+    "id": "lookupFirstOnly",
+    "file": "src/http-host/network.ts",
+    "find": "export const LOOKUP_OPTIONS = { all: true, order: 'verbatim' } as const;",
+    "replace": "export const LOOKUP_OPTIONS = { all: false, order: 'verbatim' } as const;",
+    "tests": [
+      "src/http-host/network.spec.ts"
+    ]
+  },
+  {
+    "id": "noLookupRace",
+    "file": "src/http-host/http-host.ts",
+    "find": "return await Promise.race([lookup, aborted]);",
+    "replace": "return await lookup;",
+    "tests": [
+      "test/http-host-tls-timing.e2e-spec.ts",
+      "src/http-host/http-host.spec.ts"
+    ]
+  },
+  {
+    "id": "emptyResolutionAsAddresses",
+    "file": "src/http-host/http-host.ts",
+    "find": "return Array.isArray(answers) && answers.length > 0 ? { kind: 'entries', entries: answers as ResolvedEntry[] } : { kind: 'failed' };",
+    "replace": "return Array.isArray(answers) ? { kind: 'entries', entries: answers.length > 0 ? (answers as ResolvedEntry[]) : [{ address: 'sin-direcciones', family: 4 }] } : { kind: 'failed' };",
+    "tests": [
+      "src/http-host/http-host.spec.ts"
+    ]
+  },
+  {
+    "id": "unparsableAsGlobal",
+    "file": "src/http-host/destination-policy.ts",
+    "find": "    if (parsed === null || parsed.family !== entry.family) {\n      hasInternal = true;\n      continue;\n    }",
+    "replace": "    if (parsed === null || parsed.family !== entry.family) {\n      continue;\n    }",
+    "tests": [
+      "src/http-host/http-host.spec.ts",
+      "src/http-host/destination-policy.spec.ts"
+    ]
+  },
+  {
+    "id": "waitOnCloseBeforeResponse",
+    "file": "src/http-host/transport.ts",
+    "find": "    request.on('close', () => {\n      if (!gotResponse) finish(SENT_AND_FAILED);\n    });",
+    "replace": "    request.on('close', () => undefined);",
+    "tests": [
+      "test/http-host-requests.e2e-spec.ts"
+    ]
+  },
+  {
+    "id": "bypassOpenerToLoopback",
+    "file": "src/http-host/transport.ts",
+    "find": "      socket = input.network.opener.open({ address: target.address, family: target.family, port: portOf(input.url) });",
+    "replace": "      socket = process.getBuiltinModule('node:net').connect({ host: '127.0.0.1', port: portOf(input.url) });",
+    "tests": [
+      "test/http-host-requests.e2e-spec.ts",
+      "test/http-host-seam.e2e-spec.ts"
+    ]
+  }
+]

@@ -14,6 +14,8 @@ beforeEach(() => {
   mkdirSync(join(dir, 'scripts'));
   mkdirSync(join(dir, 'packages/a'), { recursive: true });
   mkdirSync(join(dir, 'packages/b'), { recursive: true });
+  mkdirSync(join(dir, 'apps/api'), { recursive: true });
+  mkdirSync(join(dir, 'apps/web'), { recursive: true });
   copyFileSync(SCRIPT, join(dir, 'scripts/guard-mutate.mjs'));
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
@@ -34,6 +36,17 @@ describe('scripts/guard-mutate.mjs', () => {
     expect(result.stderr).toContain('mutación en curso: espera a que termine `mutate`');
     expect(result.stderr).toContain('packages/b');
     expect(result.stderr).not.toContain('packages/a');
+    expect(result.stderr).not.toContain('apps/');
+  });
+
+  it('con apps/*/.mutate-backup/ también falla, nombra la app y no las demás', () => {
+    mkdirSync(join(dir, 'apps/api/.mutate-backup'));
+    const result = guard();
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('mutación en curso: espera a que termine `mutate`');
+    expect(result.stderr).toContain('apps/api/.mutate-backup/');
+    expect(result.stderr).not.toContain('apps/web');
+    expect(result.stderr).not.toContain('packages/');
   });
 
   it('el script check y el script build de la raíz lo ejecutan primero', async () => {
