@@ -26,7 +26,7 @@ Datos de los escenarios:
 #### Scenario: Demo sin Internet
 - **GIVEN** la máquina sin conexión a ninguna red salvo loopback
 - **WHEN** se arranca la demo y una conversación de `captacion-leads-local` lista para enviar recibe `{input: {choice: "grande"}}`
-- **THEN** la conversación termina con `outcome` `"lead-empresa"` y ningún proceso de la demo ha abierto una conexión fuera de loopback ni ha consultado el DNS por `crm.franca.test`
+- **THEN** la conversación termina con `outcome` `"lead-empresa"` y ni la API ni el CRM simulado han abierto una conexión fuera de loopback ni consultado el DNS por `crm.franca.test`
 
 #### Scenario: Copia local sin la demo
 - **GIVEN** `captacion-leads-local` publicado y la API arrancada con `pnpm dev`, sin ninguna variable `FRANCA_HTTP_*` ni `FRANCA_SECRET_*`
