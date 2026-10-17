@@ -71,7 +71,7 @@ Fases secuenciales; cada una empieza cuando la anterior pasa su gate. **Revisió
   - Hecho en `http-host-adversarial.e2e-spec.ts`: resolución que cambia entre intentos, 20 conversaciones a la vez, respuesta sin leer el body, cabeceras de 64 KiB (límite explícito de 16 KiB en el código; no se probó con `NODE_OPTIONS`) y borrado durante un intento colgado. Cubiertos por unit: 204 con `Content-Encoding`, tabulador interior, 200 orígenes. No ejecutado: `101` con `NODE_OPTIONS=--max-http-header-size`.
 - [x] 4.5 Revisión de la costura de red: leer `network.ts`, `transport.ts` y `test-network.ts` y confirmar que `createSystemNetwork` no tiene lógica, que nada por encima del abridor se sustituye en los tests, que la guarda estática cubre las vías de salida y que `bypassOpenerToLoopback` hace fallar el escenario positivo.
 - [x] 4.6 Alcance: `git diff --stat main...HEAD` solo lista los ficheros nuevos y los existentes de la tabla de D2 (más el change de OpenSpec); cualquier otro se justifica o se revierte.
-  - Hecho. Fuera de la tabla de D2 solo hay ficheros nuevos de test: `test/helpers/http-world.ts` y `test/http-host-adversarial.e2e-spec.ts`.
+  - Hecho. Fuera de la tabla de D2 solo hay ficheros nuevos de test: `test/helpers/http-world.ts` y `test/http-host-adversarial.e2e-spec.ts`, y `apps/api/README.md` (tabla de variables y enlace al contrato; fuera de D2, pedido por la revisión de código).
 - [ ] 4.7 DEPLOY-TIME: la CI de la PR en verde (`lint`, `typecheck`, `build` y `test` sin `DATABASE_URL`; `test:e2e` en Ubuntu con la conformidad completa, el proceso hijo del proxy y los arranques; `validate`), con la duración de `test:e2e` anotada. Solo se cierra cuando el usuario pida el push y la PR.
 
 ## 5. Seguimiento (no bloquea verify/archive)
