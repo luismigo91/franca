@@ -78,7 +78,7 @@ Ningún endpoint SHALL pedir credenciales ni asociar los flujos a un propietario
 - **THEN** ambas responden 200 con el mismo cuerpo
 
 ### Requirement: Forma de los errores
-Toda respuesta de error que genera la API SHALL tener un cuerpo JSON con exactamente `message` (texto en español para personas) y `error` (código estable en snake_case), más los campos que documente su código: `issues` y `warnings` en `invalid_flow`, `warnings` en `literal_credential` (solo los avisos `credential_header_literal`), y `currentRevision` en `revision_mismatch`. El cliente decide por `error`, nunca por `message`.
+Toda respuesta de error que genera la API SHALL tener un cuerpo JSON con exactamente `message` (texto en español para personas) y `error` (código estable en snake_case), más los campos que documente su código: `issues` y `warnings` en `invalid_flow`, `warnings` en `literal_credential` (solo los avisos `credential_header_literal`), `issues` en `flow_version_invalid` y `currentRevision` en `revision_mismatch` (de un flujo o de una conversación). El cliente decide por `error`, nunca por `message`.
 
 #### Scenario: Flujo inexistente
 - **WHEN** se hace `GET /flows/no-existe`
@@ -92,6 +92,11 @@ Toda respuesta de error que genera la API SHALL tener un cuerpo JSON con exactam
 - **GIVEN** un fallo inesperado al leer un flujo (provocado en el test)
 - **WHEN** se hace `GET /flows/hola`
 - **THEN** la respuesta es 500 con exactamente `{message: "error interno", error: "internal_error"}`, sin traza, SQL ni contenido del flujo
+
+#### Scenario: Errores de las conversaciones
+- **GIVEN** `hola` publicado y una conversación suya, terminada
+- **WHEN** se hace `GET /conversations/00000000-0000-4000-8000-000000000000`, `POST /conversations` con `{flowId: 5}` y `POST /conversations/:conversationId/inputs` de la conversación con `{input: {text: "x"}}`
+- **THEN** responden 404, 400 y 409 con exactamente `{message, error}` y `error` `conversation_not_found`, `invalid_request` y `conversation_not_active`
 
 ### Requirement: Tipo de contenido del cuerpo
 Toda petición con cuerpo SHALL llevar `Content-Type: application/json`, sin `charset` o con `charset=utf-8`, y no estar comprimida (`Content-Encoding` ausente o `identity`). Si no, responde 415 `unsupported_media_type` sin guardar nada.
@@ -612,7 +617,7 @@ Si `DATABASE_URL` apunta a una base que no existe, a credenciales sin acceso o a
 - **THEN** las dos primeras responden 503 `database_unavailable` y la tercera 200; ni las respuestas ni el registro contienen la contraseña, el nombre de la base ni el del usuario, y el registro de cada 503 termina con `P1003`, `P1010` y `P1011` respectivamente
 
 ### Requirement: Privacidad de los registros
-La API SHALL no registrar cuerpos de petición ni de respuesta, ni valores de cabeceras; como mucho, método, ruta, código y duración. Así, una credencial pegada por error en un flujo no se copia a los registros.
+La API SHALL no registrar cuerpos de petición ni de respuesta, ni valores de cabeceras. De una petición registra como mucho método, ruta, código y duración; de un avance de conversación, además, solo lo que permite «Privacidad de los registros de conversaciones» de `conversations-api`. Así, una credencial pegada por error en un flujo o un dato personal escrito en una conversación no se copian a los registros.
 
 #### Scenario: Token pegado en un flujo
 - **GIVEN** la salida de registro de la API capturada
