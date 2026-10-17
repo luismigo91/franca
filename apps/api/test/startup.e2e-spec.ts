@@ -1,7 +1,9 @@
 import { connect } from 'node:net';
 import { networkInterfaces } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
+import { closedPort, SECRET_PASSWORD, urlTo } from './helpers/network.js';
 import { startApi, type RunningApi } from './helpers/process.js';
+import { rawRequest } from './helpers/raw.js';
 
 const DATABASE_URL = 'postgresql://usuario:no-mostrar-1234@127.0.0.1:59999/franca';
 const HAS_IPV6_LOOPBACK = Object.values(networkInterfaces()).some((list) => list?.some((entry) => entry.address === '::1'));
@@ -61,14 +63,13 @@ describe('arranque del proceso real', () => {
     }
   });
 
-  it.each(['', ' 127.0.0.1', '::ffff:127.0.0.1', '0.0.0.0', '::', '192.168.1.10', 'localhost'])(
-    'Dirección pública rechazada: HOST %j',
-    async (host) => {
-      await expectRejected({ DATABASE_URL, PORT: '0', HOST: host }, 'HOST', host === '' ? undefined : host);
-    },
-  );
+  it('Dirección pública rechazada', async () => {
+    // Cada valor por separado, en paralelo: ninguno llega a escuchar y todos terminan con error nombrando HOST.
+    const hosts = ['0.0.0.0', '::', '192.168.1.10', '::ffff:127.0.0.1', 'localhost', '', ' 127.0.0.1'];
+    await Promise.all(hosts.map((host) => expectRejected({ DATABASE_URL, PORT: '0', HOST: host }, 'HOST', host === '' ? undefined : host)));
+  });
 
-  it.skipIf(!HAS_IPV6_LOOPBACK)('Loopback IPv6', async () => {
+  it('Loopback IPv6', { skip: !HAS_IPV6_LOOPBACK }, async () => {
     const api = start({ DATABASE_URL, PORT: '0', HOST: '::1' });
     const address = await api.whenListening();
     expect(address?.host).toBe('[::1]');
@@ -76,11 +77,30 @@ describe('arranque del proceso real', () => {
     expect(await canConnect('127.0.0.1', address!.port)).toBe(false);
   });
 
-  it.each(['abc', '70000', '', ' 3001'])('Puerto no válido: PORT %j', async (port) => {
-    await expectRejected({ DATABASE_URL, PORT: port }, 'PORT', port === '' ? undefined : port);
+  it('Puerto no válido', async () => {
+    const ports = ['abc', '70000', '', ' 3001'];
+    await Promise.all(ports.map((port) => expectRejected({ DATABASE_URL, PORT: port }, 'PORT', port === '' ? undefined : port)));
   });
 
   it('Falta la variable', async () => {
     await expectRejected({ PORT: '0' }, 'DATABASE_URL');
+  });
+
+  it('El valor no aparece al fallar la conexión', async () => {
+    const port = await closedPort();
+    const api = start({ DATABASE_URL: urlTo(port), PORT: '0' });
+    const address = await api.whenListening();
+    expect(address).toBeDefined();
+
+    const res = await rawRequest(address!.port, { path: '/flows' });
+    expect(res.status).toBe(503);
+    expect(res.json).toEqual({ message: expect.any(String), error: 'database_unavailable' });
+    expect(res.text).not.toContain(SECRET_PASSWORD);
+
+    await api.stop();
+    expect(api.output()).not.toContain(SECRET_PASSWORD);
+    expect(api.output()).not.toContain(`127.0.0.1:${port}`);
+    // El registro del 503 existe y solo lleva método, ruta, estado y código.
+    expect(api.output()).toContain('GET /flows 503 database_unavailable');
   });
 });

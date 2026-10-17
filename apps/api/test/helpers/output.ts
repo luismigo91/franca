@@ -2,6 +2,8 @@ import { Logger, type LoggerService } from '@nestjs/common';
 import { afterEach, vi } from 'vitest';
 
 export interface CapturedOutput {
+  /** El logger capturado: pásalo a `createTestApp({ logger })` (Nest en testing sustituye el que se instale antes). */
+  logger: LoggerService;
   /** Todo lo que se escribió: líneas del logger de Nest y `process.stdout`/`process.stderr`. */
   text(): string;
   /** Solo las líneas del logger de Nest. */
@@ -17,7 +19,8 @@ export function captureOutput(): CapturedOutput {
   const lines: string[] = [];
   const written: string[] = [];
   const push = (level: string) => (message: unknown, ...rest: unknown[]) => {
-    lines.push(`${level} ${[message, ...rest].map((part) => (typeof part === 'string' ? part : JSON.stringify(part))).join(' ')}`);
+    const parts = [message, ...rest].filter((part) => part !== undefined && part !== '');
+    lines.push(`${level} ${parts.map((part) => (typeof part === 'string' ? part : JSON.stringify(part))).join(' ')}`);
   };
   const logger: LoggerService = { log: push('log'), error: push('error'), warn: push('warn'), debug: push('debug'), verbose: push('verbose') };
   Logger.overrideLogger(logger);
@@ -32,5 +35,5 @@ export function captureOutput(): CapturedOutput {
     Logger.overrideLogger(['log', 'error', 'warn']);
   };
   afterEach(restore);
-  return { text: () => [...lines, ...written].join('\n'), lines: () => [...lines], restore };
+  return { logger, text: () => [...lines, ...written].join('\n'), lines: () => [...lines], restore };
 }

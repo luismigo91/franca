@@ -1,6 +1,6 @@
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import type { INestApplication } from '@nestjs/common';
+import type { INestApplication, LoggerService } from '@nestjs/common';
 import { Test, type TestingModuleBuilder } from '@nestjs/testing';
 import { AppModule } from '../../src/app.module.js';
 import { APP_CONFIG, type AppConfig } from '../../src/config/app-config.js';
@@ -22,7 +22,12 @@ export function steppingClock(start = Date.UTC(2026, 9, 17, 10, 0, 0)): Clock {
   return { now: () => new Date((current += 1)) };
 }
 
+/** Logger que no escribe nada (Nest en testing, por defecto, escribe los errores en `stderr`). */
+const SILENT_LOGGER: LoggerService = { log: () => undefined, error: () => undefined, warn: () => undefined };
+
 export interface CreateTestAppOptions {
+  /** Logger de Nest (por defecto, uno silencioso). Pasa el de `captureOutput()` para comprobar lo que se registra. */
+  logger?: LoggerService;
   /** Sustituye partes de la configuración (por ejemplo, `databaseUrl` hacia un puerto cerrado). */
   config?: Partial<AppConfig>;
   /** Sustituye proveedores (`overrideProvider(...).useValue(...)`) antes de compilar. */
@@ -39,7 +44,7 @@ export async function createTestApp(options: CreateTestAppOptions = {}): Promise
     const fromEnv: AppConfig = { host: '127.0.0.1', port: 0, databaseUrl: process.env.DATABASE_URL ?? '' };
     builder = builder.overrideProvider(APP_CONFIG).useValue({ ...fromEnv, ...options.config });
   }
-  builder = builder.overrideProvider(CLOCK).useValue(steppingClock());
+  builder = builder.overrideProvider(CLOCK).useValue(steppingClock()).setLogger(options.logger ?? SILENT_LOGGER);
   if (options.configure) builder = options.configure(builder);
   const moduleRef = await builder.compile();
   const app = moduleRef.createNestApplication({ bodyParser: false });

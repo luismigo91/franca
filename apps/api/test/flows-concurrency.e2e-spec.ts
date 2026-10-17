@@ -41,7 +41,7 @@ describe('concurrencia (e2e)', () => {
     const b = leads();
     b.name = 'B';
     const [first, second] = await Promise.all([api.update('captacion-leads', a, '"1"'), api.update('captacion-leads', b, '"1"')]);
-    expect([first.status, second.status].sort()).toEqual([200, 412]);
+    expect([first.status, second.status].sort((a, b) => a - b)).toEqual([200, 412]);
     const winner = first.status === 200 ? first : second;
     const loser = first.status === 200 ? second : first;
     expect(winner.body.revision).toBe(2);
@@ -55,7 +55,7 @@ describe('concurrencia (e2e)', () => {
   it('Dos publicaciones a la vez', async () => {
     await api.create(leads()).expect(201);
     const [first, second] = await Promise.all([api.publish('captacion-leads'), api.publish('captacion-leads')]);
-    expect([first.status, second.status].sort()).toEqual([200, 201]);
+    expect([first.status, second.status].sort((a, b) => a - b)).toEqual([200, 201]);
     expect(first.body.version).toBe(1);
     expect(second.body.version).toBe(1);
     expect((await api.versions('captacion-leads').expect(200)).body.total).toBe(1);
