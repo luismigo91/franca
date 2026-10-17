@@ -138,6 +138,7 @@ test('next dev: los recursos de desarrollo con un Host local no abren el inspect
     }
     expect(await isListening(9229), 'el inspector no debe estar en el 9229').toBe(false);
     const ports = listeningPorts(descendants(web.child.pid!));
+    if (ports === null) test.info().annotations.push({ type: 'sin-lsof', description: 'lsof no ve los sockets de la web: no se comprueban sus puertos' });
     if (ports !== null) expect(ports.filter((port, index) => ports.indexOf(port) === index), listeningDiagnostics(web.child.pid!)).toEqual(['127.0.0.1:3000']);
     // Los recursos de desarrollo con un Host ajeno ni se miran.
     for (const path of ['/__nextjs_attach-nodejs-inspector', '/__nextjs_launch-editor?file=package.json', '/__nextjs_original-stack-frames', '/_next/webpack-hmr']) {

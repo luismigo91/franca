@@ -91,17 +91,23 @@ function parseLsof(out: string): string[] {
     .sort();
 }
 
-/** Los puertos TCP en escucha de un conjunto de procesos (con `lsof`), o `null` si `lsof` no está. */
+/**
+ * Los puertos TCP en escucha de un conjunto de procesos que está escuchando (con `lsof`), o `null` si `lsof` no está o
+ * no ve sus sockets. En el runner de Ubuntu de la CI, `lsof` no ve los sockets de los procesos de la web (ni listando
+ * toda la máquina), aunque respondan: una lista vacía de unos procesos que escuchan es ceguera, no ausencia.
+ */
 export function listeningPorts(pids: number[]): string[] | null {
+  let ports: string[];
   try {
-    return parseLsof(execFileSync('lsof', ['-nP', '-iTCP', '-sTCP:LISTEN', '-a', '-p', pids.join(',')], { encoding: 'utf8' }));
+    ports = parseLsof(execFileSync('lsof', ['-nP', '-iTCP', '-sTCP:LISTEN', '-a', '-p', pids.join(',')], { encoding: 'utf8' }));
   } catch (error) {
     // `lsof` sale con 1 si no hay nada que listar y, en Linux, también si alguno de los pids ya terminó (un hijo efímero
     // de `next dev`), aunque haya encontrado los demás: lo encontrado sigue en su salida.
     const failure = error as { status?: number; stdout?: string };
-    if (failure.status === 1) return parseLsof(failure.stdout ?? '');
-    return null;
+    if (failure.status !== 1) return null;
+    ports = parseLsof(failure.stdout ?? '');
   }
+  return ports.length === 0 ? null : ports;
 }
 
 /** La salida de un comando aunque salga con error, o el motivo si no se pudo ejecutar. */
