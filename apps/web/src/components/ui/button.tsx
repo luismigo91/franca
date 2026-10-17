@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes } from 'react';
+import type { ComponentProps } from 'react';
 
 type Variant = 'primary' | 'secondary' | 'danger';
 
@@ -8,9 +8,7 @@ const VARIANTS: Record<Variant, string> = {
   danger: 'border border-red-700 bg-transparent text-red-700 hover:bg-red-700/10 dark:border-red-400 dark:text-red-400',
 };
 
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: Variant;
-}
+export type ButtonProps = ComponentProps<'button'> & { variant?: Variant };
 
 /** Botón genérico: `type="button"` por defecto (nada envía un formulario sin pedirlo) y foco visible. */
 export function Button({ variant = 'primary', type = 'button', className = '', ...rest }: ButtonProps) {

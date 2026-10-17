@@ -164,14 +164,14 @@ export class ConversationSession {
   }
 
   /** La vista confirma que el mensaje `key` ya está en el DOM: empieza la espera del siguiente. */
-  acknowledge(key: string): void {
+  readonly acknowledge = (key: string): void => {
     this.acked.add(key);
     const release = this.waiters.get(key);
     if (release) {
       this.waiters.delete(key);
       release();
     }
-  }
+  };
 
   private waitForAck(key: string): Promise<void> {
     if (this.deps.autoAcknowledge || this.acked.has(key)) return Promise.resolve();

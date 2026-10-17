@@ -185,12 +185,12 @@ Reglas para todas las fases:
   - Commit `feat(web): frontera local, rutas del servidor de la web y guarda local en el proceso de next`.
 ## 3. Interfaz — dueño: `popi:frontend-developer`
 
-- [ ] 3.1 `src/app/layout.tsx`, `globals.css` y `public/` (D16, D25):
+- [x] 3.1 `src/app/layout.tsx`, `globals.css` y `public/` (D16, D25):
   - `lang="es"`.
   - `metadata` con el título de la marca y `referrer: 'no-referrer'`.
   - Sin `next/font/google`: pila de fuentes del sistema.
   - Borrar los cinco SVG de plantilla.
-- [ ] 3.2 Inicio (`src/app/page.tsx`, `home-screen`, `contact-field`, `flow-list`, `conversation-list`, `list-state`, `use-paged-list` y `use-start-conversation`):
+- [x] 3.2 Inicio (`src/app/page.tsx`, `home-screen`, `contact-field`, `flow-list`, `conversation-list`, `list-state`, `use-paged-list` y `use-start-conversation`):
   - Estados de la tabla de D16.
   - «Ver más».
   - Volver a leer al mostrarse y reiniciar al ocultarse (D7).
@@ -198,13 +198,13 @@ Reglas para todas las fases:
   - Errores al empezar, con `invalid_request` en el campo.
   - Con el contacto vacío, sin `contactId` (D8).
   - Traspaso del primer avance y `router.push`.
-- [ ] 3.3 Conversación (`src/app/conversaciones/[conversationId]/page.tsx` con `Suspense` y validación del id, `conversation-screen`, `use-conversation-session` y los componentes de D16):
+- [x] 3.3 Conversación (`src/app/conversaciones/[conversationId]/page.tsx` con `Suspense` y validación del id, `conversation-screen`, `use-conversation-session` y los componentes de D16):
   - `role="log"`, indicador, preguntas (D15, `<form noValidate>` con `preventDefault()` y sin `action`), motivo, fin, avisos, «Empezar de nuevo», «Borrar conversación» con `<dialog>` (D10, `remove()`) y panel de detalles con actividad técnica.
   - El foco va a la pregunta.
   - 320 px sin desplazamiento horizontal.
-- [ ] 3.4 Tests de marcado (D19) de `message-text`, `media-item`, `pending-question` (cada `inputType` con su control, sin `type="email|url|number|date"`, sin `maxLength` ni `required`, sin `action`, y lo desconocido sin controles), `end-notice` y `test-details-panel` (ningún `message`).
-- [ ] 3.5 `src/app/not-found.tsx` y `src/app/error.tsx` en español.
-- [ ] 3.6 **Gate 3**:
+- [x] 3.4 Tests de marcado (D19) de `message-text`, `media-item`, `pending-question` (cada `inputType` con su control, sin `type="email|url|number|date"`, sin `maxLength` ni `required`, sin `action`, y lo desconocido sin controles), `end-notice` y `test-details-panel` (ningún `message`).
+- [x] 3.5 `src/app/not-found.tsx` y `src/app/error.tsx` en español.
+- [x] 3.6 **Gate 3** (verificado el 2026-10-17 con `pnpm dev` y Chromium de Playwright contra la API real: portada, captacion-leads hasta `missing_secret` sin `message`, faq-ia, preguntas con los 8 tipos y reintento, extras en orden, medios (3 elementos admitidos y 5 «no disponible»), recarga, dos pestañas (412 con `Ana` en el campo), Empezar de nuevo con contacto, Borrar con cancelar y confirmar, 320 px sin desplazamiento horizontal, HMR con la guarda de `Origin`; consola sin errores salvo el 412 esperado; el navegador solo pidió al origen de la web, nunca a :3001; el overlay de errores de Next no se probó aparte):
   - `pnpm check` en verde.
   - Con la API y Postgres en local, y `captacion-leads`, `faq-ia` y `preguntas` publicados con `curl`, `pnpm dev` y en el navegador `http://localhost:3000`:
     - Probar los tres.
