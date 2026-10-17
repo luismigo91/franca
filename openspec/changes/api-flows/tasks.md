@@ -56,7 +56,7 @@ Fases secuenciales; cada una empieza cuando la anterior pasa su gate. Comportami
 
 ## 5. CI con Postgres — dueño: `popi:backend-developer`
 
-- [ ] 5.1 `.github/workflows/ci.yml` (D12): `services.postgres` con `postgres:18.6-alpine`, `POSTGRES_HOST_AUTH_METHOD: trust`, `POSTGRES_USER`/`POSTGRES_DB` `franca`, puerto 5432 y `options` de salud; `DATABASE_URL` solo en el `env` del paso `pnpm test:e2e`; verificar el YAML con `actionlint` si está instalado, o revisándolo a mano contra la sintaxis de `services`
+- [x] 5.1 `.github/workflows/ci.yml` (D12): `services.postgres` con `postgres:18.6-alpine`, `POSTGRES_HOST_AUTH_METHOD: trust`, `POSTGRES_USER`/`POSTGRES_DB` `franca`, puerto 5432 y `options` de salud; `DATABASE_URL` solo en el `env` del paso `pnpm test:e2e`; verificar el YAML con `actionlint` si está instalado, o revisándolo a mano contra la sintaxis de `services`
 - [ ] 5.2 DEPLOY-TIME: la CI de la PR en verde, con `lint`, `typecheck`, `build` y `test` sin `DATABASE_URL` y `test:e2e` contra el servicio (solo se cierra cuando el usuario pida el push y la PR)
 
 ## 6. Verificación — dueño: `popi:qa-tester` (modo backend: e2e, adversarial y manual)
