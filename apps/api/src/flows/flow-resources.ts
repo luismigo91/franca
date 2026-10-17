@@ -49,6 +49,12 @@ function warningsOf(flow: unknown): FlowWarning[] {
   return capWarnings(validateFlow(flow).warnings);
 }
 
+/**
+ * Resumen de un flujo para el listado.
+ *
+ * @param row Fila de `flows` sin el borrador.
+ * @returns El resumen, con las fechas en ISO 8601.
+ */
 export function toFlowSummary(row: FlowSummaryRow): FlowSummary {
   return {
     id: row.id,
@@ -61,11 +67,24 @@ export function toFlowSummary(row: FlowSummaryRow): FlowSummary {
   };
 }
 
-export function toFlowResource(row: FlowRow): FlowResource {
+/**
+ * Recurso completo de un flujo: resumen, borrador y avisos.
+ *
+ * @param row Fila de `flows` con el borrador.
+ * @param warnings Avisos que `validateFlow` ya dio sobre ese mismo borrador (sin recortar); si faltan, se recalculan.
+ * @returns El recurso.
+ */
+export function toFlowResource(row: FlowRow, warnings?: readonly FlowWarning[]): FlowResource {
   const flow: unknown = JSON.parse(row.draft);
-  return { ...toFlowSummary(row), flow, warnings: warningsOf(flow) };
+  return { ...toFlowSummary(row), flow, warnings: warnings ? capWarnings([...warnings]) : warningsOf(flow) };
 }
 
+/**
+ * Resumen de una versión publicada para el historial.
+ *
+ * @param row Fila de `flow_versions` sin la definición.
+ * @returns El resumen, con la fecha en ISO 8601.
+ */
 export function toVersionSummary(row: VersionSummaryRow): VersionSummary {
   return {
     flowId: row.flowId,
@@ -75,11 +94,23 @@ export function toVersionSummary(row: VersionSummaryRow): VersionSummary {
   };
 }
 
-export function toVersionResource(row: VersionRow): VersionResource {
+/**
+ * Recurso completo de una versión: resumen, definición y avisos.
+ *
+ * @param row Fila de `flow_versions` con la definición.
+ * @param warnings Avisos que `validateFlow` ya dio sobre esa misma definición (sin recortar); si faltan, se recalculan.
+ * @returns El recurso.
+ */
+export function toVersionResource(row: VersionRow, warnings?: readonly FlowWarning[]): VersionResource {
   const flow: unknown = JSON.parse(row.definition);
-  return { ...toVersionSummary(row), flow, warnings: warningsOf(flow) };
+  return { ...toVersionSummary(row), flow, warnings: warnings ? capWarnings([...warnings]) : warningsOf(flow) };
 }
 
+/**
+ * Envuelve una página de elementos con su total y paginación.
+ *
+ * @returns La página.
+ */
 export function toPage<T>(items: T[], total: number, limit: number, offset: number): Page<T> {
   return { items, total, limit, offset };
 }

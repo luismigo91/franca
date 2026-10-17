@@ -86,7 +86,7 @@ export class FlowsService {
     const { flow } = verdict;
     const result = await this.repository.create({ id: flow.id, nameJson: JSON.stringify(flow.name), draft: text!, now: this.clock.now() });
     if (!result.ok) throw new ApiException(result.reserved ? 'flow_id_reserved' : 'flow_already_exists');
-    return toFlowResource(result.row);
+    return toFlowResource(result.row, verdict.warnings);
   }
 
   /** @throws {ApiException} `flow_not_found`. */
@@ -96,6 +96,12 @@ export class FlowsService {
     return toFlowResource(row);
   }
 
+  /**
+   * Página de resúmenes de flujos vivos.
+   *
+   * @param query Paginación y filtro `published` ya validados.
+   * @returns La página con el total.
+   */
   async list(query: ListQuery): Promise<Page<FlowSummary>> {
     const { items, total } = await this.repository.list({ published: query.published }, query);
     return toPage(items.map(toFlowSummary), total, query.limit, query.offset);
@@ -120,7 +126,7 @@ export class FlowsService {
       if (credential) throw credential;
       const { flow } = verdict;
       if (flow.id !== id) throw new ApiException('flow_id_mismatch');
-      if (text === row.draft) return toFlowResource(row);
+      if (text === row.draft) return toFlowResource(row, verdict.warnings);
       const last = await locked.lastVersion();
       const updated = await locked.updateDraft({
         draft: text!,
@@ -128,7 +134,7 @@ export class FlowsService {
         unpublishedChanges: last === null || text !== last.definition,
         now: this.clock.now(),
       });
-      return toFlowResource(updated);
+      return toFlowResource(updated, verdict.warnings);
     });
   }
 
@@ -147,10 +153,10 @@ export class FlowsService {
       const credential = literalCredential(verdict.warnings);
       if (credential) throw credential;
       const last = await locked.lastVersion();
-      if (last && last.definition === row.draft) return { resource: toVersionResource(last), created: false };
+      if (last && last.definition === row.draft) return { resource: toVersionResource(last, verdict.warnings), created: false };
       // El nombre sale del borrador validado, no de `name_json`: así la versión es coherente aunque se escribiera a mano.
       const created = await locked.insertVersion({ nameJson: JSON.stringify(verdict.flow.name), definition: row.draft, now: this.clock.now() });
-      return { resource: toVersionResource(created), created: true };
+      return { resource: toVersionResource(created, verdict.warnings), created: true };
     });
   }
 
