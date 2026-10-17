@@ -8,6 +8,8 @@
   },
   "scripts": {
     "dev": "turbo run dev",
+    "dev:demo": "node apps/api/demo/dev-demo.mjs",
+    "demo:seed": "node apps/api/demo/seed.mjs",
     "build": "node scripts/guard-mutate.mjs && turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
