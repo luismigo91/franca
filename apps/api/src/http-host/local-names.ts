@@ -69,9 +69,9 @@ export async function readLocalNames(value: string | undefined): Promise<LocalNa
   const byName = new Map<string, LocalAddress[]>();
   for (const [index, entry] of value.split(',').entries()) {
     const position = index + 1;
-    const fail = (reason: string): never => {
+    function fail(reason: string): never {
       throw new ConfigError(`${LOCAL_NAMES_VARIABLE} no es válida: la entrada nº ${position} ${reason}`);
-    };
+    }
     if (entry === '') fail('está vacía (sobra una coma o un espacio).');
     const equals = entry.indexOf('=');
     const name = equals === -1 ? entry : entry.slice(0, equals);
@@ -81,7 +81,6 @@ export async function readLocalNames(value: string | undefined): Promise<LocalNa
     const address = parseLoopbackAddress(entry.slice(equals + 1));
     if (address === null) {
       fail('debe llevar una dirección de loopback: una IPv4 de 127.0.0.0/8 en decimal sin ceros a la izquierda, o [::1], sin puerto.');
-      continue;
     }
     const known = byName.get(name);
     if (known) known.push(address);

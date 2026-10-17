@@ -119,7 +119,7 @@ describe('nombres locales: orden de comprobaciones y política (adversarial)', (
       const { s, call } = await hostWith({ names: LOCAL, allowed: ['127.0.0.1|4010'] });
       await call({ url: `http://${hostname}:4010/` });
       expect(s.lookups).toEqual([hostname]);
-      expect(s.opens.every((open) => !open.startsWith('127.'))).toBe(true);
+      expect(s.opens).toEqual([]);
     },
   );
 
