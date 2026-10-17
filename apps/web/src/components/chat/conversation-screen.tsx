@@ -26,6 +26,7 @@ export function ConversationScreen({ conversationId }: { conversationId: string 
   if (snapshot.phase === 'load_error') {
     return (
       <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-3 px-4 py-8">
+        <h1 className="text-xl font-semibold">{COPY.loadErrorTitle}</h1>
         <Notice tone="error">{errorCopy('open', snapshot.loadError ?? 'unknown')}</Notice>
         <Button className="self-start" onClick={() => session.retryLoad()}>
           {COPY.retry}

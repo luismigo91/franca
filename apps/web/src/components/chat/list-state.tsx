@@ -18,7 +18,7 @@ interface ListStateProps {
 export function ListState({ phase, loadingText, emptyText, isEmpty, error, onRetry, children }: ListStateProps) {
   if (phase === 'loading') {
     return (
-      <p role="status" aria-busy="true" className="text-sm opacity-70">
+      <p role="status" className="text-sm opacity-70">
         {loadingText}
       </p>
     );

@@ -26,8 +26,8 @@ export function EndNotice({ conversation, starting, onRestart }: EndNoticeProps)
   }, []);
   const title = conversation.status === 'ended' ? COPY.endEnded : conversation.status === 'failed' ? COPY.endFailed : COPY.endExpired;
   return (
-    <section ref={section} tabIndex={-1} aria-label={title} className="flex focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground flex-col gap-3 rounded-md border border-foreground/30 bg-foreground/5 px-4 py-3">
-      <p className="font-medium">{title}</p>
+    <section ref={section} tabIndex={-1} aria-labelledby="end-title" className="flex focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground flex-col gap-3 rounded-md border border-foreground/30 bg-foreground/5 px-4 py-3">
+      <p id="end-title" className="font-medium">{title}</p>
       {conversation.status === 'ended' && conversation.outcome !== null && (
         <p className="text-sm">
           {COPY.outcome}: <code>{conversation.outcome}</code>

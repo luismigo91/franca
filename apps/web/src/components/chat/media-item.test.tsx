@@ -39,7 +39,8 @@ describe('MediaItem', () => {
     const video = render({ kind: 'video', url: 'http://example.com/a.mp4' });
     expect(video).toContain('<video');
     expect(video).toContain('src="http://example.com/a.mp4"');
-    expect(video).not.toContain('aria-label');
+    expect(video).toContain('aria-label="Vídeo"');
+    expect(render({ kind: 'audio', url: 'https://example.com/a.mp3' })).toContain('aria-label="Audio"');
   });
 
   it('una dirección no admitida muestra «Contenido no disponible» y su alt, sin cargar nada', () => {

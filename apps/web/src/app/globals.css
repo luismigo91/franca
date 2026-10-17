@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
 :root {
+  /* Controles, casillas y barras de desplazamiento siguen al tema (el tema oscuro depende de `prefers-color-scheme`). */
+  color-scheme: light dark;
   --background: #ffffff;
   --foreground: #171717;
 }

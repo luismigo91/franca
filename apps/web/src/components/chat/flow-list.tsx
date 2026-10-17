@@ -25,7 +25,15 @@ export function FlowList({ flows, startingFlowId, onTry }: FlowListProps) {
               </p>
               {flow.unpublishedChanges && <p className="mt-1 inline-block rounded border border-foreground/30 px-2 py-0.5 text-xs">{COPY.unpublishedChanges}</p>}
             </div>
-            <Button aria-label={starting ? undefined : `${COPY.try} ${flow.name}`} disabled={startingFlowId !== null} onClick={() => onTry(flow.id)}>
+            {/* El pulsado queda `aria-disabled` y no `disabled`: un botón `disabled` enfocado manda el foco a `body`. */}
+            <Button
+              aria-label={starting ? undefined : `${COPY.try} ${flow.name}`}
+              aria-disabled={starting || undefined}
+              disabled={startingFlowId !== null && !starting}
+              onClick={() => {
+                if (!starting) onTry(flow.id);
+              }}
+            >
               {starting ? COPY.starting : COPY.try}
             </Button>
           </li>

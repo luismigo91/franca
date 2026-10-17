@@ -24,12 +24,13 @@ interface SingleChoiceProps {
 /** Selección única: un botón por opción, en el orden del evento, que envía `{choice: id}` al pulsarse. */
 export function SingleChoiceQuestion({ choices, describedBy, disabled, firstControl, onSend }: SingleChoiceProps) {
   return (
-    <form noValidate onSubmit={(event) => event.preventDefault()} aria-label={COPY.answerLabel} aria-describedby={describedBy} className="flex flex-wrap gap-2">
+    <form noValidate onSubmit={(event) => event.preventDefault()} aria-label={COPY.answerLabel} className="flex flex-wrap gap-2">
       {choices.map((choice, index) => (
         <Button
           key={choice.id}
           ref={index === 0 ? (firstControl as RefObject<HTMLButtonElement | null>) : undefined}
           variant="secondary"
+          aria-describedby={describedBy}
           aria-disabled={disabled || undefined}
           onClick={() => {
             // Inerte mientras se envía, sin `disabled`: así el botón enfocado no pierde el foco.

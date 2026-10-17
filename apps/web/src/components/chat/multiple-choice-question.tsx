@@ -42,7 +42,7 @@ export function MultipleChoiceQuestion({ choices, describedBy, disabled, initial
   };
 
   return (
-    <form noValidate onSubmit={handleSubmit} aria-label={COPY.answerLabel} aria-describedby={describedBy} className="flex flex-col gap-3">
+    <form noValidate onSubmit={handleSubmit} aria-label={COPY.answerLabel} className="flex flex-col gap-3">
       <fieldset className="flex flex-col gap-2">
         <legend className="sr-only">Elige las opciones</legend>
         {choices.map((choice, index) => (
@@ -52,6 +52,7 @@ export function MultipleChoiceQuestion({ choices, describedBy, disabled, initial
               name="choices"
               value={choice.id}
               checked={checked.has(choice.id)}
+              aria-describedby={describedBy}
               aria-disabled={disabled || undefined}
               onChange={() => {
                 if (!disabled) toggle(choice.id);

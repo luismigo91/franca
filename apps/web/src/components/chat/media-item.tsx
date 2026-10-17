@@ -26,9 +26,9 @@ export function MediaItem({ item }: { item: MediaContent }) {
         <img src={href} alt={item.alt ?? ''} referrerPolicy="no-referrer" loading="lazy" decoding="async" className="h-auto max-h-80 max-w-full rounded" />
       );
     case 'video':
-      return <video src={href} controls preload="metadata" aria-label={item.alt} className="max-h-80 max-w-full rounded" />;
+      return <video src={href} controls preload="metadata" aria-label={item.alt ?? COPY.videoName} className="max-h-80 max-w-full rounded" />;
     case 'audio':
-      return <audio src={href} controls preload="none" aria-label={item.alt} className="w-full max-w-full" />;
+      return <audio src={href} controls preload="none" aria-label={item.alt ?? COPY.audioName} className="w-full max-w-full" />;
     case 'embed':
       // Sin allow-same-origin, allow-top-navigation*, allow-popups ni allow-forms: queda en un origen opaco y no puede navegar el chat.
       return (

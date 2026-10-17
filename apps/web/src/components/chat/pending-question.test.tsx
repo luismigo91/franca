@@ -98,6 +98,14 @@ describe('PendingQuestion', () => {
     expect(render(text('email', { reason: 'motivo_nuevo' }))).toContain('La respuesta no es válida.');
   });
 
+  it('el motivo se anuncia al enfocar cada control de una pregunta de opción: aria-describedby en cada botón y casilla', () => {
+    const single = question({ type: 'input', nodeId: 'q', inputType: 'choice', attempt: 2, reason: 'required', multiple: false, choices: [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }] });
+    const multiple = question({ type: 'input', nodeId: 'q', inputType: 'choice', attempt: 2, reason: 'required', multiple: true, choices: [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }] });
+    expect(render(single).match(/aria-describedby="answer-reason"/g)).toHaveLength(2);
+    expect(render(multiple).match(/aria-describedby="answer-reason"/g)).toHaveLength(2);
+    expect(render({ ...single, reason: null })).not.toContain('aria-describedby');
+  });
+
   it('recupera el borrador: el texto en el campo y, en la múltiple, solo las opciones que siguen existiendo', () => {
     expect(render(text('text'), { text: 'Ana' })).toContain('>Ana</textarea>');
     expect(render(text('email'), { text: 'ana@' })).toContain('value="ana@"');

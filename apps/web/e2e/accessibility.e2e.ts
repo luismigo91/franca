@@ -1,6 +1,7 @@
 import { PREGUNTAS_HASTA_PLAN } from './support/admin';
 import { CONVERSATION_ID, flowItem, messageEvent, resourceOf, scripted, textInputEvent } from './support/api-shapes';
 import { sendJson } from '../tests/helpers/fake-api';
+import { FLOWS } from '../tests/helpers/engine-events';
 import { expect, test, text } from './support/test';
 
 test('Solo con teclado', async ({ page, admin }) => {
@@ -80,4 +81,46 @@ test('El foco pasa al aviso de fin al terminar', async ({ page, admin }) => {
   await text(page, 'Conversación terminada').waitFor();
   const region = page.getByRole('region', { name: 'Conversación terminada' });
   await expect(region).toBeFocused();
+});
+
+test('Foco al rechazarse el contacto', async ({ page, admin }) => {
+  await admin.publish('pregunta');
+  await page.goto('/');
+  await page.getByLabel('Identificador de contacto').fill('ana@example.com');
+  const probar = page.getByRole('button', { name: 'Probar Pregunta', exact: true });
+  await probar.focus();
+  await page.keyboard.press('Enter');
+  await expect(text(page, /El identificador de contacto no es válido/)).toBeVisible();
+  await expect(page.getByLabel('Identificador de contacto')).toBeFocused();
+  // Con otro fallo el foco se queda en el botón.
+  await page.getByLabel('Identificador de contacto').fill('');
+  await admin.deleteFlow('pregunta');
+  await probar.focus();
+  await page.keyboard.press('Enter');
+  await expect(text(page, 'Ese flujo ya no existe.')).toBeVisible();
+  expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe('BODY');
+});
+
+test('Foco tras Ver más', async ({ page, admin }) => {
+  for (let index = 1; index <= 21; index++) await admin.publish({ ...(FLOWS.hola as Record<string, unknown>), id: `hola-${String(index).padStart(2, '0')}`, name: `Hola ${index}` });
+  await page.goto('/');
+  const more = page.getByRole('button', { name: 'Ver más flujos' });
+  await more.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#flows-heading + * li')).toHaveCount(21);
+  await expect(more).toHaveCount(0);
+  const active = await page.evaluate(() => ({ tag: document.activeElement?.tagName, inList: Boolean(document.activeElement?.closest('#flows-heading + * li')) }));
+  expect(active).toEqual({ tag: 'BUTTON', inList: true });
+});
+
+test('Reintentar no deja el foco en la página', async ({ page, admin, stack }) => {
+  await admin.publish('pregunta');
+  await stack.fakeApi.stop();
+  await page.goto('/');
+  const retry = page.getByRole('button', { name: 'Reintentar' }).first();
+  await retry.focus();
+  await stack.fakeApi.start();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('button', { name: 'Probar Pregunta', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe('BODY');
 });

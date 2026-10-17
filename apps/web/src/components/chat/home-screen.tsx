@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ContactField } from '@/components/chat/contact-field';
 import { ConversationList } from '@/components/chat/conversation-list';
 import { FlowList } from '@/components/chat/flow-list';
 import { ListState } from '@/components/chat/list-state';
 import { Button } from '@/components/ui/button';
 import { Notice } from '@/components/ui/notice';
+import { useListFocus } from '@/hooks/use-list-focus';
 import { usePagedList } from '@/hooks/use-paged-list';
 import { useStartConversation } from '@/hooks/use-start-conversation';
 import type { ConversationSummary, FlowSummary, Page } from '@/lib/chat/api-types';
@@ -22,7 +23,20 @@ export function HomeScreen() {
   const [contactId, setContactId] = useState('');
   const flows = usePagedList(readFlows);
   const conversations = usePagedList(readConversations);
-  const { state: start, start: startFlow } = useStartConversation(flows.reload);
+  const [flowsSection, rememberFlows] = useListFocus(flows.state.phase === 'loading' || flows.state.loadingMore);
+  const [conversationsSection, rememberConversations] = useListFocus(conversations.state.phase === 'loading' || conversations.state.loadingMore);
+  const contactInput = useRef<HTMLInputElement>(null);
+  const reloadFlows = () => {
+    rememberFlows(-1);
+    void flows.reload();
+  };
+  const { state: start, start: startFlow } = useStartConversation(reloadFlows);
+
+  // Si la API rechaza el identificador, el foco va al campo del contacto; con otros fallos se queda en el botón.
+  const failedStart = start.error;
+  useEffect(() => {
+    if (failedStart?.code === 'invalid_request') contactInput.current?.focus();
+  }, [failedStart]);
 
   const contactError = start.error?.code === 'invalid_request' ? errorCopy('start', 'invalid_request') : null;
   const startError = start.error !== null && start.error.code !== 'invalid_request' ? errorCopy('start', start.error.code) : null;
@@ -36,12 +50,12 @@ export function HomeScreen() {
         <p className="text-sm opacity-70">{COPY.pageDescription}</p>
       </header>
 
-      <ContactField value={contactId} onChange={setContactId} error={contactError} />
+      <ContactField value={contactId} onChange={setContactId} error={contactError} inputRef={contactInput} />
 
       {startError !== null && <Notice tone="error">{startError}</Notice>}
 
-      <section aria-labelledby="flows-heading" className="flex flex-col gap-3">
-        <h2 id="flows-heading" className="text-lg font-semibold">
+      <section ref={flowsSection} aria-labelledby="flows-heading" className="flex flex-col gap-3">
+        <h2 id="flows-heading" tabIndex={-1} className="text-lg font-semibold">
           {COPY.flowsHeading}
         </h2>
         <ListState
@@ -50,20 +64,24 @@ export function HomeScreen() {
           emptyText={COPY.noFlows}
           isEmpty={flows.state.list.items.length === 0}
           error={flows.state.error}
-          onRetry={flows.reload}
+          onRetry={reloadFlows}
         >
           <FlowList flows={flows.state.list.items} startingFlowId={start.startingFlowId} onTry={(flowId) => void startFlow(flowId, contactId)} />
           {flows.state.error !== null && <Notice tone="error">{errorCopy('list', flows.state.error)}</Notice>}
           {flows.state.more && (
-            <Button variant="secondary" className="self-start" aria-label="Ver más flujos" disabled={flows.state.loadingMore} onClick={() => void flows.loadMore()}>
+            <Button variant="secondary" className="self-start" aria-label={COPY.moreFlows} aria-disabled={flows.state.loadingMore || undefined} onClick={() => {
+                if (flows.state.loadingMore) return;
+                rememberFlows(flows.state.list.items.length);
+                void flows.loadMore();
+              }}>
               {COPY.more}
             </Button>
           )}
         </ListState>
       </section>
 
-      <section aria-labelledby="conversations-heading" className="flex flex-col gap-3">
-        <h2 id="conversations-heading" className="text-lg font-semibold">
+      <section ref={conversationsSection} aria-labelledby="conversations-heading" className="flex flex-col gap-3">
+        <h2 id="conversations-heading" tabIndex={-1} className="text-lg font-semibold">
           {COPY.conversationsHeading}
         </h2>
         <ListState
@@ -72,12 +90,19 @@ export function HomeScreen() {
           emptyText={COPY.noConversations}
           isEmpty={conversations.state.list.items.length === 0}
           error={conversations.state.error}
-          onRetry={conversations.reload}
+          onRetry={() => {
+            rememberConversations(-1);
+            void conversations.reload();
+          }}
         >
           <ConversationList conversations={conversations.state.list.items} />
           {conversations.state.error !== null && <Notice tone="error">{errorCopy('list', conversations.state.error)}</Notice>}
           {conversations.state.more && (
-            <Button variant="secondary" className="self-start" aria-label="Ver más conversaciones" disabled={conversations.state.loadingMore} onClick={() => void conversations.loadMore()}>
+            <Button variant="secondary" className="self-start" aria-label={COPY.moreConversations} aria-disabled={conversations.state.loadingMore || undefined} onClick={() => {
+                if (conversations.state.loadingMore) return;
+                rememberConversations(conversations.state.list.items.length);
+                void conversations.loadMore();
+              }}>
               {COPY.more}
             </Button>
           )}
