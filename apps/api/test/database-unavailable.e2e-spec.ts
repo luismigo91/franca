@@ -151,6 +151,47 @@ describe('base de datos no disponible y fallos internos (e2e)', () => {
     }
   });
 
+  it('Demasiadas conexiones', async () => {
+    // Un rol sin conexiones permitidas: Postgres responde 53300 («too many connections for role»), que Prisma da como P2037.
+    const role = `limitado_${process.pid}`;
+    await prisma.$executeRawUnsafe(`DROP ROLE IF EXISTS ${role}`);
+    await prisma.$executeRawUnsafe(`CREATE ROLE ${role} LOGIN CONNECTION LIMIT 0`);
+    try {
+      const url = new URL(process.env.DATABASE_URL ?? '');
+      url.username = role;
+      const output = captureOutput();
+      testApp = await createTestApp({ logger: output.logger, config: { databaseUrl: url.toString() } });
+      const api = client(testApp.server);
+
+      const list = await api.list();
+      const create = await api.create(hola());
+      expect({ list: [list.status, list.body], create: [create.status, create.body] }).toEqual({ list: [503, UNAVAILABLE], create: [503, UNAVAILABLE] });
+      expect(output.text()).not.toContain(role);
+    } finally {
+      await testApp?.close();
+      testApp = undefined;
+      await prisma.$executeRawUnsafe(`DROP ROLE IF EXISTS ${role}`);
+    }
+  });
+
+  it('Servidor inalcanzable', async () => {
+    // 0.0.0.1 no tiene ruta: connect da EHOSTUNREACH (macOS), ENETUNREACH o, sin respuesta alguna, el corte de conexión de 5 s.
+    const output = captureOutput();
+    const url = new URL(process.env.DATABASE_URL ?? '');
+    url.hostname = '0.0.0.1';
+    testApp = await createTestApp({ logger: output.logger, config: { databaseUrl: url.toString() } });
+    const api = client(testApp.server);
+
+    for (const send of [() => api.list(), () => api.create(hola())]) {
+      const started = performance.now();
+      const res = await send();
+      expect({ status: res.status, body: res.body }).toEqual({ status: 503, body: UNAVAILABLE });
+      expect(performance.now() - started).toBeLessThan(LIMIT_MS);
+      expect(res.text).not.toContain('0.0.0.1');
+    }
+    expect(output.text()).not.toContain('0.0.0.1');
+  });
+
   it('Transacción caducada por el propio código', async () => {
     const output = captureOutput();
     class ExpiringRepository extends FlowsRepository {

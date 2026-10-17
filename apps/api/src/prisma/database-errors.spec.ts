@@ -109,10 +109,62 @@ describe('isDatabaseUnavailable', () => {
     }
   });
 
-  it('P1000 (autenticación fallida) también es configuración; P1008 y P1012 no', () => {
+  it('P1000 (autenticación fallida) también es configuración; P1012 y P2003 no', () => {
     expect(isDatabaseUnavailable(known('P1000', 'Authentication failed against database server', {}))).toBe(true);
     expect(isDatabaseUnavailable(known('P1012', 'Schema validation error', {}))).toBe(false);
     expect(isDatabaseUnavailable(known('P2003', 'Foreign key constraint failed', {}))).toBe(false);
+  });
+
+  it('P1008 (ETIMEDOUT del socket, SocketTimeout) es base no disponible', () => {
+    const message = '\nInvalid `prisma.flow.findMany()` invocation:\n\n\nOperations timed out after `N/A`';
+    expect(isDatabaseUnavailable(known('P1008', message, { modelName: 'Flow' }))).toBe(true);
+    expect(isDatabaseUnavailable(known('P2010', 'x', { driverAdapterError: { cause: { kind: 'SocketTimeout' } } }))).toBe(true);
+  });
+
+  it('P2037 con 53300: demasiadas conexiones (rol con CONNECTION LIMIT 0), forma capturada de count, create y transacción', () => {
+    const cause = {
+      originalCode: '53300',
+      originalMessage: 'too many connections for role "limitado_zz"',
+      kind: 'TooManyConnections',
+      cause: 'too many connections for role "limitado_zz"',
+    };
+    const text = 'Too many database connections opened: too many connections for role "limitado_zz"';
+    expect(isDatabaseUnavailable(known('P2037', `\nInvalid \`prisma.flow.count()\` invocation:\n\n\n${text}`, { modelName: 'Flow', driverAdapterError: { name: 'DriverAdapterError', cause } }))).toBe(true);
+    expect(isDatabaseUnavailable(known('P2037', text, { driverAdapterError: { name: 'DriverAdapterError', cause } }))).toBe(true);
+    // Aunque Prisma lo envolviera con otro código, el SQLSTATE lo delata.
+    expect(isDatabaseUnavailable(known('P2010', 'x', { driverAdapterError: { cause: { originalCode: '53300' } } }))).toBe(true);
+  });
+
+  it('errno de socket sin mapear: EHOSTUNREACH llega como código del error, con meta solo de modelo (forma capturada con 0.0.0.1)', () => {
+    const message = '\nInvalid `prisma.flow.count()` invocation:\n\n\nconnect EHOSTUNREACH 0.0.0.1:5432';
+    expect(isDatabaseUnavailable(known('EHOSTUNREACH', message, { modelName: 'Flow' }))).toBe(true);
+    // En una transacción interactiva llega un Error plano con `code`.
+    expect(isDatabaseUnavailable(Object.assign(new Error('connect EHOSTUNREACH 0.0.0.1:5432'), { code: 'EHOSTUNREACH' }))).toBe(true);
+  });
+
+  it.each(['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'EHOSTUNREACH', 'ENETUNREACH', 'EADDRNOTAVAIL', 'EPIPE', 'ENOTFOUND', 'EAI_AGAIN'])('errno %s', (code) => {
+    expect(isDatabaseUnavailable(known(code, 'connect x', { modelName: 'Flow' }))).toBe(true);
+    expect(isDatabaseUnavailable(Object.assign(new Error('connect x'), { code }))).toBe(true);
+  });
+
+  it('un errno que no es de conectividad (ENOENT, EACCES) o un Error con otro code sigue en 500', () => {
+    expect(isDatabaseUnavailable(known('ENOENT', 'x', {}))).toBe(false);
+    expect(isDatabaseUnavailable(Object.assign(new Error('x'), { code: 'EACCES' }))).toBe(false);
+    expect(isDatabaseUnavailable(Object.assign(new Error('Connection terminated unexpectedly'), { code: 'EACCES' }))).toBe(false);
+  });
+
+  it.each(['08000', '08003', '08006', '08001', '08004'])('SQLSTATE %s (clase 08, excepción de conexión)', (code) => {
+    expect(isDatabaseUnavailable(known('P2010', 'x', terminated(code, 'connection exception')))).toBe(true);
+  });
+
+  it.each(['53100', '53200', '23505', '40001', '40P01', '42P01', '57000', '57P04'])('SQLSTATE %s es un fallo del código o de recursos, no base caída', (code) => {
+    expect(isDatabaseUnavailable(known('P2010', 'x', terminated(code, 'x')))).toBe(false);
+    expect(isDatabaseUnavailable(known('P2039', 'x', terminated(code, 'x')))).toBe(false);
+  });
+
+  it('P2002 (clave duplicada) y P2028 de transacción caducada siguen en 500', () => {
+    expect(isDatabaseUnavailable(known('P2002', 'Unique constraint failed', { target: ['id'] }))).toBe(false);
+    expect(isDatabaseUnavailable(known('P2028', 'Transaction API error: A rollback cannot be executed on an expired transaction.', {}))).toBe(false);
   });
 
   it('P2010 con otro error de Postgres (por ejemplo una sintaxis incorrecta) no es base caída', () => {
@@ -124,8 +176,13 @@ describe('isDatabaseUnavailable', () => {
     expect(isDatabaseUnavailable(known(code, 'x', {}))).toBe(true);
   });
 
-  it('PrismaClientInitializationError', () => {
-    expect(isDatabaseUnavailable(new Prisma.PrismaClientInitializationError('x', '7.10.1'))).toBe(true);
+  it.each(['P1000', 'P1001', 'P1003', 'P1008', 'P1010', 'P1011', 'P1017'])('PrismaClientInitializationError con errorCode %s', (code) => {
+    expect(isDatabaseUnavailable(new Prisma.PrismaClientInitializationError('x', '7.10.1', code))).toBe(true);
+  });
+
+  it('PrismaClientInitializationError sin errorCode o con otro (runtime o adaptador ausentes: un despliegue roto) es un fallo del código', () => {
+    expect(isDatabaseUnavailable(new Prisma.PrismaClientInitializationError('Query engine library not found', '7.10.1'))).toBe(false);
+    expect(isDatabaseUnavailable(new Prisma.PrismaClientInitializationError('x', '7.10.1', 'P1012'))).toBe(false);
   });
 
   it.each([

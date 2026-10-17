@@ -28,6 +28,10 @@ describe('toErrorResponse', () => {
     expect(JSON.stringify(response.body)).not.toContain('%FF');
   });
 
+  it('un BadRequestException que no viene del URIError de la ruta (por ejemplo, de un pipe) no se disfraza de not_found', () => {
+    expect(toErrorResponse(new BadRequestException('Validation failed (numeric string is expected)'))).toMatchObject({ status: 500, body: { error: 'internal_error' } });
+  });
+
   it('base no disponible es 503 database_unavailable', () => {
     const error = new Prisma.PrismaClientKnownRequestError('Can\'t reach database server at 127.0.0.1:59999', {
       code: 'P1001',
@@ -98,6 +102,15 @@ describe('ApiExceptionFilter: registro', () => {
     const sent = run(new Prisma.PrismaClientKnownRequestError('Database `no_existe_zz` does not exist on the database server', { code, clientVersion: '7.10.1' }));
     expect(sent.status).toBe(503);
     expect(lines).toEqual([`error GET /flows/hola 503 database_unavailable ${code}`]);
+  });
+
+  it('un PrismaClientInitializationError registra su errorCode (no tiene code): 503 en configuración, 500 en un despliegue roto', () => {
+    expect(run(new Prisma.PrismaClientInitializationError('Database `x` does not exist', '7.10.1', 'P1003')).status).toBe(503);
+    expect(run(new Prisma.PrismaClientInitializationError('Query engine library not found', '7.10.1', 'P1012')).status).toBe(500);
+    expect(lines).toEqual([
+      'error GET /flows/hola 503 database_unavailable P1003',
+      'error GET /flows/hola 500 internal_error PrismaClientInitializationError P1012',
+    ]);
   });
 
   it('un error cualquiera registra su clase pero no su mensaje ni su traza', () => {
