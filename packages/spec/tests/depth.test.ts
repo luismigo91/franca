@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { exceedsFlowDepth, MAX_FLOW_DEPTH } from '../src/depth.js';
+import { validateFlow } from '../src/index.js';
+import { leads } from './helpers/flows.js';
 
 /** `levels` arrays anidados: `nested(2)` es `[[1]]`. */
 function nested(levels: number): unknown {
@@ -51,5 +53,51 @@ describe('exceedsFlowDepth', () => {
     const started = performance.now();
     expect(exceedsFlowDepth(shared)).toBe(false);
     expect(performance.now() - started).toBeLessThan(100);
+  });
+});
+
+describe('Profundidad máxima en la validación', () => {
+  const DEPTH_ISSUE = {
+    layer: 'shape',
+    path: '',
+    message: 'el flujo supera la profundidad máxima de anidamiento (1000)',
+  };
+
+  /** `captacion-leads` con la regla `when` de `ruta-segmento` anidada en `levels` predicados `all` de un elemento. */
+  function leadsWithNestedWhen(levels: number): any {
+    const flow = leads();
+    let when: unknown = { variable: 'segmento', op: 'eq', value: 'empresa' };
+    for (let i = 0; i < levels; i++) when = { all: [when] };
+    flow.nodes[7].rules[0].when = when;
+    return flow;
+  }
+
+  /** `captacion-leads` con una variable `j` de tipo `json` cuyo `default` anida `levels` arrays. */
+  function leadsWithJsonDefault(levels: number): any {
+    const flow = leads();
+    flow.variables.push({ name: 'j', type: 'json', default: nested(levels) });
+    return flow;
+  }
+
+  it('Predicado demasiado anidado', () => {
+    const flow = leadsWithNestedWhen(5000);
+    expect(() => validateFlow(flow)).not.toThrow();
+    const result = validateFlow(flow);
+    expect(result.valid).toBe(false);
+    expect(result.issues).toEqual([DEPTH_ISSUE]);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it('Justo en el límite', () => {
+    expect(validateFlow(leadsWithJsonDefault(997)).valid).toBe(true);
+    expect(validateFlow(leadsWithJsonDefault(998)).issues).toEqual([DEPTH_ISSUE]);
+  });
+
+  it('Predicado anidado hasta el límite', () => {
+    // when está a 6 niveles; cada `all` suma 2 (objeto y array): 497 niveles de `all` llegan a 1000.
+    expect(exceedsFlowDepth(leadsWithNestedWhen(497))).toBe(false);
+    expect(exceedsFlowDepth(leadsWithNestedWhen(498))).toBe(true);
+    const result = validateFlow(leadsWithNestedWhen(497));
+    expect(result.issues).not.toContainEqual(DEPTH_ISSUE);
   });
 });

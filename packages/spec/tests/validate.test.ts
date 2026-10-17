@@ -23,6 +23,7 @@ describe('ejemplos', () => {
     const result = validateFlow(read(`../examples/${file}`));
     expect(result.issues).toEqual([]);
     expect(result.valid).toBe(true);
+    expect(result.warnings).toEqual([]);
   });
 });
 
