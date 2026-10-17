@@ -1,8 +1,11 @@
 import { randomBytes } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import request from 'supertest';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import type { PrismaClient } from '../src/generated/prisma/client.js';
 import { createTestApp, type TestApp } from './helpers/app.js';
+import { client, type ApiClient } from './helpers/client.js';
+import { createTestPrisma, resetDatabase } from './helpers/database.js';
 import { hola } from './helpers/examples.js';
 import { rawRequest } from './helpers/raw.js';
 
@@ -10,13 +13,22 @@ const MIB = 1_048_576;
 
 describe('frontera HTTP', () => {
   let testApp: TestApp;
+  let prisma: PrismaClient;
+  let api: ApiClient;
 
   beforeAll(async () => {
     testApp = await createTestApp();
+    prisma = createTestPrisma();
+    api = client(testApp.server);
   });
 
   afterAll(async () => {
     await testApp.close();
+    await prisma.$disconnect();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase(prisma);
   });
 
   const accessControl = (headers: Record<string, unknown>) => Object.keys(headers).filter((name) => name.startsWith('access-control-allow-'));
@@ -204,6 +216,113 @@ describe('frontera HTTP', () => {
       const withAuth = await request(testApp.server).post('/flows/validate').set('Authorization', 'Bearer cualquiera').send(hola());
       expect(withAuth.status).toBe(200);
       expect(withAuth.body).toEqual(without.body);
+    });
+  });
+  describe('con el CRUD', () => {
+    const holaText = () => JSON.stringify(hola());
+    const flowsCount = () => prisma.flow.count();
+
+    it('Host ajeno', async () => {
+      const res = await api.create(hola()).set('Host', 'evil.example:3001');
+      expect(res.status).toBe(403);
+      expect(res.body).toEqual({ message: expect.any(String), error: 'forbidden_host' });
+      await api.get('hola').expect(404);
+      expect(await flowsCount()).toBe(0);
+    });
+
+    it('Nombres locales admitidos', async () => {
+      for (const host of ['localhost:3001', 'LOCALHOST:3001', '127.0.0.1:3001', '[::1]:3001']) {
+        await api.list().set('Host', host).expect(200);
+      }
+    });
+
+    it('Escritura desde otra web', async () => {
+      const res = await api.create(hola()).set('Origin', 'https://evil.example');
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe('forbidden_origin');
+      await api.get('hola').expect(404);
+      expect(await flowsCount()).toBe(0);
+    });
+
+    it('Peticiones sin Origin', async () => {
+      const res = await api.list().expect(200);
+      expect(accessControl(res.headers)).toEqual([]);
+    });
+
+    it('Credenciales ignoradas', async () => {
+      await api.create(hola()).expect(201);
+      const plain = await api.get('hola').expect(200);
+      const withAuth = await api.get('hola').set('Authorization', 'Bearer cualquiera').expect(200);
+      expect(withAuth.body).toEqual(plain.body);
+    });
+
+    it('Flujo inexistente', async () => {
+      const res = await api.get('no-existe').expect(404);
+      expect(Object.keys(res.body).sort()).toEqual(['error', 'message']);
+      expect(res.body.error).toBe('flow_not_found');
+    });
+
+    it('Texto plano', async () => {
+      const res = await rawRequest(testApp.port, { method: 'POST', path: '/flows', headers: { 'content-type': 'text/plain' }, body: holaText() });
+      expect(res.status).toBe(415);
+      expect(res.json.error).toBe('unsupported_media_type');
+      await api.get('hola').expect(404);
+      expect(await flowsCount()).toBe(0);
+    });
+
+    it('Charset explícito', async () => {
+      const res = await rawRequest(testApp.port, {
+        method: 'POST',
+        path: '/flows',
+        headers: { 'content-type': 'application/json; charset=utf-8' },
+        body: holaText(),
+      });
+      expect(res.status).toBe(201);
+    });
+
+    it('Justo en el límite y por encima', async () => {
+      const post = (body: string) => rawRequest(testApp.port, { method: 'POST', path: '/flows', headers: { 'content-type': 'application/json' }, body });
+      const exact = holaText().padEnd(MIB);
+      expect(Buffer.byteLength(exact)).toBe(MIB);
+      expect((await post(exact)).status).toBe(201);
+      await api.remove('hola').expect(204);
+      const over = await post(`${exact} `);
+      expect(over.status).toBe(413);
+      expect(over.json.error).toBe('payload_too_large');
+      await api.get('hola').expect(404);
+      // Solo existe el primero (borrado): el segundo no llegó a validarse ni a guardarse.
+      expect(await flowsCount()).toBe(1);
+      expect((await prisma.flow.findUnique({ where: { id: 'hola' } }))?.revision).toBe(1);
+    });
+
+    it('JSON roto', async () => {
+      for (const send of [() => api.validate('{"id":'), () => api.create('{"id":')]) {
+        const res = await send().expect(400);
+        expect(res.body.error).toBe('invalid_json');
+      }
+      expect(await flowsCount()).toBe(0);
+    });
+
+    it('Cuerpo vacío', async () => {
+      const res = await rawRequest(testApp.port, { method: 'POST', path: '/flows', headers: { 'content-type': 'application/json', 'content-length': '0' } });
+      expect(res.status).toBe(400);
+      expect(res.json.error).toBe('invalid_json');
+    });
+
+    it('Publicar con un cuerpo roto', async () => {
+      await api.create(hola()).expect(201);
+      const res = await api.publish('hola').set('Content-Type', 'application/json').send('{"x":').expect(400);
+      expect(res.body.error).toBe('invalid_json');
+      const versions = await api.versions('hola').expect(200);
+      expect(versions.body.total).toBe(0);
+    });
+
+    it('JSON que no es un objeto', async () => {
+      const validated = await api.validate('[]').expect(200);
+      expect(validated.body.valid).toBe(false);
+      expect(validated.body.issues[0]).toMatchObject({ layer: 'shape', path: '' });
+      const created = await api.create('"hola"').expect(400);
+      expect(created.body.error).toBe('invalid_flow');
     });
   });
 });

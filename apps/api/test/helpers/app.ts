@@ -4,6 +4,7 @@ import type { INestApplication } from '@nestjs/common';
 import { Test, type TestingModuleBuilder } from '@nestjs/testing';
 import { AppModule } from '../../src/app.module.js';
 import { APP_CONFIG, type AppConfig } from '../../src/config/app-config.js';
+import { CLOCK, type Clock } from '../../src/flows/clock.js';
 import { configureApp } from '../../src/http/app-setup.js';
 
 export interface TestApp {
@@ -13,6 +14,12 @@ export interface TestApp {
   /** Puerto de loopback en el que escucha (para peticiones en bruto). */
   port: number;
   close(): Promise<void>;
+}
+
+/** Reloj determinista: cada llamada devuelve un instante 1 ms posterior a la anterior (desde 2026-10-17T10:00:00Z). */
+export function steppingClock(start = Date.UTC(2026, 9, 17, 10, 0, 0)): Clock {
+  let current = start - 1;
+  return { now: () => new Date((current += 1)) };
 }
 
 export interface CreateTestAppOptions {
@@ -32,6 +39,7 @@ export async function createTestApp(options: CreateTestAppOptions = {}): Promise
     const fromEnv: AppConfig = { host: '127.0.0.1', port: 0, databaseUrl: process.env.DATABASE_URL ?? '' };
     builder = builder.overrideProvider(APP_CONFIG).useValue({ ...fromEnv, ...options.config });
   }
+  builder = builder.overrideProvider(CLOCK).useValue(steppingClock());
   if (options.configure) builder = options.configure(builder);
   const moduleRef = await builder.compile();
   const app = moduleRef.createNestApplication({ bodyParser: false });
