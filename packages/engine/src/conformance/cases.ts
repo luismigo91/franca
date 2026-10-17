@@ -28,6 +28,13 @@ export const CONFORMANCE_INTERNAL_ADDRESSES: readonly string[] = [
   '2001:db8::1',
   '::ffff:127.0.0.1',
   '::ffff:10.0.0.5',
+  '::ffff:169.254.169.254',
+  '64:ff9b::a9fe:a9fe',
+  '64:ff9b::7f00:1',
+  '::127.0.0.1',
+  '64:ff9b:1::a9fe:a9fe',
+  '2002:7f00:1::1',
+  '2001::1',
   // las mismas escritas de otra forma, para un host que compara cadenas en vez de direcciones
   '::ffff:7f00:1',
   '0:0:0:0:0:0:0:1',
