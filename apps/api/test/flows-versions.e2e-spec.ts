@@ -93,6 +93,15 @@ describe('versiones y borrado de flujos (e2e)', () => {
       expect((await api.versions('captacion-leads').expect(200)).body.total).toBe(1);
     });
 
+    it('publica comparando el texto del borrador y no el indicador (borrador escrito directamente)', async () => {
+      await api.create(hola()).expect(201);
+      await api.publish('hola').expect(201);
+      expect((await api.get('hola').expect(200)).body.unpublishedChanges).toBe(false);
+      await writeDraftDirectly(prisma, 'hola', JSON.stringify({ ...hola(), name: 'Hola escrito a mano' }));
+      const res = await api.publish('hola').expect(201);
+      expect(res.body).toMatchObject({ version: 2, name: 'Hola escrito a mano', flow: { name: 'Hola escrito a mano' } });
+    });
+
     it('Volver al contenido de una versión anterior', async () => {
       await api.create(hola()).expect(201);
       await api.publish('hola').expect(201);

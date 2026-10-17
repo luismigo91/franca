@@ -148,7 +148,8 @@ export class FlowsService {
       if (credential) throw credential;
       const last = await locked.lastVersion();
       if (last && last.definition === row.draft) return { resource: toVersionResource(last), created: false };
-      const created = await locked.insertVersion({ nameJson: row.nameJson, definition: row.draft, now: this.clock.now() });
+      // El nombre sale del borrador validado, no de `name_json`: así la versión es coherente aunque se escribiera a mano.
+      const created = await locked.insertVersion({ nameJson: JSON.stringify(verdict.flow.name), definition: row.draft, now: this.clock.now() });
       return { resource: toVersionResource(created), created: true };
     });
   }
