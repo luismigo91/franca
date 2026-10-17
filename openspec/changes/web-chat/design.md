@@ -1,6 +1,22 @@
 # Design: chat web de prueba (`web-chat`)
 
-**Fecha**: 2026-10-17 · **Rama**: `feat/web-chat` · Motivación y alcance en `proposal.md`. El comportamiento está en `specs/web-chat/spec.md` (41 requisitos y 63 escenarios), que manda sobre este documento. Antes de este diseño se añadió a la spec un requisito: «Sin marcos de otras páginas» (commit `e88c5ed`, `spec(web): …`, ver D24). Está **pendiente de aprobación humana**. Si se rechaza, se revierte ese commit y se quita D24, y nada más del diseño depende de él.
+**Fecha**: 2026-10-17 · **Rama**: `feat/web-chat` · Motivación y alcance en `proposal.md`. El comportamiento está en `specs/web-chat/spec.md` (41 requisitos y 63 escenarios), que manda sobre este documento. Antes de este diseño se añadió a la spec un requisito: «Sin marcos de otras páginas» (commit `e88c5ed`, ver D24), **aprobado por el orquestador**.
+
+**Revisión 2**, tras el FAIL de `popi:architecture-reviewer`:
+- **B1.** Las respuestas sin cuerpo se leen por su estado. El 204 de `DELETE` es un éxito, la regla de cuerpo solo se aplica a los dos `POST`, y el cliente omite un contacto vacío (D4, D8, D9, D10).
+- **B2.** En `next dev`, los recursos propios del servidor de desarrollo de Next se atienden **antes** de `proxy.ts`. Entre ellos, uno abre el inspector de Node y deja ejecutar código con un DNS rebinding (medido, ver la auditoría). Se propone un guardián delante de `next dev` (D26), **pendiente de aprobación** por su coste.
+
+Además se incorporan los riesgos señalados y las simplificaciones aprobadas:
+- `fetch` en modo `cors` y sin envío nativo de formularios (D9, D15).
+- Solo la cabecera `host` en bruto (D2).
+- Paridad de las listas de tipos conocidos (D10).
+- `inputs` de turbo (D21).
+- Puertos explícitos (D6).
+- `@types/node` alineado (D18).
+- E2E sin entorno hostil y con una sola pila (D20).
+- Mutantes recortados (D23).
+
+Lo aprobado: el delta `e88c5ed` y `test:e2e` serializado.
 
 ## Context
 
@@ -30,8 +46,14 @@
 | `If-Match` en cada respuesta | En la API es opcional: sin él aplica la entrada sin comprobar | D8: la web lo **exige** al navegador (428 `precondition_required` si falta) |
 | Errores al empezar | `create` también puede dar `version_not_found` o `conversation_not_found` (el contacto se borró durante la creación) | Mensaje genérico, como pide la spec («uno genérico para cualquier otro código») |
 | Una web ajena no puede usar el chat | Con `Host` y `Origin`, un `iframe` de otra web con el chat dentro manda peticiones con el `Origin` propio (clickjacking) | Delta `e88c5ed` y D24 |
+| Toda respuesta de la API es JSON | `DELETE /conversations/:id` responde **204 sin cuerpo** (`conversations.controller.ts:55-60`, `@HttpCode(204)`), y los 403 de la frontera de la web tampoco llevan cuerpo | D4, D8 y D9: un 204 es éxito, y un error sin cuerpo se lee por su estado, nunca como `network_error` |
+| El `Host` de la petición | Next rellena `x-forwarded-host` con `??=` desde `host` (`next/dist/server/base-server.js:564`): si el cliente manda un `X-Forwarded-Host` propio, se conserva, y `request.nextUrl` y `request.url` se derivan de lo que Next normaliza | D2: la frontera lee **solo** la cabecera `host` en bruto |
+| Un POST del navegador lleva su `Origin` | Con `Referrer-Policy: no-referrer`, una petición `no-cors` que no es `GET` ni `HEAD` (p. ej. el envío nativo de un `<form>`) lleva `Origin: null` (Fetch, «append a request Origin header») | D9 y D15: solo `fetch` en modo `cors` y siempre `preventDefault` |
+| `proxy.ts` ve «toda petición» | En `next dev`, `router-server.js:387-403` ejecuta `blockCrossSiteDEV` y `hotReloader.run` **antes** de `resolveRoutes` (donde corre `proxy.ts`). `hot-reloader-turbopack.js:963-975` registra los middlewares de desarrollo, que atienden `/__nextjs_*` y `/_next/*` sin pasar por la frontera | D26 (propuesta) y R3 |
+| `blockCrossSiteDEV` protege los recursos de desarrollo | `block-cross-site-dev.js`: solo bloquea un `no-cors` *cross-site* o un `Origin` no permitido, y deja pasar **toda petición sin `Origin`** («Allow requests with no origin»). Un `GET` del mismo origen tras un DNS rebinding no lleva `Origin` | D26 |
+| Lo que expone el servidor de desarrollo | `/__nextjs_attach-nodejs-inspector` (cualquier método, `attach-nodejs-debugger-middleware.js`) abre el inspector de Node y devuelve su `devtoolsFrontendUrl` con el UUID secreto. El inspector **acepta** un WebSocket con `Host: 127.0.0.1:<puerto>` y `Origin: http://evil.example:3000` (medido en Node 22.23.3: `101`; con `Host: evil.example` responde `400`). Con el UUID, una página con DNS rebinding puede **ejecutar código** en el proceso de `next dev`. Además, `GET /__nextjs_launch-editor` abre en el editor el fichero de la consulta y responde 204 o 404 según exista (`existsSync`, un oráculo de ficheros), y `GET /__nextjs_source-map?filename=` devuelve mapas de fuentes de módulos cargados | D26 (guardián delante de `next dev`) |
 
-No queda ninguna contradicción de producto. El único hueco de conducta va en el delta de arriba.
+No queda ninguna contradicción de producto. El hueco de conducta de los marcos va en el delta `e88c5ed`. El de `next dev` se cierra con D26 si se aprueba. Si no, haría falta un delta que excluyera esos recursos de «Host local en la web» y aceptara el riesgo de forma explícita, y no se recomienda.
 
 ## Goals / Non-Goals
 
@@ -68,7 +90,8 @@ Descartado:
 
 `src/proxy.ts` (la convención de Next 16, que antes se llamaba *middleware*, en `src/` junto a `app/`) exporta `proxy(request)`, **sin `matcher`**, así que corre en toda petición, también la de un estático. Delega en `checkFrontier` de `src/server/frontier.ts`, una función pura sin imports de Next:
 
-1. **Host** (todas las peticiones): `isLocalHost(request.headers.get('host'))` con la regla de la API: nombre exacto `localhost`, `127.0.0.1` o `[::1]`, sin distinguir mayúsculas, con puerto opcional `:[0-9]{1,5}`. Si no, `403` sin cuerpo.
+0. **Solo la cabecera `host` en bruto**: nunca `request.nextUrl.host`, `request.url` ni `x-forwarded-host`, porque Next rellena esta última con `??=` y respeta la que manda el cliente (auditoría). La matriz incluye `Host: evil.example:3000` con `X-Forwarded-Host: localhost:3000`, que da 403. Sin `x-forwarded-*` en ninguna decisión.
+1. **Host** (todas las peticiones que llegan a `proxy.ts`; en `next dev`, ver D26): `isLocalHost(request.headers.get('host'))` (de `src/server/config/local-host.mjs`) con la regla de la API: nombre exacto `localhost`, `127.0.0.1` o `[::1]`, sin distinguir mayúsculas, con puerto opcional `:[0-9]{1,5}`. Si no, `403` sin cuerpo.
 2. **Origin** (todo método que no sea `GET` ni `HEAD`): `origin === 'http://' + host.toLowerCase()`. Si falta, es `null`, es otro esquema o es otro host o puerto, `403` sin cuerpo. Se compara con el `Host` **ya validado como local**: en un DNS rebinding el `Host` es el del atacante y ya falló en el paso 1. Esta es la diferencia con la comprobación de Server Actions.
 3. **Ruta de conversación**: si `pathname` empieza por `/api/conversations/`, su segundo segmento (decodificado con `decodeURIComponent`, y un error de decodificación cuenta como inválido) debe ser un UUID en minúsculas. Si no, `404 {"error":"conversation_not_found"}`. Es una defensa por si Next resuelve una ruta con `%2F` de otra manera. La ruta (D3) vuelve a validar.
 4. **Cabeceras de respuesta** (también en los 403 y 404 de la frontera): `Cache-Control: no-store` (salvo en `/_next/static/`, cuyos ficheros llevan *hash* y no tienen datos), `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`, `Content-Security-Policy: frame-ancestors 'none'` y `X-Frame-Options: DENY` (D24). Nunca `Access-Control-Allow-*`.
@@ -102,7 +125,10 @@ Descartado:
 - `http.request({method, path, headers, createConnection})` **sin `agent`**. `createConnection` abre `net.connect` con la dirección de `FRANCA_API_URL`. Si el nombre es `localhost`, usa `autoSelectFamily: true` y una `lookup` propia que devuelve `127.0.0.1` y `::1` sin preguntar al DNS ni a `/etc/hosts`. Sin agente, `globalAgent` y `NODE_USE_ENV_PROXY` no intervienen, ni las variables `HTTP(S)_PROXY`.
 - Cabeceras construidas desde cero: `Host` (el *host* de `FRANCA_API_URL` con su puerto, p. ej. `127.0.0.1:3001`), `Connection: close`, `Content-Type: application/json` y `Content-Length` exacto si hay cuerpo, e `If-Match` solo en `sendConversationInput`. Nada del navegador: ni `Origin`, ni `Cookie`, ni `Authorization`, ni `Referer`, ni `User-Agent`.
 - Plazo total de la petición (de abrir el socket al final del cuerpo): **180 000 ms** en las dos operaciones de avance y **15 000 ms** en el resto (`src/config/limits.ts`), los mínimos de la spec. Pasado el plazo, `destroy()`.
-- Resultado: `{kind: 'response', status, body}` o `{kind: 'unreachable'}`. Cuentan como `unreachable` un error de conexión, un `close` antes de `response` (incluido un `101`, [[gotcha-node-http-createconnection-y-proxy]]) o un cierre a medio cuerpo, que es la «respuesta perdida». Status fuera de 100-599, cuerpo de más de 32 MiB o un 2xx que no es JSON UTF-8 son `{kind: 'invalid'}`.
+- Resultado: `{kind: 'response', status, body: Uint8Array | null}` (`null` si la respuesta no trae bytes, como el **204** de `DELETE`), `{kind: 'unreachable'}` o `{kind: 'invalid'}`.
+  - Cuentan como `unreachable` un error de conexión, un `close` antes de `response` (incluido un `101`, [[gotcha-node-http-createconnection-y-proxy]]) o un cierre a medio cuerpo, que es la «respuesta perdida».
+  - Solo son `invalid` un status fuera de 200-599 y un cuerpo de más de 32 MiB.
+  - El transporte **no interpreta** el cuerpo. Si es JSON y qué significa un cuerpo vacío lo decide `responses.ts` (D8).
 - No se propaga el aborto del navegador: si la pestaña se cierra durante un avance, la petición a la API termina igual. Cortarla a medias es justo el caso que obliga a releer.
 
 Descartado:
@@ -111,7 +137,7 @@ Descartado:
 - **Un `http.Agent` propio**: en Node 24 los agentes aceptan `proxyEnv`. Depender del valor por defecto es apostar.
 - **Comprobar las variables de proxy al arrancar y negarse a arrancar**: rompería a quien tiene un proxy corporativo para otras cosas.
 
-Enforcement: regla de ESLint `no-restricted-imports` (`node:http`, `node:https`, `node:net`, `http`, `https`, `net` y `undici` solo en `transport.ts`) y `no-restricted-globals` (`fetch` solo en `src/lib/web-client.ts`). Además, la guarda estática, el test hostil en un proceso hijo (D19) y el entorno hostil de los E2E (D20).
+Enforcement: regla de ESLint `no-restricted-imports` (`node:http`, `node:https`, `node:net`, `http`, `https`, `net` y `undici` solo en `transport.ts`) y `no-restricted-globals` (`fetch` solo en `src/lib/web-client.ts`). Además, la guarda estática y el test hostil en un proceso hijo con su mutante `useGlobalAgent` (D19, D23). Los E2E no corren con un entorno hostil (simplificación aprobada).
 
 ### D5. `FRANCA_API_URL`: validación antes de escuchar
 
@@ -135,12 +161,12 @@ Descartado:
 ### D6. Escucha solo en `127.0.0.1`
 
 Los *scripts* quedan así:
-- `"dev": "node scripts/check-env.mjs && next dev --hostname 127.0.0.1"`
-- `"start": "node scripts/check-env.mjs && next start --hostname 127.0.0.1"`
+- `"dev": "node scripts/check-env.mjs && next dev --hostname 127.0.0.1 --port 3000"` (con D26: `node scripts/dev-guard.mjs`, que hace lo mismo detrás del guardián)
+- `"start": "node scripts/check-env.mjs && next start --hostname 127.0.0.1 --port 3000"`
 
-El puerto es el de Next por defecto, 3000, y se quita `--port 3000` para que los tests elijan uno libre con `PORT`. Con `pnpm dev`, turbo no pasa `PORT` a la web (modo estricto, solo `passThroughEnv`, [[gotcha-turbo-filtra-variables-de-entorno]]), así que la web siempre está en el 3000 y el `PORT` de la API no le llega. El navegador abre `http://localhost:3000`. Si `localhost` resuelve primero a `::1`, Chrome, Firefox y Safari pasan a `127.0.0.1`.
+El puerto y la dirección van **explícitos** (`-p` gana a `PORT`), así que un `PORT` de la API en la shell no mueve la web. Los E2E usan el 3000: hay una sola pila en serie (D20), y el arnés falla con un mensaje claro si el 3000 está ocupado («para `pnpm dev` antes de los E2E»). El navegador abre `http://localhost:3000`. Si `localhost` resuelve primero a `::1`, Chrome, Firefox y Safari pasan a `127.0.0.1`.
 
-Enforcement: la guarda estática lee `package.json` (los dos *scripts* llevan `--hostname 127.0.0.1` y empiezan por `node scripts/check-env.mjs &&`), y el E2E «Otra interfaz de la máquina» arranca los dos *scripts* de verdad.
+Enforcement: la guarda estática lee `package.json` (los dos *scripts* llevan `--hostname 127.0.0.1 --port 3000` y pasan por `check-env.mjs`), y el E2E «Otra interfaz de la máquina» arranca los dos *scripts* de verdad. Para ello, la pila para su web, la prueba y la vuelve a arrancar.
 
 ### D7. Sin caché: lecturas frescas explícitas
 
@@ -152,26 +178,45 @@ Enforcement: la guarda estática lee `package.json` (los dos *scripts* llevan `-
 ### D8. Lo que hace el servidor de la web con peticiones y respuestas
 
 **Peticiones del navegador** (`src/server/bff/request.ts`):
-- El cuerpo se lee como texto UTF-8 estricto, con un tope de **1 MiB**: si lo supera, `413 payload_too_large`. Es mayor que los 64 KiB de la API, para que la respuesta de 70 000 caracteres llegue a la API y su 413 sea el de la API, y menor que los 10 MB del búfer de `proxy.ts`, así que nunca se reenvía un cuerpo truncado.
-- Sin cuerpo, o si no es JSON, `400 invalid_json`.
+- **Solo en los dos `POST`** (`/api/conversations` y `…/inputs`), el cuerpo se lee como texto UTF-8 estricto, con un tope de **1 MiB**: si lo supera, `413 payload_too_large`. Es mayor que los 64 KiB de la API, para que la respuesta de 70 000 caracteres llegue a la API y su 413 sea el de la API, y menor que los 10 MB del búfer de `proxy.ts`, así que nunca se reenvía un cuerpo truncado. Sin cuerpo, o si no es JSON, `400 invalid_json`.
+- Los `GET` y el `DELETE` **no leen** el cuerpo, y uno que llegue se ignora. Nunca se reenvía.
 - `POST /api/conversations`: `{flowId: string, contactId?: string}`. Se reenvía **solo** `{"flowId"}` o `{"flowId","contactId"}`, construido de nuevo, sin validar el patrón del contacto: lo decide la API y su 400 llega al campo. Un `flowId` o un `contactId` que no son texto dan `400 invalid_request`.
+  - El **cliente** convierte el campo vacío en «sin contacto»: si el valor es exactamente `''`, el cuerpo es `{"flowId":"…"}` sin la clave `contactId` (escenario «Probar el ejemplo de captación de leads»).
+  - Cualquier otro valor, también de solo espacios, se manda tal cual y lo decide la API. El servidor de la web no recorta ni convierte: reenvía `contactId` si viene y es texto, aunque sea `''`, que la API rechaza.
 - `POST …/inputs`: hace falta la propiedad propia `input`, con cualquier valor, y se reenvía `JSON.stringify({input})`. El texto llega exacto, también con los espacios. `If-Match` debe cumplir `^"[0-9]{1,10}"$`: si falta, `428 precondition_required`, y si está mal formada, `400 invalid_request`. Se reenvía tal cual.
 - Consultas: solo `offset`. Si es inválido, `400 invalid_query`. Los parámetros desconocidos se ignoran.
 
 **Respuestas de la API** (`src/server/bff/responses.ts`):
-- 2xx: el JSON de la API sin tocar, salvo dos cosas:
-  - Se quita la clave `message` de todo evento `type: "error"` de `events[]` y de `items[].event`. El navegador nunca recibe el `message` de un `error`, así que tampoco lo ve en el inspector ni en la carga RSC.
-  - `getFlowVersion` se reduce a `{flowId, version, name}`. La definición del flujo pesa y no se usa.
-- 4xx/5xx: el cuerpo se reduce a `{error}` y, en un 412, `currentRevision` si es un entero. Se pasa **cualquier** `error` que cumpla `^[a-z][a-z0-9_]{0,63}$`, también uno desconocido, para que el chat lo trate como genérico («Código desconocido»). Sin un `error` así, `502 {"error":"invalid_api_response"}`. El `message` de la API no sale nunca del servidor.
-- `unreachable` da `502 {"error":"api_unreachable"}` e `invalid` da `502 {"error":"invalid_api_response"}`.
-- El estado HTTP de la API se conserva: 404, 409, 412, 413, 503…
+
+| La API responde | La web responde |
+|---|---|
+| **204** (solo `deleteConversation`) | **204 sin cuerpo** |
+| 2xx con un objeto JSON en UTF-8 | El mismo estado y el JSON sin tocar, salvo dos cosas: se quita la clave `message` de todo evento `type: "error"` de `events[]` y de `items[].event` (el navegador nunca la recibe, así que tampoco la ve en el inspector ni en la carga RSC), y `getFlowVersion` se reduce a `{flowId, version, name}` (la definición del flujo pesa y no se usa) |
+| Otro 2xx (vacío, no JSON, o un 204 en otra operación) | `502 {"error":"invalid_api_response"}` |
+| 4xx/5xx con JSON y un `error` que cumple `^[a-z][a-z0-9_]{0,63}$` | El mismo estado con `{error}` y, en un 412, `currentRevision` si es entero. Pasa **cualquier** código así, también uno desconocido, para que el chat lo trate como genérico («Código desconocido») |
+| 4xx/5xx sin cuerpo o sin un `error` legible | El **mismo estado, sin cuerpo**. Se lee por su estado (D9) |
+| `unreachable` | `502 {"error":"api_unreachable"}` |
+| `invalid` | `502 {"error":"invalid_api_response"}` |
+
+El `message` de la API no sale nunca del servidor.
 
 ### D9. Códigos de error: lista espejada, códigos propios y textos por contexto
 
 - `src/config/api-error-codes.ts` exporta `API_ERROR_CODES` (las 26 de la API, mismo orden) y `type ApiErrorCode`.
 - `src/config/web-error-codes.ts` exporta `WEB_ERROR_CODES = ['api_unreachable', 'invalid_api_response']`. Son disjuntos de los de la API (test).
-- El cliente del navegador añade `network_error` para un `fetch` que falla, se aborta o recibe algo que no es JSON. `readErrorCode(body)` devuelve un código conocido o `'unknown'`.
-- **Paridad** (`tests/api-error-codes-parity.test.ts`): lee **el texto** de `apps/api/src/http/api-error.ts`, extrae los literales entre `export const API_ERROR_CODES = [` y `] as const;`, exige al menos 20 y sin repetidos, y compara el conjunto con el de la web. No se importa el módulo: tiraría de `@nestjs/common` desde la web y «una app no depende de otra». Si cambia el formato del fichero, la extracción encuentra cero y el test falla en voz alta, nunca en verde. El escenario «Paridad de códigos» se valida con el mutante `addCodeToMirror` (D23).
+- **Cómo lee el cliente del navegador una respuesta** (`src/lib/web-client.ts`):
+
+  | Llega | El cliente devuelve |
+  |---|---|
+  | 204 | `{ok: true, status: 204, body: null}`: «Borrar» lo trata como éxito |
+  | Otro 2xx con JSON | `{ok: true, status, body}` |
+  | Otro 2xx sin JSON | `{ok: false, status, code: 'invalid_api_response'}` |
+  | 4xx/5xx con `{error}` | `{ok: false, status, code}` (código conocido o `'unknown'`) y `currentRevision` en un 412 |
+  | 4xx/5xx **sin cuerpo** o sin `error` legible (el 403 de la frontera, un 405 de Next…) | `{ok: false, status, code: 'unknown'}`: se lee por su estado, **nunca** `network_error` |
+  | `fetch` rechazado, abortado o con plazo agotado | `{ok: false, code: 'network_error'}`: **solo** en este caso |
+
+- **Siempre `fetch` en modo `cors`**, el de por defecto, con `credentials: 'same-origin'`. Nunca `mode: 'no-cors'` ni el envío nativo de un formulario. Con `Referrer-Policy: no-referrer`, un `POST` `no-cors` lleva `Origin: null` y la frontera lo rechazaría (auditoría). Los `<form>` de D15 llaman siempre a `preventDefault()` y no tienen `action` ni `method`. Lo comprueban la guarda estática (ningún `mode:` en `src/`, ningún `<form` con `action=`) y los E2E, donde cualquier envío nativo daría 403.
+- **Paridad** (`tests/api-error-codes-parity.test.ts`): lee **el texto** de `apps/api/src/http/api-error.ts`, extrae los literales entre `export const API_ERROR_CODES = [` y `] as const;`, exige al menos 20 y sin repetidos, y compara el conjunto con el de la web. No se importa el módulo: tiraría de `@nestjs/common` desde la web y «una app no depende de otra». Si cambia el formato del fichero, la extracción encuentra cero y el test falla en voz alta, nunca en verde. El escenario «Paridad de códigos» se valida a mano una vez: se añade un código al espejo, el test falla, y se quita (tasks 1.4). No es un mutante registrado (D23).
 - Los textos en español viven en `src/lib/chat/copy.ts`, en mapas por contexto: listas, empezar, abrir y enviar. Cada uno con su genérico. Ver la tabla de la sección «Contrato».
 
 ### D10. Modelo de la conversación en el cliente: `ConversationSession`
@@ -209,8 +254,25 @@ interface ConversationSnapshot {
 
   En todos los casos sin éxito, el mensaje del usuario desaparece y `draft` guarda el `input`. La pregunta que se pinta después lo recupera si es del mismo tipo: el texto en el campo de texto, y en la selección múltiple, los `id` que siguen existiendo. Así «Ana» sigue en su campo aunque el 412 haya traído una pregunta nueva (`attempt` 2).
 - **Abrir** (`load()`): lee el recurso y, en paralelo, el nombre de la versión. Después lee la transcripción completa (D12). Con `processing: true`, `notice: busy`. Con `conversation_not_found`, `phase: not_found`.
+- **Borrar** (`remove()`, tras confirmar en el `<dialog>`):
+
+  | Resultado de `DELETE` | Qué hace |
+  |---|---|
+  | `204` | Navega a `/`, que vuelve a leer la lista (D7) |
+  | `404` `conversation_not_found` | Navega a `/` también, como pide la spec |
+  | `network_error` o `api_unreachable` | Aviso «No se puede conectar con la API de Franca.». Se queda en la página y **no** reintenta solo |
+  | Cualquier otro error, también uno sin cuerpo (`unknown`) | Aviso genérico «No se ha podido borrar la conversación.». Se queda en la página |
+
+  Cancelar cierra el diálogo sin llamar a nada.
 - **Sin sondeos**: la clase solo programa la espera de la reproducción. Lo comprueba un test con temporizadores falsos: tras un 409, avanzar 10 s no hace ninguna llamada.
 - `ConversationResource`, `TranscriptItem` y los demás tipos de respuesta de la API los declara la web en `src/lib/chat/api-types.ts`, con los de eventos importados de `@franca/engine` (`import type`). La forma la fija el contrato de abajo y la comprueba el E2E de forma (D20).
+- **Listas de tipos conocidos en ejecución** (`src/lib/chat/known-types.ts`): el cliente necesita en ejecución qué `type` de evento, qué `kind` de contenido y qué `inputType` sabe pintar. Así lo desconocido se ignora o va a «Pregunta no soportada».
+  - Se declaran `KNOWN_EVENT_TYPES`, `KNOWN_CONTENT_KINDS` y `KNOWN_INPUT_TYPES` con `as const satisfies readonly X[]`, donde `X` es `EngineEvent['type']`, `RenderedContentItem['kind']` e `InputType`.
+  - Exhaustividad en tipos: `type _Missing = Exclude<X, (typeof LIST)[number]>` debe ser `never` (`const _check: [_Missing] extends [never] ? true : false = true`). Si el motor o la spec añaden un tipo, `pnpm typecheck` falla hasta que la web lo pinte o lo excluya **explícitamente** con su porqué.
+  - Paridad en ejecución (`known-types.test.ts`) contra el esquema de `@franca/spec`, sin copiarlo:
+    - `KNOWN_INPUT_TYPES` es igual a `schema.$defs.inputNode.properties.inputType.enum`.
+    - `KNOWN_CONTENT_KINDS` es igual a la unión del `const` y del `enum` de `kind` de `schema.$defs.contentItem.oneOf`.
+  - `KNOWN_EVENT_TYPES` no tiene equivalente en ejecución en el motor, así que lo cubre solo la comprobación de tipos. Además, el test verifica que los eventos reales del motor (D19) solo tienen tipos de la lista.
 
 ### D11. Traspaso del primer avance sin almacenamiento
 
@@ -273,7 +335,7 @@ Sin `next/image`: con URLs remotas, el servidor de la web pediría la URL (SSRF 
 | `choice` con `multiple` | Un `<input type="checkbox">` con `<label>` por opción, en orden, y «Enviar» | `{choices}` con las marcadas **en el orden de las opciones**. Se puede enviar sin marcar ninguna |
 | Otro `inputType` | «Esta pregunta no se puede responder desde el chat de prueba.» Sin controles | — |
 
-Todo va en un `<form noValidate>`, sin `maxLength`, `required` ni `pattern`, y sin recortar nada. Mientras `sending`, los controles están `disabled`.
+Todo va en un `<form noValidate>` sin `action` ni `method`. Su `onSubmit` llama **siempre** a `event.preventDefault()` y envía con el cliente (`fetch` en modo `cors`, D9). Sin `maxLength`, `required` ni `pattern`, y sin recortar nada. Mientras `sending`, los controles están `disabled`.
 
 Cuando aparece una pregunta (su clave es `nodeId:attempt:revision`), el foco va a su primer control. Si hay `reason`, se muestra encima un aviso enlazado con `aria-describedby`, con el texto de `copy.ts`. El tipo `Record<InvalidAnswerReason, string>` obliga a cubrir los cinco motivos, un test compara sus claves con `INVALID_ANSWER_REASONS` del motor y hay un genérico para el resto.
 
@@ -318,6 +380,7 @@ Estados por pantalla:
 | `@playwright/test` | `devDependencies` | `1.64.1` | E2E en un navegador real: foco, teclado, `role=log`, red, *viewport* de 320 px y diálogos. Fija la versión de Chromium |
 | `pg` | `devDependencies` | `8.23.1` | Solo para el arnés E2E: crear y borrar la base de cada *worker* y vaciarla entre tests (D20). Es la versión que ya está en el *lockfile* (la usa `@prisma/adapter-pg`) |
 | `@types/pg` | `devDependencies` | `8.23.1` | Tipos de lo anterior, también ya en el *lockfile* |
+| `@types/node` | `devDependencies` (ya está, `^20`) | `24.19.2` | Se **sube** a la que resuelve la API. Así `vitest` y `vite` no se duplican en el *lockfile* por un `@types/node` distinto (son *peers* de `vite`). La web corre en Node 22 o superior |
 
 Descartadas:
 - **jsdom y Testing Library**: los comportamientos de DOM (foco, teclado, `disabled`, `role`) se prueban mejor en Chromium (E2E), y el marcado, con `react-dom/server` (D19).
@@ -334,7 +397,9 @@ Descartadas:
   - **Unit puros**: `ids`, `frontier`, `api-url`, `url-filter`, `events`, `transcript-view`, `copy`, `paged-list`, `request`, `responses`, `web-client` (con un `fetch` falso inyectado) y `conversation-session` (con un cliente falso, `sleep` controlado y temporizadores falsos).
   - **Marcado**: `renderToStaticMarkup` de `react-dom/server` sobre los componentes de presentación. Sin `<a>` ni `<b>` en un texto, el `src` es el `href`, el `sandbox` exacto del `iframe`, ningún atributo con `javascript:`, el control de cada `inputType` (sin `type="email"`) y ningún `message` en el fin ni en el panel.
   - **Integración**: `handlers.ts` + `operations.ts` + `transport.ts` contra una API simulada en el mismo proceso (`tests/helpers/fake-api.ts`, `node:http` en `127.0.0.1`, puerto 0) con `FRANCA_API_URL` apuntando a ella. Método, ruta, consulta, cabeceras exactas y bytes del cuerpo que recibe; respuestas y estados que devuelve; `unreachable` (puerto cerrado, cierre sin respuesta, cierre a medio cuerpo y plazo, este con un plazo corto **inyectado** en el test); `invalid`; y `localhost` hacia loopback.
-- **Proceso hijo hostil** (`tests/api-transport-env-proxy.test.ts`): lanza `vitest run --config vitest.hostile.config.ts tests/hostile/env-proxy.hostile.ts` con `NODE_USE_ENV_PROXY=1` y `HTTP_PROXY`, `HTTPS_PROXY` y `ALL_PROXY` hacia un proxy trampa local. El hijo envía con `transport.ts` a una API simulada, y el padre comprueba que la API la recibió y que la trampa **no** recibió ninguna conexión. Va en un hijo porque Node lee `NODE_USE_ENV_PROXY` al arrancar. El test negativo se valida con el mutante `useGlobalAgent` (D23).
+    - **El 204 de `DELETE`**: la API simulada responde exactamente lo que responde la API real (`HTTP/1.1 204 No Content`, sin cuerpo; las cabeceras exactas se miden con la API de verdad en `fake-api-shapes.e2e.ts` y se copian en el *fixture*). `handlers.ts` responde 204 sin cuerpo y `web-client.ts` da `{ok: true, status: 204, body: null}`.
+    - Un 4xx/5xx sin cuerpo de la API llega al navegador con el mismo estado y sin cuerpo, y el cliente lo lee como `unknown`, nunca como `network_error`.
+- **Proceso hijo hostil** (`tests/api-transport-env-proxy.test.ts`): lanza `vitest run --config vitest.hostile.config.ts tests/hostile/env-proxy.hostile.ts` con `NODE_USE_ENV_PROXY=1` y `HTTP_PROXY`, `HTTPS_PROXY` y `ALL_PROXY` hacia un proxy trampa local. El hijo envía con `transport.ts` a una API simulada, y el padre comprueba que la API la recibió y que la trampa **no** recibió ninguna conexión. Va en un hijo porque Node lee `NODE_USE_ENV_PROXY` al arrancar. El test negativo se valida con el mutante `useGlobalAgent` (D23), que sustituye `createConnection` por `host` y `port`. Así la petición pasa por `globalAgent`, el proxy del entorno la desvía a la trampa, y el test muere porque **la trampa recibe la conexión**, no por una conexión rechazada. Es la única defensa del proxy del entorno: los E2E no lo repiten.
 - Los datos de los tests salen del motor real: `startSession`/`continueSession` de `@franca/engine` sobre `preguntas`, `medios`, `captacion-leads` y `pregunta` (fijados en `e2e/fixtures/flows/`). Así ningún evento de prueba tiene una forma inventada.
 - **Guarda estática** (`tests/static-guard.test.ts`), lo que ESLint no expresa:
   - `await connection()` como primera sentencia de cada manejador.
@@ -344,6 +409,8 @@ Descartadas:
   - Ningún `use cache`, `cacheLife` ni `unstable_cache`.
   - Los *scripts* `dev` y `start` de `package.json` (D6).
   - Ningún cliente importa `@franca/engine` sin `import type`.
+  - Ningún `mode:` en una llamada a `fetch` y ningún `<form` con `action=` o `method=` en `src/` (D9).
+  - La frontera no lee `x-forwarded-*`, `nextUrl.host` ni `request.url` para decidir (D2).
 - `test` de la web es `vitest run`. Ningún test de este nivel arranca Next, la API ni Postgres, ni sale de loopback.
 
 ### D20. E2E con Playwright contra la API real y Postgres
@@ -351,13 +418,13 @@ Descartadas:
 - **Configuración** (`apps/web/playwright.config.ts`):
   - `testDir: 'e2e'` y `testMatch: '**/*.e2e.ts'`.
   - Un solo proyecto `chromium` (Desktop Chrome). Un test que no usa `page` ni `context` no abre el navegador, así que los de HTTP en bruto de `frontier.e2e.ts` conviven con los de navegador.
-  - `fullyParallel: false`, `workers: process.env.CI ? 2 : 1`, `retries: 0` (lo inestable se ve), `forbidOnly: !!process.env.CI`, `actionTimeout: 10_000` y `expect.timeout: 10_000`.
+  - `fullyParallel: false`, **`workers: 1`**, `retries: 0` (lo inestable se ve), `forbidOnly: !!process.env.CI`, `actionTimeout: 10_000` y `expect.timeout: 10_000`.
   - `trace: 'retain-on-failure'`.
-- **Pila por *worker*** (`e2e/support/stack.ts`, fixture de *worker*), de modo que cada *worker* va aislado:
-  1. **Base**: crea `franca_web_e2e_<pid>_<worker>` con `pg` sobre `DATABASE_URL` y aplica las migraciones con el Prisma de la API (`apps/api/node_modules/.bin/prisma migrate deploy`, `cwd` `apps/api`, `DATABASE_URL` de esa base). Al terminar, la borra con `DROP DATABASE … WITH (FORCE)`. Los errores nunca muestran la URL (patrón de `apps/api/test/global-setup.ts`).
+- **Una sola pila para toda la ejecución** (`e2e/support/stack.ts`, *fixture* de *worker* con un único *worker*). Corre en serie y entre tests se vacía la base:
+  1. **Base**: crea `franca_web_e2e_<pid>` con `pg` sobre `DATABASE_URL` y aplica las migraciones con el Prisma de la API (`apps/api/node_modules/.bin/prisma migrate deploy`, `cwd` `apps/api`, `DATABASE_URL` de esa base). Al terminar, la borra con `DROP DATABASE … WITH (FORCE)`. Los errores nunca muestran la URL (patrón de `apps/api/test/global-setup.ts`).
   2. **API real**: `node apps/api/dist/main.js` con un entorno **mínimo**: `PATH`, `DATABASE_URL`, `HOST=127.0.0.1` y `PORT=0`. Sin `FRANCA_ANTHROPIC_API_KEY` ni `FRANCA_SECRET_*` / `FRANCA_HTTP_*`, así que nada sale a Anthropic ni a un CRM. El puerto se lee de la línea «escuchando en».
   3. **API simulada** (`tests/helpers/fake-api.ts`, la misma de la integración de D19, así que hay una sola implementación), en el proceso del *worker*: servidor `node:http` en `127.0.0.1`. Registra método, ruta, cabeceras y cuerpo, y por defecto **reenvía** a la API real. Un test puede guionizar respuestas (`fakeApi.respond(handler)`), retrasarlas, cerrar sin responder, o parar y volver a escuchar en el mismo puerto («API parada»).
-  4. **Web**: `pnpm --filter @franca/web start` (el *script* real, así que D5 y D6 se ejercen) con `PORT` libre, `FRANCA_API_URL` hacia la API simulada, `NEXT_TELEMETRY_DISABLED=1` y un **entorno hostil**: `NODE_USE_ENV_PROXY=1` y `HTTP_PROXY`/`HTTPS_PROXY` hacia una trampa del *worker*. Al cerrar el *worker* se comprueba que la trampa recibió cero conexiones. Si Next no funciona con ese entorno por motivos propios, el entorno hostil se queda solo en el test dedicado de D19 (riesgo R4).
+  4. **Web**: `pnpm --filter @franca/web start` (el *script* real, así que D5 y D6 se ejercen) en `127.0.0.1:3000`, con `FRANCA_API_URL` hacia la API simulada y `NEXT_TELEMETRY_DISABLED=1`. **Sin entorno hostil de proxy**: esa defensa la cubre solo el hijo de Vitest con su mutante (D19, simplificación aprobada). Si el 3000 está ocupado, el arnés aborta con un mensaje que lo dice. `stack.restartWeb(env?)` la para y la vuelve a arrancar para los escenarios de arranque y escucha.
 - **Entre tests**: `TRUNCATE` de todas las tablas de `public` salvo `_prisma_migrations` (descubiertas con `pg_tables`, sin acoplarse a sus nombres), `RESTART IDENTITY CASCADE`, y vaciado del registro y del guion de la API simulada.
 - **Datos**:
   - `captacion-leads` y `faq-ia` se leen de `packages/spec/examples/`.
@@ -365,16 +432,22 @@ Descartadas:
   - Publicar, crear y responder «directamente en la API» se hace con `e2e/support/admin.ts`, contra la API real y sin pasar por la simulada.
 - **Forma de la API simulada**: `e2e/support/api-shapes.ts` construye recursos, páginas y avances. `e2e/fake-api-shapes.e2e.ts` compara sus claves y su orden con respuestas reales de la API: el *fixture* copiado de la forma real, según `lecciones-equipo`.
 - **Navegador sin Internet** (`e2e/support/browser.ts`): `context.route('**/*')` deja pasar solo el origen de la web. Lo demás (p. ej. `example.com`) se **registra** y se cumple con un recurso local mínimo (PNG de 1×1, audio vacío o HTML vacío), en vez de abortarlo, para que no haya errores de consola.
-- **Consola limpia**: una *fixture* recoge `pageerror` y los `console` de tipo `error`, y falla el test si hay alguno. La única excepción son los «Failed to load resource» de respuestas 4xx/5xx de `/api/*` del propio origen que el escenario espera. «Evento desconocido» exige **cero**.
-- **Escenarios lentos**: «Avance largo» espera de verdad 150 s (`test.setTimeout(200_000)`, etiqueta `@lento`) y corre en la CI. Con dos *workers*, va en paralelo con el resto. «Ocupada al enviar» usa `page.clock` para avanzar 10 s sin esperarlos.
-- **«Otra interfaz de la máquina»**: elige una IPv4 no interna de `os.networkInterfaces()` (`test.skip` anotado si no la hay), arranca `pnpm --filter @franca/web dev` y `start` con un `PORT` libre y comprueba conexión rechazada en esa dirección y respuesta en `127.0.0.1`.
+- **Consola limpia**: una *fixture* recoge `pageerror` y los `console` de tipo `error`, y falla el test si hay alguno. Dos excepciones, y nada más:
+  - Los «Failed to load resource» de respuestas 4xx/5xx de `/api/*` del propio origen que el escenario espera.
+  - En «El chat dentro de un marco ajeno», el error de Chromium por `frame-ancestors` («Refused to frame … because an ancestor violates … frame-ancestors 'none'») en la página contenedora. El origen de esa página (la API simulada en su puerto) se deja pasar en `context.route`, solo en ese test.
+
+  «Evento desconocido» exige **cero**.
+- **Escenarios lentos**: «Avance largo» espera de verdad 150 s (`test.setTimeout(200_000)`, etiqueta `@lento`). Corre en la CI dentro de la misma ejecución en serie, así que suma unos 150 s (R5). «Ocupada al enviar» usa `page.clock` para avanzar 10 s sin esperarlos.
+- **«Otra interfaz de la máquina»**: elige una IPv4 no interna de `os.networkInterfaces()` (`test.skip` anotado si no la hay). Para la web de la pila y arranca por turno `pnpm --filter @franca/web dev` y `start` en el 3000. Comprueba conexión rechazada en esa dirección y respuesta en `127.0.0.1:3000`, y después restaura la pila. Con D26, `dev` es el guardián, y se comprueba igual.
 
 ### D21. Turbo, raíz y CI
 
 - `turbo.json`:
   - `@franca/web#dev`: `{dependsOn: ["^build"], cache: false, persistent: true, passThroughEnv: ["FRANCA_API_URL"]}`.
   - `@franca/web#test:e2e`: `{dependsOn: ["^build", "build", "@franca/api#build"], cache: false, passThroughEnv: ["DATABASE_URL", "CI", "PLAYWRIGHT_BROWSERS_PATH"]}`.
+  - `@franca/web#test`: `{dependsOn: ["^build"], inputs: ["$TURBO_DEFAULT$", "$TURBO_ROOT$/apps/api/src/http/api-error.ts", "$TURBO_ROOT$/openspec/**", "$TURBO_ROOT$/packages/engine/tests/helpers/spec-text.ts"]}`. Sin esto, la caché de turbo daría por buenos los tests de paridad, de cobertura de la spec y de *fixtures* aunque cambiara lo que leen fuera de `apps/web`. `$TURBO_DEFAULT$` conserva las entradas por defecto del paquete. Los ejemplos de `packages/spec/examples/` ya entran por `^build`, porque son parte del paquete `@franca/spec` (`files`).
   - La tarea `dev` genérica no cambia ([[gotcha-turbo-filtra-variables-de-entorno]]).
+  - La API tiene el mismo hueco: `apps/api/test/spec-coverage.spec.ts` lee `openspec/` y `packages/` sin declararlos como `inputs`. Queda anotado como FOLLOW-UP 7.6 y no se arregla aquí.
 - Raíz: `"test:e2e": "turbo run test:e2e --concurrency=1"`. Así los E2E de la API y los de la web no corren a la vez: comparten Postgres y CPU, y la API tiene e2e sensibles al tiempo (`database-stalls`, `http-host-tls-timing`).
 - CI (`.github/workflows/ci.yml`):
   - Un paso `pnpm --filter @franca/web exec playwright install --with-deps chromium` tras `pnpm build`. Es reproducible porque `@playwright/test` va fijado en el *lockfile* y cada versión fija su Chromium.
@@ -392,34 +465,30 @@ Descartadas:
 
 `apps/web/scripts/mutate.mjs` reutiliza `packages/engine/scripts/mutate.mjs` como la API, con `MUTATE_ROOT=apps/web`, `MUTATE_MUTATIONS=tests/mutations.json` y el `vitest` de la web. Antes compila `@franca/spec` y `@franca/engine`. El candado `scripts/guard-mutate.mjs` ya mira `apps/*/.mutate-backup`. Todos los mutantes deben morir con tests de **Vitest**. Los E2E no entran en el bucle: necesitarían un `next build` por mutante.
 
+La lista se limita, como se aprobó, a **seguridad** (frontera, filtro de URLs, `message` de los `error`, transporte y proxy, marcos y `no-store`) y **concurrencia** (`If-Match` y sin reenvíos). Lo que ya cubre la guarda estática (`connection()`, *scripts* de `package.json`) no se repite como mutante.
+
 | Mutante | Fichero | Lo mata |
 |---|---|---|
 | `allowJavascriptScheme`, `allowDataInImage`, `allowHttpEmbed`, `allowCredentials`, `allowRelative` | `url-filter.ts` | `url-filter.test.ts` |
 | `renderRawUrl` (pinta el texto original) | `media-item.tsx` | `media-item.test.tsx` (el `src` es el `href` de `HTTPS://Example.COM/a.png`) |
-| `autolinkText`, `renderHtml` | `message-text.tsx` | `message-text.test.tsx` |
+| `autolinkText` (texto con enlaces) | `message-text.tsx` | `message-text.test.tsx` |
 | `iframeSameOrigin` (añade `allow-same-origin allow-top-navigation`) | `media-item.tsx` | `media-item.test.tsx` |
-| `skipHostCheck`, `hostSuffixMatch` (`endsWith('localhost')`) | `frontier.ts` | `frontier.test.ts` |
+| `skipHostCheck`, `hostSuffixMatch` (`endsWith('localhost')`), `readForwardedHost` (usa `x-forwarded-host` si viene) | `frontier.ts` | `frontier.test.ts` |
 | `allowMissingOrigin`, `compareOriginToFixedHost` (con `localhost:3000`) | `frontier.ts` | `frontier.test.ts` |
-| `noSecurityHeaders` | `frontier.ts` | `frontier.test.ts` |
+| `dropFrameHeaders` (sin `frame-ancestors` ni `X-Frame-Options`), `dropNoStore` | `frontier.ts` | `frontier.test.ts` |
 | `forwardBrowserHeaders` (copia las cabeceras de la petición) | `handlers.ts` | `handlers.test.ts` (integración) |
-| `genericPassthrough` (ruta de la API desde la del navegador) | `operations.ts` | `handlers.test.ts` y la guarda estática |
+| `genericPassthrough` (ruta de la API desde la del navegador) | `operations.ts` | `handlers.test.ts` |
 | `unvalidatedConversationId` | `ids.ts` | `ids.test.ts` y `handlers.test.ts` |
 | `keepErrorMessage` | `responses.ts` | `responses.test.ts` |
-| `useGlobalAgent` (quita `createConnection`) | `transport.ts` | `api-transport-env-proxy.test.ts` |
-| `shortAdvanceTimeout` (15 s en los avances) | `limits.ts` | `transport.test.ts` |
-| `noIfMatch`, `autoResendOnLoss`, `allowDoubleSend`, `pollWhileBusy`, `dropDraft` | `conversation-session.ts` / `web-client.ts` | `conversation-session.test.ts`, `web-client.test.ts` |
-| `showErrorMessage`, `paintHttpEvent` | `transcript-view.ts` / `end-notice.tsx` | `transcript-view.test.ts`, `end-notice.test.tsx` |
-| `trimAnswer`, `typeEmailInput` | `pending-question.tsx` / `conversation-session.ts` | `pending-question.test.tsx`, `conversation-session.test.ts` |
-| `skipConnection` | un `route.ts` | `static-guard.test.ts` |
-| `listenAllInterfaces` | `package.json` | `static-guard.test.ts` |
-| `echoApiUrl` (el mensaje incluye el valor) | `api-url.mjs` | `api-url.test.ts` |
-| `addCodeToMirror` | `api-error-codes.ts` | `api-error-codes-parity.test.ts` |
+| `useGlobalAgent` (sustituye `createConnection` por `host` y `port`) | `transport.ts` | `api-transport-env-proxy.test.ts` (muere porque la trampa recibe la conexión) |
+| `showErrorMessage` | `transcript-view.ts` | `transcript-view.test.ts` |
+| `noIfMatch`, `autoResendOnLoss`, `allowDoubleSend` | `conversation-session.ts` / `web-client.ts` | `conversation-session.test.ts`, `web-client.test.ts` |
 
-Cada test negativo («no contiene», «no recibe», «no pide») se valida con su mutante, según `testing-pyramid.md`. Se ejecuta a mano (`pnpm --filter @franca/web mutate`) y el resultado queda en el gate de la fase 4.
+Los demás tests negativos («no contiene», «no recibe», «no pide», paridad de códigos) se validan **una vez a mano**, provocando el caso prohibido y viendo que fallan (`testing-pyramid.md`, tasks 4.2), sin registrarlos como mutantes. La mutación se ejecuta a mano (`pnpm --filter @franca/web mutate`) y el resultado queda en el gate de la fase 4.
 
 ### D24. Sin marcos de otras páginas (delta `e88c5ed`)
 
-`frame-ancestors 'none'` y `X-Frame-Options: DENY` en toda respuesta, desde `checkFrontier` (D2). Lo cubren `frontier.test.ts` y el E2E «El chat dentro de un marco ajeno»: una página servida por la API simulada en otro puerto con un `iframe` de la web.
+`frame-ancestors 'none'` y `X-Frame-Options: DENY` en toda respuesta, desde `checkFrontier` (D2). Lo cubren `frontier.test.ts` y el E2E «El chat dentro de un marco ajeno»: una página servida por la API simulada en otro puerto con un `iframe` de la web, con la excepción de consola de D20. En `next dev`, los recursos de desarrollo de Next no pasan por `checkFrontier` (D26).
 
 No se añade una CSP completa: Next necesita *nonces* para sus *scripts* en línea, y ningún requisito lo pide.
 
@@ -428,6 +497,46 @@ No se añade una CSP completa: Next necesita *nonces* para sus *scripts* en lín
 `layout.tsx` deja de importar Geist. `globals.css` usa la pila del sistema (`ui-sans-serif, system-ui, …`). Así `next build` no descarga nada (la CI ni nadie depende de Google Fonts) y el navegador no pide fuentes a terceros.
 
 Es una decisión presentacional con efecto en la red. Va aquí porque toca la promesa de «sin Internet» de los E2E.
+
+### D26. Guardián delante de `next dev` (PROPUESTA, pendiente de aprobación)
+
+**El problema** (medido, ver la auditoría). En `next dev`, `router-server.js:387-403` atiende los recursos de desarrollo con `blockCrossSiteDEV` y `hotReloader.run` **antes** de `resolveRoutes`, así que `proxy.ts` no los ve. `blockCrossSiteDEV` deja pasar toda petición sin `Origin`. Una página con DNS rebinding (`evil.example:3000` resuelto a `127.0.0.1`) hace `GET` del mismo origen sin `Origin` y llega a:
+
+| Recurso | Qué hace | Gravedad |
+|---|---|---|
+| `/__nextjs_attach-nodejs-inspector` | Abre el inspector de Node (`inspector.open`) y devuelve su `devtoolsFrontendUrl` con el UUID. El inspector acepta un WebSocket con `Host: 127.0.0.1:<puerto>` y cualquier `Origin` (medido: `101`), así que la página se conecta y **ejecuta código** en el proceso de `next dev` con los permisos de quien desarrolla | Crítica: ejecución de código en la máquina |
+| `/__nextjs_launch-editor?file=…` | Abre el fichero en el editor y responde 204 o 404 según exista | Media: efecto lateral y oráculo de ficheros |
+| `/__nextjs_source-map?filename=…` | Mapas de fuentes de los módulos cargados (`findSourceMap`) o de Turbopack | Baja: código del repo, que es público |
+
+Los recursos de desarrollo que cambian algo y son `POST` (`/__nextjs_restart_dev`, la configuración de las herramientas, `/__nextjs_original-stack-frames` y `/_next/mcp`) sí los para `blockCrossSiteDEV`: un `POST` del mismo origen lleva `Origin: http://evil.example:3000`, que no está permitido. El *websocket* de HMR también, porque lleva `Origin`. No es un fallo de Franca sino de `next dev`, pero la web promete «Toda petición» con `Host` local, y la cadena del inspector va más allá del *bundle*. Por eso **no** se acota la spec, sino que se propone cerrarlo.
+
+**Mitigación mínima propuesta**: `apps/web/scripts/dev-guard.mjs`, con `"dev": "node scripts/check-env.mjs && node scripts/dev-guard.mjs"`.
+- Arranca `next dev --hostname 127.0.0.1 --port <libre>` como proceso hijo.
+- Escucha en `127.0.0.1:3000` con `node:http`.
+- Responde 403 sin cuerpo a toda petición, y a toda petición de *upgrade*, cuyo `Host` en bruto no sea local. Usa la misma `isLocalHost`, que pasa a `src/server/config/local-host.mjs` para que la compartan `frontier.ts` y el guardián.
+- Lo demás lo reenvía tal cual al hijo, incluido el *upgrade* del *websocket* de HMR (un `net.connect` y `pipe` en los dos sentidos).
+- Imprime su propia línea «Franca web en http://localhost:3000».
+- Propaga `SIGINT` y `SIGTERM` y termina con el código del hijo.
+
+Así, en `next dev`, «Host local en la web» vuelve a valer para **toda** petición, sin delta de spec.
+
+**Coste**:
+- Un fichero de unas 120 líneas y un proceso más en `pnpm dev`.
+- `isLocalHost` pasa a un `.mjs` compartido.
+- Tests en Vitest, sin Next: el guardián con un *upstream* simulado, con la matriz de `Host` (403 y sin reenvío), el *upgrade* local reenviado y el ajeno rechazado, y señales y código de salida. Además, mutantes `guardSkipHost` y `guardSkipUpgrade`.
+- El E2E «Otra interfaz de la máquina» ya arranca `dev`.
+
+**Lo que no cierra**:
+- Un proceso local puede seguir llegando al puerto interno de `next dev`, como hoy a la API.
+- Un DNS rebinding que **adivine** el puerto interno (efímero, distinto en cada arranque) tendría que barrer el rango de puertos con una resolución por intento. Es mucho más caro y queda como riesgo aceptado (R10).
+
+**Alternativas descartadas**:
+- **`allowedDevOrigins`**: no ayuda, porque la petición del rebinding no lleva `Origin`.
+- **Un `pnpm patch` de Next** para quitar el middleware del inspector: se rompe en cada versión.
+- **`pnpm dev` como `next build && next start`**: sin HMR, inservible para desarrollar el editor (feature 8).
+- **Acotar la spec** a `next start`: deja abierta una ejecución de código en la máquina de quien desarrolla.
+
+**Si no se aprueba**: hay que añadir un delta `spec(web): …` que excluya de «Host local en la web» y de «Sin marcos de otras páginas» los recursos propios del servidor de desarrollo de Next en `next dev`, y documentar el riesgo del inspector como aceptado (R3).
 
 ## Contrato: navegador ↔ servidor de la web ↔ API
 
@@ -451,7 +560,7 @@ Es una decisión presentacional con efecto en la red. Va aquí porque toca la pr
 | `DELETE /api/conversations/:id` | `DELETE /conversations/:id` | 15 s | — |
 | Cualquier otra `/api/*` | Ninguna | — | — |
 
-`offset` por defecto es 0. Cabeceras hacia la API, siempre las mismas: `Host: <host de FRANCA_API_URL>` y `Connection: close`. Con cuerpo, además `Content-Type: application/json` y `Content-Length`. En las entradas, además `If-Match`. Nada más.
+`offset` por defecto es 0. **Cuerpo del navegador**: solo en los dos `POST`. En `POST /api/conversations`, el cliente manda `{"flowId"}` si el campo «Identificador de contacto» está vacío (`''`) y `{"flowId","contactId"}` con el valor tal cual si no lo está. Cabeceras hacia la API, siempre las mismas: `Host: <host de FRANCA_API_URL>` y `Connection: close`. Con cuerpo, además `Content-Type: application/json` y `Content-Length`. En las entradas, además `If-Match`. Nada más.
 
 **Respuestas 2xx** (lo que lee el navegador; los demás campos pasan sin tocar):
 
@@ -464,7 +573,7 @@ Es una decisión presentacional con efecto en la red. Va aquí porque toca la pr
 | `GET /api/conversations/:id` | 200 | `ConversationResource` | las 15 claves (`processing` para el aviso de ocupada) |
 | `GET /api/conversations/:id/transcript` | 200 | `Page<TranscriptItem>` (sin `message` en los `error`) | `items[].seq`, `role`, `input`, `event`, `total` |
 | `POST /api/conversations/:id/inputs` | 200 | `{conversation, events}` (sin `message`) | todo |
-| `DELETE /api/conversations/:id` | 204 | — | — |
+| `DELETE /api/conversations/:id` | 204 | **sin cuerpo** (como la API) | el estado: el cliente da `{ok: true, status: 204, body: null}` y navega a `/` |
 
 Ejemplo `POST /api/conversations` con `{"flowId":"captacion-leads"}` → 201 (eventos medidos con el motor):
 
@@ -490,7 +599,8 @@ Ejemplo de la versión: `{"flowId":"captacion-leads","version":1,"name":"Captaci
 
 | HTTP | `error` | Origen | Cuándo | Qué hace el chat |
 |---|---|---|---|---|
-| 403 | — (sin cuerpo) | Frontera | `Host` no local; `Origin` ausente u otro en `POST`/`DELETE` | — (no lo provoca la propia web) |
+| 403 | — (sin cuerpo) | Frontera | `Host` no local; `Origin` ausente u otro en `POST`/`DELETE` | Se lee por su estado (`unknown`), y el chat muestra el genérico del contexto. La propia web no lo provoca |
+| 4xx/5xx | — (sin cuerpo) | API o Next | Error de la API sin un `error` legible, o un 405 de Next | El mismo estado sin cuerpo y, en el cliente, `unknown`: genérico del contexto, **nunca** `network_error` |
 | 404 | `conversation_not_found` | Frontera, ruta o API | id no UUID en minúsculas, o no existe | Abrir: «Conversación no encontrada». Enviar: «Esta conversación ya no existe» con enlace. Borrar: vuelve al inicio |
 | 404 | `flow_not_found` / `version_not_found` | Ruta o API | `flowId` o versión inválidos o inexistentes | Cabecera con el `flowId`. Empezar: «Ese flujo ya no existe» y relee la lista |
 | 404 | `not_found` | Comodín | Otra ruta de `/api` | Genérico |
@@ -508,7 +618,8 @@ Ejemplo de la versión: `{"flowId":"captacion-leads","version":1,"name":"Captaci
 | 500 | `internal_error` | Ruta o API | Inesperado o `FRANCA_API_URL` inválida en ejecución | Genérico |
 | 502 | `api_unreachable` | Servidor de la web | Sin conexión, cierre sin respuesta o plazo | Listas y empezar: «No se puede conectar con la API de Franca.» Enviar: respuesta perdida (D10) |
 | 502 | `invalid_api_response` | Servidor de la web | Respuesta que no se puede leer | Genérico |
-| — | `network_error` | Navegador | `fetch` fallido, abortado o respuesta no JSON | Como `api_unreachable` |
+| — | `network_error` | Navegador | **Solo** un `fetch` rechazado, abortado o con plazo agotado | Como `api_unreachable` |
+| 2xx | `invalid_api_response` | Navegador | Un 2xx distinto de 204 sin JSON | Genérico |
 | cualquiera | otro código | API | Código nuevo | Genérico del contexto, respuesta en su campo |
 
 Ejemplos: `{"error":"revision_mismatch","currentRevision":2}` · `{"error":"conversation_busy"}` · `{"error":"api_unreachable"}`.
@@ -525,7 +636,8 @@ Ejemplos: `{"error":"revision_mismatch","currentRevision":2}` · `{"error":"conv
 | Ruta | Qué tiene |
 |---|---|
 | `src/proxy.ts` | Llama a `checkFrontier` y aplica sus cabeceras (D2) |
-| `src/server/frontier.ts` (+ test) | `isLocalHost`, `checkFrontier` y `SECURITY_HEADERS` |
+| `src/server/frontier.ts` (+ test) | `checkFrontier` y `SECURITY_HEADERS` (lee solo `host` en bruto) |
+| `src/server/config/local-host.mjs` (+ `local-host.test.ts`) | `isLocalHost`, compartida por `frontier.ts` y, con D26, por el guardián |
 | `src/server/ids.ts` (+ test) | `isConversationId`, `isFlowId`, `parseVersion` y `parseOffset` |
 | `src/server/config/api-url.mjs` (+ `api-url.test.ts`) | `parseApiUrl` y `DEFAULT_API_URL` (D5) |
 | `src/server/api/transport.ts` (+ test) | Una petición a la API (D4) |
@@ -536,11 +648,12 @@ Ejemplos: `{"error":"revision_mismatch","currentRevision":2}` · `{"error":"conv
 | `src/app/conversaciones/[conversationId]/page.tsx`, `src/app/not-found.tsx`, `src/app/error.tsx` | Páginas (D1, D16) |
 | `src/config/endpoints.ts`, `api-error-codes.ts`, `web-error-codes.ts`, `limits.ts` | URLs, códigos, tamaños de página, plazos y topes |
 | `src/lib/web-client.ts` (+ test) | Cliente único del navegador hacia las rutas de la web |
-| `src/lib/chat/api-types.ts`, `events.ts`, `url-filter.ts`, `transcript-view.ts`, `conversation-session.ts`, `first-advance.ts`, `copy.ts`, `paged-list.ts`, `format.ts` (+ tests de los que tienen lógica) | Modelo del chat (D10-D13) |
+| `src/lib/chat/api-types.ts`, `events.ts`, `url-filter.ts`, `transcript-view.ts`, `conversation-session.ts`, `first-advance.ts`, `copy.ts`, `paged-list.ts`, `format.ts`, `known-types.ts` (+ tests de los que tienen lógica) | Modelo del chat (D10-D13) y listas de tipos conocidos con paridad (D10) |
 | `src/hooks/use-conversation-session.ts`, `use-paged-list.ts`, `use-start-conversation.ts` | Adaptadores de React |
 | `src/components/chat/home-screen.tsx`, `contact-field.tsx`, `flow-list.tsx`, `conversation-list.tsx`, `list-state.tsx`, `conversation-screen.tsx`, `conversation-header.tsx`, `message-list.tsx`, `flow-message.tsx`, `message-text.tsx`, `media-item.tsx`, `user-message.tsx`, `typing-indicator.tsx`, `pending-question.tsx`, `text-question.tsx`, `single-choice-question.tsx`, `multiple-choice-question.tsx`, `answer-reason.tsx`, `end-notice.tsx`, `conversation-notice.tsx`, `test-details-panel.tsx`, `technical-activity.tsx`, `delete-conversation-dialog.tsx`, `conversation-loading.tsx`, `conversation-not-found.tsx` (+ tests de marcado de `message-text`, `media-item`, `pending-question`, `end-notice` y `test-details-panel`) | Pantallas y componentes |
 | `src/components/ui/button.tsx`, `notice.tsx` | Genéricos |
 | `scripts/check-env.mjs`, `scripts/mutate.mjs` | D5, D23 |
+| `scripts/dev-guard.mjs` (+ `tests/dev-guard.test.ts`) | **Solo si se aprueba D26** |
 | `tests/static-guard.test.ts`, `api-error-codes-parity.test.ts`, `spec-coverage.test.ts`, `spec-text-parity.test.ts`, `flow-fixtures.test.ts`, `api-transport-env-proxy.test.ts`, `hostile/env-proxy.hostile.ts`, `helpers/spec-text.ts`, `helpers/fake-api.ts`, `mutations.json` | D19, D22, D23 |
 | `vitest.config.ts`, `vitest.hostile.config.ts`, `playwright.config.ts` | Configuración de tests |
 | `e2e/support/{stack,database,processes,api-shapes,admin,browser,test}.ts`, `e2e/fixtures/flows/{pregunta,saludo-contacto,hola,preguntas,medios}.json`, `e2e/{home,conversation-page,questions,rhythm,concurrency,lifecycle,frontier,accessibility,fake-api-shapes}.e2e.ts` | D20 |
@@ -551,12 +664,13 @@ Ejemplos: `{"error":"revision_mismatch","currentRevision":2}` · `{"error":"conv
 
 | Fichero | Cambio |
 |---|---|
-| `turbo.json` | Las dos tareas de D21 |
+| `turbo.json` | Las tres tareas de D21 (`dev`, `test:e2e` y `test` con `inputs`) |
 | `package.json` (raíz) | `test:e2e` con `--concurrency=1` (D21) |
 | `pnpm-lock.yaml` | Las dependencias de D18 |
 | `.github/workflows/ci.yml` | Instalación de Chromium y artefactos si falla (D21) |
 | `CLAUDE.md` | `FRANCA_API_URL` (solo el nombre), comandos de la web (`test`, `test:e2e` e instalar Chromium) y fila de la web en la tabla |
 | `.claude/rules/always/gotchas.md`, `.claude/rules/frontend/architecture.md`, `.claude/rules/always/knowledge-wiki.md`, `.claude/wiki/*.md` (nuevos) | Fase 6 |
+| `.claude/rules/README.md` | La fila de `frontend/architecture.md` pasa a declarar su respaldo: Vitest en `pnpm check` (guarda estática, paridad, cobertura) y Playwright en `test:e2e` (fase 6) |
 | `openspec/changes/web-chat/**` | Este cambio |
 
 **Cero ficheros en `apps/api/` y `packages/`.** La paridad y la cobertura **leen** `apps/api/src/http/api-error.ts`, `packages/engine/tests/helpers/spec-text.ts` y `packages/spec/examples/` sin tocarlos.
@@ -565,7 +679,7 @@ Ejemplos: `{"error":"revision_mismatch","currentRevision":2}` · `{"error":"conv
 
 ```bash
 git diff --name-only main...HEAD -- apps/api packages
-git diff --name-only main...HEAD | grep -v -E '^(apps/web/|openspec/|\.claude/wiki/|\.claude/rules/(always/(gotchas|knowledge-wiki)|frontend/architecture)\.md$|turbo\.json$|package\.json$|pnpm-lock\.yaml$|\.github/workflows/ci\.yml$|CLAUDE\.md$)'
+git diff --name-only main...HEAD | grep -v -E '^(apps/web/|openspec/|\.claude/wiki/|\.claude/rules/(README|always/(gotchas|knowledge-wiki)|frontend/architecture)\.md$|turbo\.json$|package\.json$|pnpm-lock\.yaml$|\.github/workflows/ci\.yml$|CLAUDE\.md$)'
 ```
 
 Un fichero nuevo fuera de esa lista exige una decisión explícita en este documento antes del PR.
@@ -575,9 +689,9 @@ Un fichero nuevo fuera de esa lista exige una decisión explícita en este docum
 - [x] Cada campo de respuesta que lee la web está en la tabla de 2xx. Los que pasan sin uso (`revision`, `createdAt` y `updatedAt` de `FlowSummary`; `revision`, `processing`, `error`, `costUsd`, `costLimitReached`, `createdAt` y `expiresAt` del listado) son de la API, la web no los genera, y los quita cuando reduce (versión).
 - [x] Cada llamada del navegador tiene su ruta y cada ruta su operación. El comodín no llama a nada.
 - [x] Tipos de eventos desde `@franca/engine`, de flujo desde `@franca/spec`. El patrón de `id` se importa (`schema.$defs.id.pattern`). La web solo declara las formas de los recursos de la API (`api-types.ts`), y las comprueba `fake-api-shapes.e2e.ts`.
-- [x] Cada error de la API tiene manejo, aunque sea el genérico del contexto. Los códigos desconocidos son genéricos y la lista espejada tiene test de paridad.
-- [x] Permisos: no hay usuarios. La frontera (`Host` y `Origin`) se aplica a toda ruta y a toda mutación. El navegador no puede borrar contactos ni tocar flujos (ocho operaciones).
-- [x] Constantes espejadas con paridad: `API_ERROR_CODES` (texto de la API), los motivos (`INVALID_ANSWER_REASONS` del motor) y los *fixtures* de flujos (texto de la spec).
+- [x] Cada error de la API tiene manejo, aunque sea el genérico del contexto. Los códigos desconocidos son genéricos y la lista espejada tiene test de paridad. Las respuestas sin cuerpo (el 204 de `DELETE`, los 403 de la frontera, un 4xx/5xx sin `error`) se leen por su estado y nunca como `network_error` (D8, D9).
+- [x] Permisos: no hay usuarios. La frontera (`Host` en bruto y `Origin`) se aplica a toda ruta y a toda mutación en `next start`. En `next dev`, a todo lo que llega a `proxy.ts`; los recursos de desarrollo de Next, solo con D26. El navegador no puede borrar contactos ni tocar flujos (ocho operaciones).
+- [x] Constantes espejadas con paridad: `API_ERROR_CODES` (texto de la API), los motivos (`INVALID_ANSWER_REASONS` del motor), los *fixtures* de flujos (texto de la spec) y las listas de tipos conocidos en ejecución (`KNOWN_INPUT_TYPES` y `KNOWN_CONTENT_KINDS` frente a los `enum` del esquema de `@franca/spec`; `KNOWN_EVENT_TYPES` con exhaustividad de tipos frente a `EngineEvent['type']`, D10).
 - [x] Convivencia: cero ficheros de `apps/api` y `packages/`, y fuera de `apps/web` solo los de la tabla, con su porqué. Se ejerce con el criterio del *diff*.
 
 ## Plan de verificación por capas
@@ -610,7 +724,7 @@ Un fichero nuevo fuera de esa lista exige una decisión explícita en este docum
 | `e2e/frontier.e2e.ts` | Otra interfaz de la máquina · Host ajeno · Nombres locales · Otra web intenta crear una conversación · El chat dentro de un marco ajeno · Recorrido completo · Id de conversación con una ruta dentro · Cabeceras que recibe la API · Direcciones no admitidas · Marcas fuera de los registros y del navegador | servidor real de la web |
 | `e2e/accessibility.e2e.ts` | Solo con teclado · Pantalla estrecha | |
 
-Son 3 en Vitest y 60 en Playwright: 63 en total, uno por escenario, con el título exacto (D22). Los requisitos sin escenario propio en el E2E también tienen unit tests:
+Son 3 en Vitest y 60 en Playwright: 63 en total, uno por escenario, con el título exacto (D22). Recalculado en la revisión 2: el reparto no cambia. «Borrar y cancelar» ejerce ahora el 204 de punta a punta, y «Otra interfaz de la máquina» y «Direcciones no admitidas» paran y restauran la web de la pila única. Los requisitos sin escenario propio en el E2E también tienen unit tests:
 - «Respuestas del usuario»: la etiqueta, la desaparición y el `draft`.
 - «Una respuesta a la vez»: el cerrojo y la relectura.
 - «Peticiones de la web a la API»: los plazos.
@@ -621,16 +735,19 @@ Son 3 en Vitest y 60 en Playwright: 63 en total, uno por escenario, con el títu
 
 - **R1. Next 16 cambia el enrutado de `%2F`**. Si Next decodificara `%2F` antes de enrutar, `..%2F..%2Fflows%2Fhola` podría acabar en otra ruta. Mitigación: el paso 3 de la frontera (D2) valida el segmento antes de enrutar, y el comodín nunca llama a la API. Lo cubre «Id de conversación con una ruta dentro» contra `next start`.
 - **R2. `Cache-Control` en otros caminos de Next**. Algunos caminos de `base-server.js` fijan `private, no-cache, no-store, …` incondicionalmente. Contienen `no-store`, y el test acepta cualquier valor que lo contenga. Si Next quitara `no-store` en algún camino, falla «Conversación creada fuera del chat».
-- **R3. `next dev` frente a `next start`**. Los E2E corren contra el *build*. El servidor de desarrollo (Turbopack, `allowedDevOrigins`, HMR por *websocket*, al que `proxy.ts` quizá no llega) solo lo ejerce «Otra interfaz de la máquina» y la verificación manual en el navegador (6.4). Si `next dev` bloquea recursos al abrir la web por `127.0.0.1`, se documenta usar `localhost` (FOLLOW-UP 7.4).
-- **R4. Entorno hostil y Next**. Con `NODE_USE_ENV_PROXY=1`, una petición interna de Next (si la hubiera) iría a la trampa y rompería los E2E por un motivo ajeno. Mitigación: la trampa registra y responde 502. Si pasa, el entorno hostil se queda solo en el test dedicado (D19), y se anota.
-- **R5. Duración de los E2E en la CI**. Dos *workers* y unos 62 escenarios con Chromium, la API y la web, más 150 s de «Avance largo» en paralelo. Se mide en el *runner*, nunca en el portátil (`lecciones-equipo`), y se anota en el PR (FOLLOW-UP 7.2).
+- **R3. `next dev` frente a `next start`**. Los E2E corren contra el *build*, donde `proxy.ts` ve toda petición. En `next dev`, los recursos de desarrollo de Next se atienden antes de `proxy.ts` (`router-server.js:387-403`, `hot-reloader-turbopack.js:963-975`), y uno de ellos permite ejecutar código con un DNS rebinding (auditoría). Lo cierra D26 si se aprueba. Si no, se acota la spec y el riesgo queda aceptado y escrito. El resto de `next dev` solo lo ejercen «Otra interfaz de la máquina» y la verificación manual en el navegador (6.4). Si `next dev` bloquea recursos al abrir la web por `127.0.0.1`, se documenta usar `localhost` (FOLLOW-UP 7.4).
+- **R4. El proxy del entorno solo se prueba en el transporte**. Sin entorno hostil en los E2E (simplificación aprobada), una petición del servidor de la web que no pasara por `transport.ts` y obedeciera al proxy no se vería en los E2E. Mitigación: ESLint y la guarda estática prohíben `fetch` y `node:http` fuera de `transport.ts`, y el hijo de Vitest con `useGlobalAgent` cubre el transporte.
+- **R5. Duración de los E2E en la CI**. Un solo *worker* en serie con unos 60 escenarios con Chromium, la API y la web, más los 150 s de «Avance largo» en la misma ejecución. Se mide en el *runner*, nunca en el portátil (`lecciones-equipo`), y se anota en el PR (FOLLOW-UP 7.2).
 - **R6. Una transcripción muy larga**. Se lee entera en páginas de 100. Una conversación de miles de entradas tarda en abrirse, y en una herramienta de prueba es aceptable. No hay tope en esta feature.
 - **R7. `<Activity>` conserva el DOM oculto**. La conversación anterior sigue en el documento con `display: none` (hasta 3 rutas). Las comprobaciones de «la página no contiene» de los E2E se hacen sobre la página recién cargada o sobre el texto **visible**. No es almacenamiento del navegador.
 - **R8. Contenido de terceros**. Imágenes, audio, vídeo y marcos del flujo piden a esos servidores (la IP y el momento de quien prueba), y el marco ejecuta *scripts* en un origen opaco. Es inherente a probar el flujo (propuesta). Sin `Referer`, la URL de la conversación no sale.
 - **R9. La extracción por texto de `API_ERROR_CODES`**. Si la API reescribe la declaración, el test falla en vez de pasar en verde (exige 20 o más). Se corrige el extractor en el mismo PR que el cambio de la API.
+- **R10. Puerto interno de `next dev` con D26**. El guardián cubre el 3000, pero `next dev` escucha en un puerto efímero de `127.0.0.1`. Un DNS rebinding que barriera el rango de puertos podría llegar a él. Es caro y lento (una resolución por intento), y queda aceptado: es el mismo nivel de exposición que la API frente a los procesos locales.
 
-## Open Questions (requieren aprobación humana)
+## Open Questions
 
-1. **Delta `e88c5ed` («Sin marcos de otras páginas»)**: ¿se aprueba? Recomendación: sí. Cuesta dos cabeceras y un test, y cierra el único camino de una web ajena hacia las mutaciones con el `Origin` propio.
-2. **`test:e2e` de la raíz con `--concurrency=1`**: serializa los E2E de la API y los de la web en local y en la CI. La alternativa es separar los pasos de la CI y dejar que en local corran a la vez. Recomendación: serializar.
-3. **«Avance largo» con 150 s reales en cada PR**: la alternativa es correrlo solo con `--grep @lento` en una ejecución manual o nocturna. Recomendación: en cada PR mientras la CI no pase de lo razonable (R5).
+Resueltas por el orquestador: el delta `e88c5ed` (aprobado), `test:e2e` serializado (aprobado), «Avance largo» en la misma ejecución en serie de cada PR, y las simplificaciones de la revisión 2.
+
+Pendiente de aprobación humana:
+
+1. **D26, guardián delante de `next dev`**: un script de unas 120 líneas y un proceso más en `pnpm dev`, a cambio de cerrar la ejecución de código por el inspector de Node con DNS rebinding. Recomendación: **sí**. La alternativa es un delta que acote la spec y acepte el riesgo. Mientras no se decida, solo quedan en espera las tareas 2.10 y la variante `dev` de 5.6. El resto del plan no depende de esto.
