@@ -4,10 +4,14 @@ import { canonicalIp, destinationKey, parseIp } from './addresses.js';
 import { isNodeUrlOrigin } from './secret-origin.js';
 import type { InstalledSecret } from './secrets.js';
 
+/** Variable con las entradas `NOMBRE=origen` de los secretos. */
 export const SECRET_ORIGINS_VARIABLE = 'FRANCA_HTTP_SECRET_ORIGINS';
+/** Variable con los pares `dirección:puerto` permitidos. */
 export const ALLOWED_DESTINATIONS_VARIABLE = 'FRANCA_HTTP_ALLOWED_DESTINATIONS';
+/** Prefijo de las variables con el valor de cada secreto (`FRANCA_SECRET_<NOMBRE>`). */
 export const SECRET_VARIABLE_PREFIX = 'FRANCA_SECRET_';
 
+/** Un par permitido ya validado. */
 export interface AllowedDestinationEntry {
   /** Forma canónica y legible: `127.0.0.1:8080`, `[::1]:8443`. */
   readonly display: string;
@@ -15,6 +19,7 @@ export interface AllowedDestinationEntry {
   readonly key: string;
 }
 
+/** La configuración validada de la salida http: lo que leen `createSecretStore`, `createAllowedDestinations` y la línea de arranque. */
 export interface HttpHostConfig {
   /** Nombre → valor completo de la cabecera y orígenes exactos. Nunca se imprime el valor. */
   readonly secrets: ReadonlyMap<string, InstalledSecret>;
@@ -26,7 +31,8 @@ export interface HttpHostConfig {
   readonly allowedDestinations: readonly AllowedDestinationEntry[];
 }
 
-const SECRET_NAME = /^[A-Z][A-Z0-9_]{0,63}$/;
+/** El nombre de un secreto: el mismo patrón que `secretRef` del formato de flujo (un test de paridad lo comprueba). */
+export const SECRET_NAME = /^[A-Z][A-Z0-9_]{0,63}$/;
 /** De 1 a 8192 caracteres ASCII visibles, espacios o tabuladores, sin blancos en los extremos. */
 const SECRET_VALUE = /^[\x21-\x7E](?:[\x20\t\x21-\x7E]*[\x21-\x7E])?$/;
 const MAX_SECRET_LENGTH = 8192;

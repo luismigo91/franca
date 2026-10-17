@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
 import { ConfigError } from '../config/app-config.js';
-import { describeHttpHostConfig, loadHttpHostConfig } from './http-host-config.js';
+import { describeHttpHostConfig, loadHttpHostConfig, SECRET_NAME } from './http-host-config.js';
 import { isNodeUrlOrigin } from './secret-origin.js';
 import { createSecretStore } from './secrets.js';
 
@@ -268,5 +270,14 @@ describe('createSecretStore', () => {
     expect(liveStore.lookup('X', 'https://a.example.com')).toEqual({ kind: 'not_configured' });
     live.set('X', { value: 'v', origins: new Set(['https://a.example.com']) });
     expect(liveStore.lookup('X', 'https://a.example.com')).toEqual({ kind: 'found', value: 'v' });
+  });
+});
+
+describe('SECRET_NAME', () => {
+  it('es el patrón de secretRef del formato de flujo (@franca/spec)', () => {
+    const schema = JSON.parse(readFileSync(createRequire(import.meta.url).resolve('@franca/spec/flow.schema.json'), 'utf8')) as {
+      $defs: { secretRef: { properties: { secret: { pattern: string } } } };
+    };
+    expect(SECRET_NAME.source).toBe(schema.$defs.secretRef.properties.secret.pattern);
   });
 });
