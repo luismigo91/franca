@@ -149,7 +149,7 @@ describe('preload de la guarda local (D26)', () => {
   it('upgrade: el Origin propio da 101; otro puerto de localhost, sin Origin o un Host ajeno dan 403', async () => {
     const { port } = await child();
     const upgrade = (host: string, origin?: string) =>
-      `GET /_next/hmr HTTP/1.1\r\nHost: ${host}\r\n${origin === undefined ? '' : `Origin: ${origin}\r\n`}Upgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n`;
+      `GET /_next/hmr HTTP/1.1\r\nHost: ${host}\r\n${origin === undefined ? '' : `Origin: ${origin}\r\n`}Upgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: ${"A".repeat(22)}==\r\nSec-WebSocket-Version: 13\r\n\r\n`;
     expect(statusOf(await raw(port, upgrade(`localhost:${port}`, `http://localhost:${port}`)))).toBe('HTTP/1.1 101 Switching Protocols');
     expect(statusOf(await raw(port, upgrade(`LOCALHOST:${port}`, `http://localhost:${port}`)))).toBe('HTTP/1.1 101 Switching Protocols');
     expect(statusOf(await raw(port, upgrade(`127.0.0.1:${port}`, `http://127.0.0.1:${port}`)))).toBe('HTTP/1.1 101 Switching Protocols');

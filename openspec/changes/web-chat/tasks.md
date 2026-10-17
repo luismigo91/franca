@@ -303,13 +303,13 @@ Reglas para todas las fases:
   - `gotcha-next-dev-fuera-de-la-frontera`: en `next dev`, los recursos de desarrollo se atienden antes de `proxy.ts`, `blockCrossSiteDEV` deja pasar lo que no lleva `Origin`, la cadena del inspector de Node con DNS rebinding, el `devtoolsFrontendUrl` que Next manda en el `SYNC` del *websocket* de HMR (por eso `upgrade` exige el `Origin` propio), por qué un guardián delante no basta y por qué el *preload* sí, y que `--inspect` queda desaconsejado. Enforcement: `apps/web/tests/local-only-preload.test.ts`, `apps/web/tests/static-guard.test.ts`, `apps/web/e2e/frontier.e2e.ts`.
 
   Al final, `pnpm wiki:lint` en verde.
-- [ ] 6.4 Verificación final en el navegador con `pnpm dev` (la API con Postgres y la web por turbo):
+- [x] 6.4 (hecho el 2026-10-17 con `DATABASE_URL=… pnpm dev` desde la raíz y Chromium: el recorrido de 3.6 repetido con consola sin errores salvo el 412 esperado y sin peticiones a :3001 ni a otros orígenes; solo escuchan `127.0.0.1:3000` y la API en `127.0.0.1:3001`, sin 9229; `Host: evil.example` contra el puerto real da 403 en `/`, y en el endpoint del inspector sin abrirlo. Observación: en un primer `pnpm dev`, con los vigilantes de `spec` y `engine` reescribiendo `dist/`, Turbopack entró en un bucle de recarga completa (más de 900 recompilaciones) mientras había un navegador abierto; no se repitió tras reiniciar y no se aisló la causa) Verificación final en el navegador con `pnpm dev` (la API con Postgres y la web por turbo):
   - El recorrido de 3.6 repetido.
   - **Consola limpia y pestaña de red revisada**.
   - Comprobado que `pnpm dev` escucha solo en `127.0.0.1:3000` y que ningún otro proceso de Node del árbol escucha (`lsof -nP -iTCP -sTCP:LISTEN`).
   - Notas en el gate.
-- [ ] 6.5 Criterio del *diff* de `design.md` («Ficheros»): los dos comandos no imprimen nada. La lista blanca incluye `.claude/rules/README.md` y `.claude/wiki/`.
-- [ ] 6.6 **Gate 6**:
+- [x] 6.5 Criterio del *diff* de `design.md` («Ficheros»): los dos comandos no imprimen nada. La lista blanca incluye `.claude/rules/README.md` y `.claude/wiki/`.
+- [x] 6.6 **Gate 6**:
   - `pnpm check` en verde.
   - `pnpm test:e2e` en verde.
   - `pnpm wiki:lint` en verde.
