@@ -162,13 +162,13 @@ Las dos defensas (el `rejectUnauthorized` explícito y la comprobación de `auth
 
 ```ts
 const VERIFY_PEER = true;
-const peerVerification = () => (VERIFY_PEER ? { rejectUnauthorized: true } : {});
+const peerVerification = () => ({ rejectUnauthorized: VERIFY_PEER });
 const isPeerVerified = (socket: TLSSocket) => !VERIFY_PEER || socket.authorized === true;
 ```
 
-Así `acceptBadTls` (`VERIFY_PEER = false`) y `honorTlsRejectEnv` (`VERIFY_PEER = process.env.NODE_TLS_REJECT_UNAUTHORIZED !== '0'`) quitan las dos a la vez con un solo `find` y pueden morir. Quitar solo una (`rejectUnauthorizedOnly`, `authorizedCheckOnly`) no lo distingue ningún test, porque la otra basta: son mutantes de **defensa en profundidad**, se declaran aparte (`mutations-defense-in-depth.json`), se ejecutan y se informa de su resultado, pero se espera que sobrevivan y no cuentan en el gate «ningún superviviente» (D21).
+`rejectUnauthorized` va siempre explícito con el valor de la constante: un objeto vacío dejaría el valor por defecto de Node, que también rechaza, y el mutante no aceptaría nada (medido en la segunda revisión, Node 22.23.3). Así `acceptBadTls` (`VERIFY_PEER = false`: `rejectUnauthorized: false` y sin comprobación de `authorized`) quita las dos a la vez con un solo `find` y puede morir. `honorTlsRejectEnv` no puede ser una constante evaluada al importar (la app ya está importada cuando el test hace `vi.stubEnv`): sustituye el bloque contiguo de las dos funciones por una lectura en cada llamada, `const peerVerification = () => ({}); const isPeerVerified = (s) => process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0' || s.authorized === true;`, que con la variable a `0` deja a Node aceptar y salta la comprobación. Quitar solo una (`rejectUnauthorizedOnly`, `authorizedCheckOnly`) no lo distingue ningún test, porque la otra basta: son mutantes de **defensa en profundidad**, se declaran aparte (`mutations-defense-in-depth.json`), se ejecutan y se informa de su resultado, pero se espera que sobrevivan y no cuentan en el gate «ningún superviviente» (D21).
 
-- `NODE_TLS_REJECT_UNAUTHORIZED=0`: el `rejectUnauthorized: true` explícito gana al valor por defecto que Node calcula en cada `tls.connect` (medido). Como Node lee la variable en cada llamada, el escenario se prueba en proceso con `vi.stubEnv` (D19).
+- `NODE_TLS_REJECT_UNAUTHORIZED=0`: el `rejectUnauthorized: true` explícito gana al valor por defecto que Node calcula en cada `tls.connect` (medido). Como Node lee la variable en cada llamada, el escenario se prueba en proceso con `vi.stubEnv` y `vi.unstubAllEnvs()` al terminar el test (D19).
 - `NODE_EXTRA_CA_CERTS` cuenta porque Node la añade a sus raíces cuando **no** se pasa `ca`; en producción `ca` es `undefined`. Va en `passThroughEnv` de `@franca/api#dev` para que también cuente con `pnpm dev`.
 - La autoridad del test solo entra por `HTTP_NETWORK` sustituido en código: ninguna variable ni configuración lee una CA (guarda estática y unit de `systemNetwork()` con todas las variables de TLS y proxy definidas).
 - Un host que fuera una IP literal (inalcanzable desde el motor; solo por defensa) no lleva SNI y se verifica contra la IP.
@@ -299,10 +299,10 @@ Se escriben al resolver el intento (no después de aplicar el avance): `blocked`
 
 ### D19. «Proxy del entorno ignorado» en un proceso hijo
 
-`NODE_USE_ENV_PROXY` se lee al arrancar Node, así que solo este escenario corre en un proceso que **nace** con las variables. «Verificación de TLS desactivada en el entorno» corre en proceso con `vi.stubEnv('NODE_TLS_REJECT_UNAUTHORIZED', '0')`, porque `tls.connect` lee la variable en cada llamada (D6).
+`NODE_USE_ENV_PROXY` se lee al arrancar Node, así que solo este escenario corre en un proceso que **nace** con las variables. «Verificación de TLS desactivada en el entorno» corre en proceso con `vi.stubEnv('NODE_TLS_REJECT_UNAUTHORIZED', '0')` y `vi.unstubAllEnvs()` en su `afterEach`, porque `tls.connect` lee la variable en cada llamada (D6).
 
 - `test/http-host-environment.e2e-spec.ts` (con el `it('Proxy del entorno ignorado')`, plazo propio de 180 s) arranca un servidor TCP local que hace de proxy: acepta conexiones, anota la primera línea de cada una (`CONNECT crm.example.com:443` o `GET http://…`) y las cierra sin reenviar nada.
-- Lanza `vitest run --config vitest.config.e2e-hostile.ts` (sin `globalSetup`; incluye solo `test/**/*.e2e-hostile.ts`, que la ejecución normal no ve) con `NODE_USE_ENV_PROXY=1`, `HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY` (y en minúsculas) hacia ese proxy, `NO_PROXY=127.0.0.1,::1,localhost` (solo para que el cliente del test llegue a la API; el destino de la salida es `crm.example.com`, no exento), `CHECKPOINT_DISABLE=1` (Prisma no consulta su servicio de versiones) y `DATABASE_URL` igual a la base ya migrada del padre (`inject('databaseUrl')`, que el hijo recibe con `test.provide`). El padre no usa la base mientras el hijo corre (`fileParallelism: false`).
+- Lanza `vitest run --config vitest.config.e2e-hostile.ts` (sin `globalSetup`; la configuración lanza al cargarse si falta `DATABASE_URL`, para no correr contra nada; incluye solo `test/**/*.e2e-hostile.ts`, que la ejecución normal no ve) con `NODE_USE_ENV_PROXY=1`, `HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY` (y en minúsculas) hacia ese proxy, `NO_PROXY=127.0.0.1,::1,localhost` (solo para que el cliente del test llegue a la API; el destino de la salida es `crm.example.com`, no exento), `CHECKPOINT_DISABLE=1` (Prisma no consulta su servicio de versiones) y `DATABASE_URL` igual a la base ya migrada del padre (`inject('databaseUrl')`, que el hijo recibe con `test.provide`). El padre no usa la base mientras el hijo corre (`fileParallelism: false`).
 - El hijo (`test/http-host-proxy.e2e-hostile.ts`) ejecuta el escenario con la red del test y escribe su informe JSON (`--reporter=json --outputFile` en un directorio temporal). El padre exige salida 0, el test del hijo en verde y **ninguna línea con `crm.example.com`** en el proxy (y, en el informe, el total de conexiones, para ver si algo más lo usó).
 - Lo valida el mutante `useEnvProxy`, que con esas variables va al proxy local: nada sale de loopback.
 
@@ -316,7 +316,9 @@ Se escriben al resolver el intento (no después de aplicar el avance): `blocked`
 
 Los mutantes son entradas de `apps/api/test/mutations.json` (`id`, `file`, `find`, `replace`, `tests`) con el formato de `packages/engine/tests/mutations.json`, y se ejecutan con el script del motor como hace `@franca/llm-anthropic`: `pnpm --filter @franca/api mutate [--only id,id]` → `apps/api/scripts/mutate.mjs` fija `MUTATE_ROOT`, `MUTATE_MUTATIONS` y `MUTATE_VITEST` (`scripts/vitest-mutate.mjs`, que ejecuta Vitest con `vitest.config.mutate.ts`: unit y e2e juntos, con el `globalSetup` de Postgres) e importa `packages/engine/scripts/mutate.mjs`. Antes de la línea base el envoltorio compila `@franca/engine` y la API (`pnpm --filter @franca/engine build` y `pnpm --filter @franca/api build`), como el de `@franca/llm-anthropic`, y fija `MUTATE_TIMEOUT_MS=600000` si no viene dado (la línea base incluye la conformidad). El candado `scripts/guard-mutate.mjs` mira también `apps/*/.mutate-backup/`.
 
-Reglas de la lista `tests` de cada mutante: ninguna puede enviar un paquete fuera de loopback con el mutante aplicado (un mutante que salta la costura solo lleva tests cuyo destino queda en loopback o en el proxy local de D19), y los mutantes de tamaño (`noSizeCap`, `unboundedDecompression`, `networkBytesCapOnly`) solo llevan tests con cuerpos **acotados** (unit de `response-body` con 1 MiB + 1 y la bomba finita de 2 MiB), nunca los de cuerpo sin fin, para no llenar la memoria. `pnpm --filter @franca/api mutate -- --defense-in-depth` ejecuta `mutations-defense-in-depth.json` (`rejectUnauthorizedOnly`, `authorizedCheckOnly`): se espera que sobrevivan y el envoltorio solo informa.
+Reglas de la lista `tests` de cada mutante: ninguna puede enviar un paquete fuera de loopback con el mutante aplicado (un mutante que salta la costura solo lleva tests cuyo destino queda en loopback o en el proxy local de D19), y los mutantes de tamaño (`noSizeCap`, `unboundedDecompression`, `networkBytesCapOnly`) solo llevan tests con cuerpos **acotados** (unit de `response-body` con 1 MiB + 1 y la bomba finita de 2 MiB), nunca los de cuerpo sin fin, para no llenar la memoria. `pnpm --filter @franca/api mutate -- --defense-in-depth` ejecuta `mutations-defense-in-depth.json` (`rejectUnauthorizedOnly`, `authorizedCheckOnly`): se espera que sobrevivan y el envoltorio solo informa. Para eso lanza el script del motor como **proceso hijo** (no con `import`, que heredaría su `process.exit(1)` cuando sobrevive algo), muestra su salida e ignora su código de salida; la ejecución normal sí lo importa y conserva el código.
+
+`followRedirects` (y cualquier mutante que repita una petición) se implementa reutilizando la propia salida http con la `Location` (resolutor y abridor de la costura), nunca con un `http.get(location)` que resuelva por el DNS del sistema: saldría de loopback.
 
 Descartado: **mutantes como flags en `src/`** (`createHttpHost({ mutant })`): serían interruptores que desactivan la política anti-SSRF dentro del código de producción; y **mutación a mano** (la propuesta): no es repetible ni deja constancia de qué test mata cada uno.
 
@@ -337,7 +339,7 @@ Descartado: **mutantes como flags en `src/`** (`createHttpHost({ mutant })`): se
 | `logUrl` | Registra la URL en cada intento | `registros-pii`, «Llamada http fuera del registro» |
 | `rejectOnRefused` | Propaga el error de conexión | `conexion-rechazada` |
 | `keepCookies` | Guarda `Set-Cookie` por origen y lo reenvía | `cookies`, «Cabeceras que recibe el servidor» |
-| `acceptBadTls` | `VERIFY_PEER = false` (quita las dos defensas, D6) | `tls-invalido` |
+| `acceptBadTls` | `VERIFY_PEER = false` (`rejectUnauthorized: false` y sin comprobar `authorized`, D6) | `tls-invalido` |
 | `plainHttpToPublic` | Quita la regla de `insecure_transport` | «http sin TLS hacia una dirección pública» |
 | `filterMixedResolution` | Filtra las internas en vez de bloquear | «Resolución con una dirección interna» |
 | `noAddressFallback` | No pasa a la siguiente dirección | «Primera dirección que rechaza la conexión» |
@@ -347,7 +349,7 @@ Descartado: **mutantes como flags en `src/`** (`createHttpHost({ mutant })`): se
 | `windowBeforeSecrets` | Plazo antes que secretos | «Secreto ausente fuera de plazo» |
 | `reuseConnections` | Reutiliza el socket del intento anterior al mismo par | «Dos intentos, dos conexiones» |
 | `useEnvProxy` | Petición con `http.globalAgent`/`https.globalAgent` | «Proxy del entorno ignorado» (solo con el proxy local), guarda estática |
-| `honorTlsRejectEnv` | `VERIFY_PEER` según `NODE_TLS_REJECT_UNAUTHORIZED` (quita las dos con la variable a `0`) | «Verificación de TLS desactivada en el entorno» |
+| `honorTlsRejectEnv` | Sustituye el bloque de `peerVerification`/`isPeerVerified` por `() => ({})` y `(s) => process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0' \|\| s.authorized === true` (lectura en cada llamada, D6) | «Verificación de TLS desactivada en el entorno» |
 | `tlsAgainstAddress` | `servername` y verificación contra la dirección | «Petición que recibe el CRM» |
 | `noIdentityCheck` | `checkServerIdentity` que no comprueba | «Certificado de otro nombre» |
 | `noAdvanceWindow` | Sin plazo del avance | «Llamada http fuera de plazo» |
