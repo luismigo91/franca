@@ -369,6 +369,14 @@ Toda petición a la web que crea, continúa o borra una conversación SHALL llev
 - **THEN** las cuatro responden 403 sin cabeceras `Access-Control-Allow-*` y la API simulada no ha recibido ninguna petición
 - **AND** con `Origin: http://localhost:3000` la API simulada recibe `POST /conversations`
 
+### Requirement: Sin marcos de otras páginas
+Toda respuesta de la web SHALL impedir que otra página la muestre dentro de un marco, con `Content-Security-Policy: frame-ancestors 'none'` y `X-Frame-Options: DENY`. Así, una web ajena no puede superponer el chat para provocar clics en «Probar», en una respuesta o en «Borrar conversación», que sí llevarían el `Origin` de la propia web.
+
+#### Scenario: El chat dentro de un marco ajeno
+- **GIVEN** una página de otro origen (`http://127.0.0.1` con otro puerto) que incluye `http://localhost:3000/` en un `iframe`
+- **WHEN** el navegador abre esa página
+- **THEN** el marco no muestra el chat (su documento no contiene «Franca»), y la respuesta de `/` lleva `frame-ancestors 'none'` en `Content-Security-Policy` y `X-Frame-Options: DENY`
+
 ### Requirement: Operaciones del chat en la API
 La web SHALL usar solo estas operaciones de la API: `GET /flows?published=true`, `GET /flows/:flowId/versions/:version`, `GET /conversations`, `GET /conversations/:conversationId`, `GET /conversations/:conversationId/transcript`, `POST /conversations`, `POST /conversations/:conversationId/inputs` y `DELETE /conversations/:conversationId`. Nunca forma la ruta con texto del navegador sin validarlo: un id de conversación que no es un UUID en minúsculas no llega a la API.
 
