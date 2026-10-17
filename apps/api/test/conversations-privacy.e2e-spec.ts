@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { finishing } from './helpers/conversations-llm.js';
 import { dumpConversationTables, faq, leads, startConversationsContext } from './helpers/conversations.js';
-import { captureOutput } from './helpers/output.js';
+import { ResettableOutput } from './helpers/conversations-harness.js';
 
 describe('privacidad de las conversaciones (e2e)', () => {
   it('Datos personales fuera del registro', async () => {
-    const output = captureOutput();
+    const output = new ResettableOutput();
+    output.install();
     const ctx = await startConversationsContext({ logger: output.logger });
     try {
       await ctx.reset();
@@ -31,24 +32,29 @@ describe('privacidad de las conversaciones (e2e)', () => {
     } finally {
       await ctx.reset();
       await ctx.close();
+      output.uninstall();
     }
   });
 
   it('un error 5xx tampoco registra lo escrito', async () => {
-    const output = captureOutput();
+    const output = new ResettableOutput();
+    output.install();
     const ctx = await startConversationsContext({ logger: output.logger });
     try {
       await ctx.reset();
       await ctx.publish(leads());
       const { id } = await ctx.start('captacion-leads', { contactId: 'c-1' });
-      await ctx.prisma.$executeRaw`UPDATE conversations SET state = '{}' WHERE id = ${id}::uuid`;
+      // Un estado guardado con datos personales que el motor rechaza (es de otro flujo): ni el estado ni la entrada se registran.
+      const state = JSON.stringify({ stateVersion: 1, flowId: 'otro', status: 'waiting', nodeId: 'pedir-nombre', variables: { nombre: 'MARCA-ESTADO' }, contact: { email: 'MARCA-ESTADO@example.com' }, outcome: null, error: null, attempt: 1 });
+      await ctx.prisma.$executeRaw`UPDATE conversations SET state = ${state} WHERE id = ${id}::uuid`;
       await ctx.conv.send(id, { input: { text: 'Ana Pérez MARCA-5XX' } }).expect(500);
       expect(output.text()).toContain('500');
-      expect(output.text()).not.toContain('MARCA-5XX');
-      expect(output.text()).not.toContain('Ana Pérez');
+      expect(output.text()).toContain('state_mismatch');
+      for (const forbidden of ['MARCA-5XX', 'Ana Pérez', 'MARCA-ESTADO', 'stateVersion']) expect(output.text(), forbidden).not.toContain(forbidden);
     } finally {
       await ctx.reset();
       await ctx.close();
+      output.uninstall();
     }
   });
 

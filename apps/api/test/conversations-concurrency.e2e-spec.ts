@@ -117,6 +117,32 @@ describe('concurrencia (e2e)', () => {
     });
   });
 
+  it('un resultado tardío no se aplica aunque la reclamación de otra entrada siga viva (el testigo, no solo el plazo)', async () => {
+    const { id } = await faqWaiting();
+    const lateUno = new Deferred<LlmTurnResult>();
+    const lateTres = new Deferred<LlmTurnResult>();
+    ctx.testApp.llm.use((request) => {
+      const text = lastUserText(request);
+      if (text === 'uno') return lateUno.promise;
+      if (text === 'tres') return lateTres.promise;
+      return keepTalking();
+    });
+    const uno = run(ctx.conv.send(id, { input: { text: 'uno' } }));
+    await ctx.testApp.llm.untilCalls(2);
+    ctx.testApp.clock.advance(300_000);
+    const tres = run(ctx.conv.send(id, { input: { text: 'tres' } }));
+    await ctx.testApp.llm.untilCalls(3);
+    // La reclamación de «tres» está viva cuando llega el resultado de «uno»: solo el testigo los distingue.
+    lateUno.resolve(keepTalking());
+    const stale = await uno;
+    expect(stale.status).toBe(409);
+    expect(stale.body.error).toBe('conversation_busy');
+    lateTres.resolve(keepTalking());
+    expect((await tres).status).toBe(200);
+    const texts = (await ctx.conv.transcript(id, '?limit=100').expect(200)).body.items.filter((item: any) => item.role === 'user').map((item: any) => item.input.text);
+    expect(texts).toEqual(['tres']);
+  });
+
   it('Borrar mientras se procesa una entrada', async () => {
     const { id } = await faqWaiting();
     const gate = new Deferred<LlmTurnResult>();

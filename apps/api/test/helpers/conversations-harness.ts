@@ -1,4 +1,5 @@
 import { Logger, type LoggerService } from '@nestjs/common';
+import { vi, type MockInstance } from 'vitest';
 import type { ConformanceSessions, HostConformanceHarness } from '@franca/engine/conformance';
 import type { LlmCapability, SessionStatus } from '@franca/engine';
 import { createAdvanceLlm } from '../../src/conversations/advance-llm.js';
@@ -12,6 +13,7 @@ export class ResettableOutput {
   private lines: string[] = [];
   readonly logger: LoggerService;
   private readonly originalWrites: { stream: NodeJS.WriteStream; write: NodeJS.WriteStream['write'] }[] = [];
+  private consoleSpies: MockInstance[] = [];
 
   constructor() {
     const push =
@@ -23,9 +25,17 @@ export class ResettableOutput {
     this.logger = { log: push('log'), error: push('error'), warn: push('warn'), debug: push('debug'), verbose: push('verbose') };
   }
 
-  /** Empieza a capturar: sustituye el logger estático de Nest y las escrituras en `stdout`/`stderr`. */
+  /**
+   * Empieza a capturar: sustituye el logger estático de Nest, las escrituras en `stdout`/`stderr` y `console.*` (que
+   * Vitest intercepta antes de `stdout`, así que un `console.log` perdido no llegaría de otro modo).
+   */
   install(): void {
     Logger.overrideLogger(this.logger);
+    this.consoleSpies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((level) =>
+      vi.spyOn(console, level).mockImplementation((...args: unknown[]) => {
+        this.lines.push(`${level} ${args.map((arg) => (typeof arg === 'string' ? arg : JSON.stringify(arg))).join(' ')}`);
+      }),
+    );
     for (const stream of [process.stdout, process.stderr]) {
       const write: NodeJS.WriteStream['write'] = stream.write.bind(stream);
       this.originalWrites.push({ stream, write });
@@ -37,6 +47,8 @@ export class ResettableOutput {
   }
 
   uninstall(): void {
+    this.consoleSpies.forEach((spy) => spy.mockRestore());
+    this.consoleSpies = [];
     for (const { stream, write } of this.originalWrites.splice(0)) stream.write = write;
     Logger.overrideLogger(['log', 'error', 'warn']);
   }
@@ -47,6 +59,11 @@ export class ResettableOutput {
 
   all(): string[] {
     return [...this.lines];
+  }
+
+  /** Todo lo capturado, como un solo texto. */
+  text(): string {
+    return this.lines.join('\n');
   }
 }
 
