@@ -64,10 +64,14 @@ describe('scripts/mutate.mjs: procesos que lanza Vitest', { timeout: 30_000 }, (
     writeFileSync(join(dir, 'mutations.json'), JSON.stringify([{ id: 'bucle', file: 'src/a.js', find: 'x = 1', replace: 'x = 7', tests: ['tests/a.test.js'] }]));
     const child = spawn(process.execPath, [join(dir, 'scripts/mutate.mjs')], {
       cwd: dir,
-      env: { ...process.env, MUTATE_VITEST: join(dir, 'fake-vitest.cjs'), MUTATE_MUTATIONS: join(dir, 'mutations.json'), MUTATE_TIMEOUT_MS: '600' },
+      // El plazo vale también para la línea base, que arranca el Vitest falso sobre el original: con 600 ms, bajo
+      // carga (turbo con todos los paquetes a la vez) ese arranque lo agotaba y el script abortaba antes del mutante.
+      // El mutante colgado espera 30 s, así que 4 s sigue agotándose solo con él.
+      env: { ...process.env, MUTATE_VITEST: join(dir, 'fake-vitest.cjs'), MUTATE_MUTATIONS: join(dir, 'mutations.json'), MUTATE_TIMEOUT_MS: '4000' },
     });
     let out = '';
     child.stdout.on('data', (chunk) => (out += chunk));
+    child.stderr.on('data', (chunk) => (out += chunk));
     const code = await new Promise<number | null>((resolve) => child.on('close', resolve));
     expect(code, out).toBe(0);
     expect(out).toContain('muerta (timeout)');
