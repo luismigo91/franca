@@ -2,9 +2,11 @@
 export const DATABASE_CONNECT_TIMEOUT_MS = 5000;
 /**
  * Milisegundos máximos de una consulta, medidos por el cliente (`query_timeout` de `pg`): 4 s. Es el corte para un
- * servidor que deja de contestar a mitad de una consulta. Prisma envía el `ROLLBACK` de una transacción interactiva por
- * la misma conexión muda, y ese `ROLLBACK` espera otro `query_timeout` entero: el peor caso es el doble (8 s), y con
- * 8 s eran 16 s, más de los 10 s del contrato («Base de datos no disponible»). Menos que `TRANSACTION_TIMEOUT_MS`.
+ * servidor que deja de contestar a mitad de una consulta. La cota es por consulta, no por petición: Prisma envía el
+ * `ROLLBACK` de una transacción interactiva por la misma conexión muda y espera otro `query_timeout`, así que un corte
+ * dentro de una transacción cuesta 2 x `query_timeout` (8 s; con 8 s eran 16 s, más de los 10 s del contrato). Una
+ * petición con varias consultas lentas pero que sí contestan (cada una por debajo del corte) puede tardar más. Menor
+ * que `TRANSACTION_TIMEOUT_MS`.
  */
 export const DATABASE_QUERY_TIMEOUT_MS = 4000;
 /**
