@@ -1,11 +1,11 @@
 # Tasks: chat web de prueba (`web-chat`)
 
-Las fases son secuenciales: cada una empieza cuando la anterior pasa su gate. El comportamiento está en `specs/web-chat/spec.md` (41 requisitos y 63 escenarios, con el delta `e88c5ed` aprobado) y el cómo, en `design.md` (D1-D26, «Contrato» y «Ficheros»).
+Las fases son secuenciales: cada una empieza cuando la anterior pasa su gate. El comportamiento está en `specs/web-chat/spec.md` (41 requisitos y 63 escenarios, con el delta `e88c5ed`, que resolvió el orquestador en el flujo autónomo «de corrido» y que el usuario puede revertir) y el cómo, en `design.md` (D1-D26, «Contrato» y «Ficheros»).
 
 **Revisión 2**, tras el FAIL de `popi:architecture-reviewer`:
 - **B1.** Las respuestas sin cuerpo se leen por su estado y el contacto vacío se omite en el cliente.
-- **B2.** `next dev`: hay un guardián propuesto en D26, **pendiente de aprobación**. Solo 2.10 y la variante `dev` de 5.6 esperan a esa decisión.
-- Riesgos incorporados y simplificaciones aprobadas: una sola pila, sin entorno hostil en los E2E y mutantes recortados.
+- **B2.** `next dev`: un *preload* en el árbol de procesos de Next con la guarda de `Host` y sin inspector (D26, revisión 3, medido con un `next dev` real). No queda nada pendiente de aprobación.
+- Riesgos incorporados y simplificaciones que resolvió el orquestador en el flujo autónomo «de corrido», revertibles por el usuario: una sola pila, sin entorno hostil en los E2E y mutantes recortados.
 
 Reglas para todas las fases:
 - **Solo se tocan los ficheros de la tabla «Ficheros» de `design.md`.** `git diff --name-only main...HEAD -- apps/api packages` no imprime nada en ningún gate. Un fichero que falte en la tabla se añade antes al diseño, con su porqué.
@@ -29,8 +29,7 @@ Reglas para todas las fases:
   - `vitest` `4.1.12`, `@playwright/test` `1.64.1`, `pg` `8.23.1` y `@types/pg` `8.23.1`, todas exactas.
   - **`@types/node` sube a `24.19.2`**, la que resuelve la API.
   - *Scripts*:
-    - `dev`: `node scripts/check-env.mjs && next dev --hostname 127.0.0.1 --port 3000`
-    - `start`: `node scripts/check-env.mjs && next start --hostname 127.0.0.1 --port 3000`
+    - `dev` y `start` no cambian aquí: pasan a `node scripts/local-only.mjs <dev|start> --hostname 127.0.0.1 --port 3000` en 2.9, cuando existe el lanzador.
     - `test`: `vitest run`
     - `test:e2e`: `playwright test`
     - `mutate`: `node scripts/mutate.mjs`
@@ -38,7 +37,7 @@ Reglas para todas las fases:
   Después, `pnpm install`. Comprueba en `pnpm-lock.yaml` que `vitest@4.1.12` de la web resuelve con **el mismo** `vite@…(@types/node@24.19.2)` que la API: no hay una segunda copia de `vite`.
 - [ ] 1.2 `apps/web/vitest.config.ts` (D19): alias `@/`, entorno `node`, `include` y JSX automático. Un primer test de marcado (`renderToStaticMarkup` de un componente trivial) demuestra que el JSX se transforma. Si no, se fija `oxc.jsx.runtime`. `.gitignore` de la web: `/test-results`, `/playwright-report` y `/blob-report`.
 - [ ] 1.3 Reglas de `apps/web/eslint.config.mjs`:
-  - `no-restricted-imports` de `node:http`, `node:https`, `node:net`, `http`, `https`, `net` y `undici`, salvo en `src/server/api/transport.ts` (y en `scripts/dev-guard.mjs` si se aprueba D26), y de `next/image` en `src/components/chat/**`.
+  - `no-restricted-imports` de `node:http`, `node:https`, `node:net`, `http`, `https`, `net` y `undici`, salvo en `src/server/api/transport.ts` (y `node:http`, `node:https` y `node:inspector` en `scripts/local-only-preload.cjs`, D26), y de `next/image` en `src/components/chat/**`.
   - `no-restricted-globals`: `fetch` salvo en `src/lib/web-client.ts`, más `localStorage`, `sessionStorage`, `indexedDB` y `caches`.
   - `no-restricted-properties` de `document.cookie`.
   - `no-console`, salvo en `src/server/log.ts`.
@@ -51,14 +50,13 @@ Reglas para todas las fases:
   - Topes de 1 MiB del cuerpo y 32 MiB de la respuesta.
 
   Con `tests/api-error-codes-parity.test.ts`, que contiene **«Paridad de códigos»**, y un test de que los códigos de la API y los de la web son disjuntos. Validación a mano, una vez: se añade un código al espejo, el test falla, y se quita. No es un mutante registrado (D23).
-- [ ] 1.5 `src/server/config/api-url.mjs` y `scripts/check-env.mjs` (D5), con `src/server/config/api-url.test.ts`:
+- [ ] 1.5 `src/server/config/api-url.mjs` (D5), con `src/server/config/api-url.test.ts` (el lanzador que la usa antes de `next` llega en 2.9):
   - La matriz de la spec (`https://127.0.0.1:3001`, `http://api.example.com:3001`, `/v1`, credenciales, sin esquema, `""`, `localhost`, `[::1]` y ausente).
   - Controles y espacios.
   - Puerto `0`.
   - Mayúsculas.
   - El mensaje nombra `FRANCA_API_URL` y nunca contiene el valor.
-  - El *script* termina con 1 sin escuchar (proceso hijo con `node`, sin Next).
-- [ ] 1.6 `src/server/ids.ts` y `src/server/config/local-host.mjs` + tests:
+- [ ] 1.6 `src/server/ids.ts` y `src/server/config/local-host.cjs` + tests:
   - UUID en minúsculas (también `…00A` y `..%2F..`), patrón de `id` importado de `@franca/spec`, versión y `offset`.
   - `isLocalHost` con la matriz de la spec: `localhost.evil.example`, `127.0.0.1.nip.io`, `localhost.`, mayúsculas y puertos.
 - [ ] 1.7 `src/lib/chat/url-filter.ts` + test (D13), con **«Direcciones rechazadas»** y **«Direcciones admitidas y su serialización»**, más los casos de `medios` y de `preguntas`.
@@ -155,8 +153,20 @@ Reglas para todas las fases:
   - Ningún import de ejecución de `@franca/engine` desde un cliente.
   - Ningún `mode:` en `fetch` y ningún `<form` con `action=` o `method=`.
   - La frontera no lee `x-forwarded-*`, `nextUrl.host` ni `request.url`.
-  - Los *scripts* `dev` y `start`, con `--hostname 127.0.0.1 --port 3000` y `check-env.mjs`.
-- [ ] 2.9 **Gate 2**:
+  - Los *scripts* `dev` y `start`, exactamente `node scripts/local-only.mjs <dev|start> --hostname 127.0.0.1 --port 3000`, sin `--experimental-https`. Esta comprobación se añade en 2.9, junto con los *scripts*.
+- [ ] 2.9 D26, *preload* de la guarda local y lanzador. Aquí cambian los *scripts* `dev` y `start` de `package.json` a `node scripts/local-only.mjs <dev|start> --hostname 127.0.0.1 --port 3000`:
+  - `scripts/local-only-preload.cjs`: `inspector.open` sustituido, guarda de `Host` en `request` y `upgrade` de `http.Server` y `https.Server`, y cabeceras de marcos.
+  - `scripts/local-only.mjs`: valida `FRANCA_API_URL`, añade `--require` al `NODE_OPTIONS` existente, ejecuta `next` y propaga señales y código.
+  - `tests/local-only-preload.test.ts` y `tests/local-only-launcher.test.ts` (D26), con la matriz de `/__nextjs_launch-editor` incluida.
+
+  Se verifica a mano con `pnpm --filter @franca/web dev`:
+  - **Solo con `Host` ajeno contra el puerto real**: `curl -i -H 'Host: evil.example:3000' http://127.0.0.1:3000/__nextjs_attach-nodejs-inspector` → 403 sin cuerpo, `curl -i -H 'Host: evil.example:3000' 'http://127.0.0.1:3000/__nextjs_launch-editor?file=package.json'` → 403, y `lsof -nP -iTCP -sTCP:LISTEN | grep node` muestra solo `127.0.0.1:3000`, sin `9229`. Con un `Host` local no se prueba: si faltara el parche, se abriría el inspector de verdad.
+  - `http://localhost:3000` funciona con HMR (se edita un texto y se ve el cambio) y con el overlay.
+  - Las respuestas llevan `frame-ancestors 'none'` y `X-Frame-Options: DENY`.
+
+  Mutantes `skipInspectorPatch`, `skipHostGuard` y `skipUpgradeGuard` en 4.3.
+
+- [ ] 2.10 **Gate 2** (incluye la verificación manual de 2.9):
   - `pnpm check` en verde.
   - Con `docker compose up -d`, la API en marcha (`pnpm --filter @franca/api dev`), `pnpm --filter @franca/web build` y `pnpm --filter @franca/web start`, se comprueba con `curl -i`:
     - `GET /` con `Host: evil.example:3000` → 403 sin cuerpo, también con `X-Forwarded-Host: localhost:3000`.
@@ -166,20 +176,8 @@ Reglas para todas las fases:
     - `Cache-Control` con `no-store`, `frame-ancestors 'none'` y `X-Frame-Options: DENY`.
     - `GET /api/conversations/no-es-un-uuid` → 404 `conversation_not_found`.
     - `GET /api/flows` → la lista.
-  - `FRANCA_API_URL=http://api.example.com:3001 pnpm --filter @franca/web start` termina con 1 sin escuchar y sin el valor en la salida.
-  - Commit `feat(web): frontera local y rutas del servidor de la web`.
-- [ ] 2.10 **Solo si se aprueba D26**: `scripts/dev-guard.mjs` y `tests/dev-guard.test.ts` (Vitest, con un *upstream* simulado, sin Next):
-  - Matriz de `Host` en peticiones y en *upgrades* (403 y sin reenvío).
-  - *Upgrade* local reenviado en los dos sentidos.
-  - `SIGINT` y `SIGTERM` propagados y el código de salida del hijo.
-  - El *script* `dev` pasa a `node scripts/check-env.mjs && node scripts/dev-guard.mjs`, y la guarda estática se actualiza.
-
-  Se verifica a mano con `pnpm --filter @franca/web dev`:
-  - `curl -i -H 'Host: evil.example:3000' http://127.0.0.1:3000/__nextjs_attach-nodejs-inspector` → 403.
-  - `http://localhost:3000` funciona con HMR (se edita un texto y se ve el cambio).
-
-  Mutantes `guardSkipHost` y `guardSkipUpgrade` en 4.3. Commit `feat(web): guardián local delante de next dev`. **Si no se aprueba**, esta tarea se sustituye por el delta `spec(web): …` de D26 («Si no se aprueba») y su ficha de wiki.
-
+  - `FRANCA_API_URL=http://api.example.com:3001 pnpm --filter @franca/web start` termina con 1 sin escuchar y sin el valor en la salida (a través del lanzador).
+  - Commit `feat(web): frontera local, rutas del servidor de la web y guarda local en el proceso de next`.
 ## 3. Interfaz — dueño: `popi:frontend-developer`
 
 - [ ] 3.1 `src/app/layout.tsx`, `globals.css` y `public/` (D16, D25):
@@ -217,7 +215,7 @@ Reglas para todas las fases:
 
 - [ ] 4.1 Auditar requisito por requisito que cada «SHALL» con lógica en el cliente o en el servidor de la web tiene un test de Vitest que fallaría sin ella, y completar lo que falte. Ninguna aserción sobre el propio *fixture*, ni `expect` dentro de un `if`.
 - [ ] 4.2 Validar **a mano, una vez**, cada test negativo que no tiene mutante registrado («no contiene», «no recibe», «no pide», «no llama», paridad de códigos, listas de tipos conocidos), produciendo a propósito el caso prohibido: tiene que fallar. Se anota cuáles se validaron.
-- [ ] 4.3 `apps/web/scripts/mutate.mjs` (reutiliza `packages/engine/scripts/mutate.mjs`, D23) y `apps/web/tests/mutations.json` con **solo** los mutantes de la tabla de D23: seguridad y concurrencia, más `guardSkipHost` y `guardSkipUpgrade` si se aprobó D26. Cada uno con su `find` único, su `replace` y sus `tests`.
+- [ ] 4.3 `apps/web/scripts/mutate.mjs` (reutiliza `packages/engine/scripts/mutate.mjs`, D23) y `apps/web/tests/mutations.json` con **solo** los mutantes de la tabla de D23: seguridad y concurrencia, incluidos `skipInspectorPatch`, `skipHostGuard` y `skipUpgradeGuard` de D26. Cada uno con su `find` único, su `replace` y sus `tests`.
 - [ ] 4.4 `pnpm --filter @franca/web mutate`: **ningún mutante sobrevive**. Se anota la salida resumida en el gate. Un superviviente obliga a un test nuevo, nunca a quitar el mutante.
 - [ ] 4.5 Revisión adversarial de las costuras con su código abierto:
   - Navegador ↔ rutas de la web: `web-client` frente a `handlers`, con las respuestas sin cuerpo.
@@ -252,7 +250,9 @@ Reglas para todas las fases:
 - [ ] 5.5 `e2e/rhythm.e2e.ts` (3; «Avance largo» con `@lento` y 200 s de plazo, en la misma ejecución en serie), `e2e/concurrency.e2e.ts` (9; «Ocupada al enviar» con `page.clock`) y `e2e/lifecycle.e2e.ts` (9; «Borrar y cancelar» ejerce el 204).
 - [ ] 5.6 `e2e/frontier.e2e.ts` (10) y `e2e/accessibility.e2e.ts` (2):
   - En `frontier.e2e.ts`, «El chat dentro de un marco ajeno» lleva la excepción de consola de `frame-ancestors` y el origen contenedor permitido en `context.route`.
-  - «Otra interfaz de la máquina» y «Direcciones no admitidas» paran y restauran la web de la pila. La variante `dev` se hace con el guardián si se aprobó D26, y con `next dev` directo si no.
+  - «Otra interfaz de la máquina» y «Direcciones no admitidas» paran y restauran la web de la pila.
+  - La variante `dev` comprueba también, **solo con `Host: evil.example`**, que `/__nextjs_attach-nodejs-inspector` da 403 y que no aparece ningún puerto nuevo en escucha (D26).
+  - «Direcciones no admitidas» sale con 1 sin escuchar, a través del lanzador.
 - [ ] 5.7 `tests/spec-coverage.test.ts`, `tests/helpers/spec-text.ts` (copia byte a byte de `packages/engine/tests/helpers/spec-text.ts`) y `tests/spec-text-parity.test.ts` (D22): al menos 41 requisitos y 63 escenarios, sin títulos repetidos, y cada uno con su test.
 - [ ] 5.8 `turbo.json`:
   - `@franca/web#dev` con `FRANCA_API_URL`.
@@ -284,6 +284,7 @@ Reglas para todas las fases:
   - Cada ruta de la web empieza con `await connection()` (enforced: `static-guard.test.ts`).
   - El servidor de la web no usa `fetch` (enforced: ESLint y `api-transport-env-proxy.test.ts`).
   - La frontera lee solo `host` en bruto (enforced: `frontier.test.ts`).
+  - `dev` y `start` pasan por `scripts/local-only.mjs`, que carga el *preload* de la guarda local y sin inspector. Arrancar `next` a mano se lo salta (enforced: `static-guard.test.ts`, `local-only-preload.test.ts`).
 
   `.claude/rules/frontend/architecture.md`: la frontera (`proxy.ts`, ocho operaciones, `WEB_ENDPOINTS` y `API_OPERATIONS`), el cliente único `web-client.ts`, las respuestas sin cuerpo y los tests de la web (Vitest en `pnpm check` y Playwright en `test:e2e`).
 
@@ -294,13 +295,13 @@ Reglas para todas las fases:
   - `gotcha-next-escucha-antes-de-cargar-la-config` (enforcement: `e2e/frontier.e2e.ts`, `tests/static-guard.test.ts`).
   - `gotcha-input-email-recorta-el-valor` (enforcement: `src/components/chat/pending-question.test.tsx`, `e2e/questions.e2e.ts`).
   - `gotcha-cache-components-activity-y-prerender`: `<Activity>` conserva rutas y DOM, y un `GET` sin `connection()` se prerenderiza (enforcement: `tests/static-guard.test.ts`, `e2e/home.e2e.ts`).
-  - `gotcha-next-dev-fuera-de-la-frontera`: en `next dev`, los recursos de desarrollo se atienden antes de `proxy.ts`, `blockCrossSiteDEV` deja pasar lo que no lleva `Origin`, y la cadena del inspector de Node. Enforcement: con D26, `tests/dev-guard.test.ts` y `e2e/frontier.e2e.ts`; sin D26, `e2e/frontier.e2e.ts` (contra `next start`) y `none — limitación de next dev aceptada en la spec`.
+  - `gotcha-next-dev-fuera-de-la-frontera`: en `next dev`, los recursos de desarrollo se atienden antes de `proxy.ts`, `blockCrossSiteDEV` deja pasar lo que no lleva `Origin`, la cadena del inspector de Node con DNS rebinding, por qué un guardián delante no basta y por qué el *preload* sí. Enforcement: `apps/web/tests/local-only-preload.test.ts`, `apps/web/tests/static-guard.test.ts`, `apps/web/e2e/frontier.e2e.ts`.
 
   Al final, `pnpm wiki:lint` en verde.
 - [ ] 6.4 Verificación final en el navegador con `pnpm dev` (la API con Postgres y la web por turbo):
   - El recorrido de 3.6 repetido.
   - **Consola limpia y pestaña de red revisada**.
-  - Comprobado que `pnpm dev` escucha en `127.0.0.1:3000` (`lsof -iTCP:3000 -sTCP:LISTEN`) y, con D26, que el `next dev` interno solo está en `127.0.0.1`.
+  - Comprobado que `pnpm dev` escucha solo en `127.0.0.1:3000` y que ningún otro proceso de Node del árbol escucha (`lsof -nP -iTCP -sTCP:LISTEN`).
   - Notas en el gate.
 - [ ] 6.5 Criterio del *diff* de `design.md` («Ficheros»): los dos comandos no imprimen nada. La lista blanca incluye `.claude/rules/README.md` y `.claude/wiki/`.
 - [ ] 6.6 **Gate 6**:

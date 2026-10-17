@@ -1,12 +1,14 @@
 # Design: chat web de prueba (`web-chat`)
 
-**Fecha**: 2026-10-17 · **Rama**: `feat/web-chat` · Motivación y alcance en `proposal.md`. El comportamiento está en `specs/web-chat/spec.md` (41 requisitos y 63 escenarios), que manda sobre este documento. Antes de este diseño se añadió a la spec un requisito: «Sin marcos de otras páginas» (commit `e88c5ed`, ver D24), **aprobado por el orquestador**.
+**Fecha**: 2026-10-17 · **Rama**: `feat/web-chat` · Motivación y alcance en `proposal.md`. El comportamiento está en `specs/web-chat/spec.md` (41 requisitos y 63 escenarios), que manda sobre este documento. Antes de este diseño se añadió a la spec un requisito: «Sin marcos de otras páginas» (commit `e88c5ed`, ver D24). Lo resolvió el orquestador dentro del flujo autónomo que acordó el usuario («de corrido»: solo se para ante decisiones de producto), y **el usuario puede revertirlo**.
+
+**Revisión 3**, tras la segunda ronda de `popi:architecture-reviewer`. El guardián de la revisión 2 no cerraba el inspector, porque el `next dev` hijo atendía en su puerto efímero con cualquier `Host`. D26 pasa a ser un *preload* en el árbol de procesos de Next, medido con un `next dev` real. Ya no hay decisiones pendientes.
 
 **Revisión 2**, tras el FAIL de `popi:architecture-reviewer`:
 - **B1.** Las respuestas sin cuerpo se leen por su estado. El 204 de `DELETE` es un éxito, la regla de cuerpo solo se aplica a los dos `POST`, y el cliente omite un contacto vacío (D4, D8, D9, D10).
-- **B2.** En `next dev`, los recursos propios del servidor de desarrollo de Next se atienden **antes** de `proxy.ts`. Entre ellos, uno abre el inspector de Node y deja ejecutar código con un DNS rebinding (medido, ver la auditoría). Se propone un guardián delante de `next dev` (D26), **pendiente de aprobación** por su coste.
+- **B2.** En `next dev`, los recursos propios del servidor de desarrollo de Next se atienden **antes** de `proxy.ts`. Entre ellos, uno abre el inspector de Node y deja ejecutar código con un DNS rebinding (medido, ver la auditoría). Se cierra con un *preload* dentro del proceso de Next (D26, revisión 3).
 
-Además se incorporan los riesgos señalados y las simplificaciones aprobadas:
+Además se incorporan los riesgos señalados y las simplificaciones que resolvió el orquestador:
 - `fetch` en modo `cors` y sin envío nativo de formularios (D9, D15).
 - Solo la cabecera `host` en bruto (D2).
 - Paridad de las listas de tipos conocidos (D10).
@@ -16,7 +18,11 @@ Además se incorporan los riesgos señalados y las simplificaciones aprobadas:
 - E2E sin entorno hostil y con una sola pila (D20).
 - Mutantes recortados (D23).
 
-Lo aprobado: el delta `e88c5ed` y `test:e2e` serializado.
+Dentro del flujo autónomo «de corrido» que acordó el usuario, el orquestador resolvió cuatro cosas, y **el usuario puede revertir cualquiera**:
+- El delta `e88c5ed` (sin marcos).
+- `test:e2e` serializado.
+- Las simplificaciones de los E2E y de la mutación.
+- «Avance largo» en la ejecución de cada PR.
 
 ## Context
 
@@ -31,7 +37,7 @@ Lo aprobado: el delta `e88c5ed` y `test:e2e` serializado.
 | Lo que decía la spec / se suponía | Lo que dice el código (medido) | Dónde se resuelve |
 |---|---|---|
 | «Cache-Control: no-store» en las páginas | Next fija `s-maxage=31536000` en un *shell* prerenderizado y `private, no-cache, no-store, max-age=0, must-revalidate` en uno dinámico. `sendRenderResult` (`next/dist/server/send-payload.js`) **no** sobrescribe un `Cache-Control` ya fijado | D7: lo fija `proxy.ts` antes de renderizar. El test comprueba la directiva `no-store` |
-| La web «no arranca» con un `FRANCA_API_URL` inválido | `next dev` y `next start` llaman a `server.listen` y cargan `next.config` **dentro** del *callback* de escucha (`next/dist/server/lib/start-server.js`): un error en la configuración llega después de escuchar | D5: `scripts/check-env.mjs` se ejecuta **antes** de `next` en `dev` y `start` |
+| La web «no arranca» con un `FRANCA_API_URL` inválido | `next dev` y `next start` llaman a `server.listen` y cargan `next.config` **dentro** del *callback* de escucha (`next/dist/server/lib/start-server.js`): un error en la configuración llega después de escuchar | D5 y D26: el lanzador `scripts/local-only.mjs` la valida **antes** de ejecutar `next` en `dev` y `start` |
 | «`next dev` escucha en `0.0.0.0`» | Confirmado: `-H/--hostname`, por defecto `0.0.0.0` (`docs/01-app/03-api-reference/06-cli/next.md`) | D6 |
 | El `fetch` del servidor obedece `NODE_USE_ENV_PROXY` | En Node 22.23 desvía `fetch` **y** `http.globalAgent`. `agent: false` ignora `createConnection` ([[gotcha-node-http-createconnection-y-proxy]]) | D4: `node:http` con `createConnection` propio, sin agente ni `fetch` |
 | Un `GET` de un *route handler* se lee en cada petición | Con Cache Components, un `GET` que no toca datos de la petición se **prerenderiza** en el *build* (`docs/01-app/01-getting-started/15-route-handlers.md`, «With Cache Components»). Un `node:http` propio no es un «network request» que Next detecte | D7: `await connection()` al empezar cada manejador, con guarda estática |
@@ -49,11 +55,11 @@ Lo aprobado: el delta `e88c5ed` y `test:e2e` serializado.
 | Toda respuesta de la API es JSON | `DELETE /conversations/:id` responde **204 sin cuerpo** (`conversations.controller.ts:55-60`, `@HttpCode(204)`), y los 403 de la frontera de la web tampoco llevan cuerpo | D4, D8 y D9: un 204 es éxito, y un error sin cuerpo se lee por su estado, nunca como `network_error` |
 | El `Host` de la petición | Next rellena `x-forwarded-host` con `??=` desde `host` (`next/dist/server/base-server.js:564`): si el cliente manda un `X-Forwarded-Host` propio, se conserva, y `request.nextUrl` y `request.url` se derivan de lo que Next normaliza | D2: la frontera lee **solo** la cabecera `host` en bruto |
 | Un POST del navegador lleva su `Origin` | Con `Referrer-Policy: no-referrer`, una petición `no-cors` que no es `GET` ni `HEAD` (p. ej. el envío nativo de un `<form>`) lleva `Origin: null` (Fetch, «append a request Origin header») | D9 y D15: solo `fetch` en modo `cors` y siempre `preventDefault` |
-| `proxy.ts` ve «toda petición» | En `next dev`, `router-server.js:387-403` ejecuta `blockCrossSiteDEV` y `hotReloader.run` **antes** de `resolveRoutes` (donde corre `proxy.ts`). `hot-reloader-turbopack.js:963-975` registra los middlewares de desarrollo, que atienden `/__nextjs_*` y `/_next/*` sin pasar por la frontera | D26 (propuesta) y R3 |
+| `proxy.ts` ve «toda petición» | En `next dev`, `router-server.js:387-403` ejecuta `blockCrossSiteDEV` y `hotReloader.run` **antes** de `resolveRoutes` (donde corre `proxy.ts`). `hot-reloader-turbopack.js:963-975` registra los middlewares de desarrollo, que atienden `/__nextjs_*` y `/_next/*` sin pasar por la frontera | D26 (*preload*) y R3 |
 | `blockCrossSiteDEV` protege los recursos de desarrollo | `block-cross-site-dev.js`: solo bloquea un `no-cors` *cross-site* o un `Origin` no permitido, y deja pasar **toda petición sin `Origin`** («Allow requests with no origin»). Un `GET` del mismo origen tras un DNS rebinding no lleva `Origin` | D26 |
-| Lo que expone el servidor de desarrollo | `/__nextjs_attach-nodejs-inspector` (cualquier método, `attach-nodejs-debugger-middleware.js`) abre el inspector de Node y devuelve su `devtoolsFrontendUrl` con el UUID secreto. El inspector **acepta** un WebSocket con `Host: 127.0.0.1:<puerto>` y `Origin: http://evil.example:3000` (medido en Node 22.23.3: `101`; con `Host: evil.example` responde `400`). Con el UUID, una página con DNS rebinding puede **ejecutar código** en el proceso de `next dev`. Además, `GET /__nextjs_launch-editor` abre en el editor el fichero de la consulta y responde 204 o 404 según exista (`existsSync`, un oráculo de ficheros), y `GET /__nextjs_source-map?filename=` devuelve mapas de fuentes de módulos cargados | D26 (guardián delante de `next dev`) |
+| Lo que expone el servidor de desarrollo | `/__nextjs_attach-nodejs-inspector` (cualquier método, `attach-nodejs-debugger-middleware.js`) abre el inspector de Node y devuelve su `devtoolsFrontendUrl` con el UUID secreto. El inspector **acepta** un WebSocket con `Host: 127.0.0.1:<puerto>` y `Origin: http://evil.example:3000` (medido en Node 22.23.3: `101`; con `Host: evil.example` responde `400`). Con el UUID, una página con DNS rebinding puede **ejecutar código** en el proceso de `next dev`. Además, `GET /__nextjs_launch-editor` abre en el editor el fichero de la consulta y responde 204 o 404 según exista (`existsSync`, un oráculo de ficheros), y `GET /__nextjs_source-map?filename=` devuelve mapas de fuentes de módulos cargados | D26 (*preload*: guarda de `Host` en todo `http.Server` y `inspector.open` neutralizado) |
 
-No queda ninguna contradicción de producto. El hueco de conducta de los marcos va en el delta `e88c5ed`. El de `next dev` se cierra con D26 si se aprueba. Si no, haría falta un delta que excluyera esos recursos de «Host local en la web» y aceptara el riesgo de forma explícita, y no se recomienda.
+No queda ninguna contradicción de producto. El hueco de conducta de los marcos va en el delta `e88c5ed`. El de `next dev` se cierra con D26 (*preload*), así que «Host local en la web» y «Sin marcos de otras páginas» valen tal como están, también en `next dev`, sin delta.
 
 ## Goals / Non-Goals
 
@@ -91,7 +97,7 @@ Descartado:
 `src/proxy.ts` (la convención de Next 16, que antes se llamaba *middleware*, en `src/` junto a `app/`) exporta `proxy(request)`, **sin `matcher`**, así que corre en toda petición, también la de un estático. Delega en `checkFrontier` de `src/server/frontier.ts`, una función pura sin imports de Next:
 
 0. **Solo la cabecera `host` en bruto**: nunca `request.nextUrl.host`, `request.url` ni `x-forwarded-host`, porque Next rellena esta última con `??=` y respeta la que manda el cliente (auditoría). La matriz incluye `Host: evil.example:3000` con `X-Forwarded-Host: localhost:3000`, que da 403. Sin `x-forwarded-*` en ninguna decisión.
-1. **Host** (todas las peticiones que llegan a `proxy.ts`; en `next dev`, ver D26): `isLocalHost(request.headers.get('host'))` (de `src/server/config/local-host.mjs`) con la regla de la API: nombre exacto `localhost`, `127.0.0.1` o `[::1]`, sin distinguir mayúsculas, con puerto opcional `:[0-9]{1,5}`. Si no, `403` sin cuerpo.
+1. **Host** (todas las peticiones que llegan a `proxy.ts`; antes, en el *socket*, la guarda del *preload* de D26 hace lo mismo con toda petición del proceso, recursos de desarrollo incluidos): `isLocalHost(request.headers.get('host'))` (de `src/server/config/local-host.cjs`) con la regla de la API: nombre exacto `localhost`, `127.0.0.1` o `[::1]`, sin distinguir mayúsculas, con puerto opcional `:[0-9]{1,5}`. Si no, `403` sin cuerpo.
 2. **Origin** (todo método que no sea `GET` ni `HEAD`): `origin === 'http://' + host.toLowerCase()`. Si falta, es `null`, es otro esquema o es otro host o puerto, `403` sin cuerpo. Se compara con el `Host` **ya validado como local**: en un DNS rebinding el `Host` es el del atacante y ya falló en el paso 1. Esta es la diferencia con la comprobación de Server Actions.
 3. **Ruta de conversación**: si `pathname` empieza por `/api/conversations/`, su segundo segmento (decodificado con `decodeURIComponent`, y un error de decodificación cuenta como inválido) debe ser un UUID en minúsculas. Si no, `404 {"error":"conversation_not_found"}`. Es una defensa por si Next resuelve una ruta con `%2F` de otra manera. La ruta (D3) vuelve a validar.
 4. **Cabeceras de respuesta** (también en los 403 y 404 de la frontera): `Cache-Control: no-store` (salvo en `/_next/static/`, cuyos ficheros llevan *hash* y no tienen datos), `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`, `Content-Security-Policy: frame-ancestors 'none'` y `X-Frame-Options: DENY` (D24). Nunca `Access-Control-Allow-*`.
@@ -137,7 +143,7 @@ Descartado:
 - **Un `http.Agent` propio**: en Node 24 los agentes aceptan `proxyEnv`. Depender del valor por defecto es apostar.
 - **Comprobar las variables de proxy al arrancar y negarse a arrancar**: rompería a quien tiene un proxy corporativo para otras cosas.
 
-Enforcement: regla de ESLint `no-restricted-imports` (`node:http`, `node:https`, `node:net`, `http`, `https`, `net` y `undici` solo en `transport.ts`) y `no-restricted-globals` (`fetch` solo en `src/lib/web-client.ts`). Además, la guarda estática y el test hostil en un proceso hijo con su mutante `useGlobalAgent` (D19, D23). Los E2E no corren con un entorno hostil (simplificación aprobada).
+Enforcement: regla de ESLint `no-restricted-imports` (`node:http`, `node:https`, `node:net`, `http`, `https`, `net` y `undici` solo en `transport.ts`) y `no-restricted-globals` (`fetch` solo en `src/lib/web-client.ts`). Además, la guarda estática y el test hostil en un proceso hijo con su mutante `useGlobalAgent` (D19, D23). Los E2E no corren con un entorno hostil (simplificación aprobada). La excepción de ESLint también cubre `scripts/local-only-preload.cjs` (`node:http`, `node:https` y `node:inspector`), que no envía nada: solo envuelve los servidores del propio proceso.
 
 ### D5. `FRANCA_API_URL`: validación antes de escuchar
 
@@ -149,7 +155,7 @@ Enforcement: regla de ESLint `no-restricted-imports` (`node:http`, `node:https`,
 - Devuelve `{hostHeader, connect: {family: 4 | 6 | 'loopback', port}}`, o un error cuyo mensaje nombra `FRANCA_API_URL` y **nunca** el valor.
 
 Lo usan dos sitios:
-1. `apps/web/scripts/check-env.mjs`, que corre **antes** de `next` en los *scripts* `dev` y `start` (`node scripts/check-env.mjs && next …`) y termina con código 1 y el mensaje. Así la web no llega a escuchar (ver la auditoría: Next escucha antes de cargar `next.config`).
+1. El lanzador `apps/web/scripts/local-only.mjs` (D26), que la comprueba **antes** de ejecutar `next` en los *scripts* `dev` y `start` y termina con código 1 y el mensaje. Así la web no llega a escuchar (ver la auditoría: Next escucha antes de cargar `next.config`).
 2. `src/server/api/transport.ts`, de forma perezosa y memorizada, como defensa si alguien ejecuta `next start` a mano. Con un valor inválido, cada ruta responde `500 {"error":"internal_error"}` y registra una línea con el nombre de la variable.
 
 El fichero es `.mjs` para que el *script* lo importe con `node` sin cargador de TypeScript. La eliminación de tipos de Node 22 exige 22.18 o la *flag*, y `engines` admite 22.0. TypeScript lo tipa por JSDoc (`allowJs` ya está activo).
@@ -161,12 +167,14 @@ Descartado:
 ### D6. Escucha solo en `127.0.0.1`
 
 Los *scripts* quedan así:
-- `"dev": "node scripts/check-env.mjs && next dev --hostname 127.0.0.1 --port 3000"` (con D26: `node scripts/dev-guard.mjs`, que hace lo mismo detrás del guardián)
-- `"start": "node scripts/check-env.mjs && next start --hostname 127.0.0.1 --port 3000"`
+- `"dev": "node scripts/local-only.mjs dev --hostname 127.0.0.1 --port 3000"`
+- `"start": "node scripts/local-only.mjs start --hostname 127.0.0.1 --port 3000"`
+
+El lanzador valida `FRANCA_API_URL` y carga el *preload* de D26.
 
 El puerto y la dirección van **explícitos** (`-p` gana a `PORT`), así que un `PORT` de la API en la shell no mueve la web. Los E2E usan el 3000: hay una sola pila en serie (D20), y el arnés falla con un mensaje claro si el 3000 está ocupado («para `pnpm dev` antes de los E2E»). El navegador abre `http://localhost:3000`. Si `localhost` resuelve primero a `::1`, Chrome, Firefox y Safari pasan a `127.0.0.1`.
 
-Enforcement: la guarda estática lee `package.json` (los dos *scripts* llevan `--hostname 127.0.0.1 --port 3000` y pasan por `check-env.mjs`), y el E2E «Otra interfaz de la máquina» arranca los dos *scripts* de verdad. Para ello, la pila para su web, la prueba y la vuelve a arrancar.
+Enforcement: la guarda estática lee `package.json` (los dos *scripts* son exactamente `node scripts/local-only.mjs <dev|start> --hostname 127.0.0.1 --port 3000`), y el E2E «Otra interfaz de la máquina» arranca los dos *scripts* de verdad. Para ello, la pila para su web, la prueba y la vuelve a arrancar.
 
 ### D7. Sin caché: lecturas frescas explícitas
 
@@ -378,7 +386,7 @@ Estados por pantalla:
 | `@franca/engine` | `dependencies` | `workspace:*` | Tipos de eventos (`import type`). Las constantes, solo en tests (paridad) y en el servidor si hiciera falta. Ningún componente cliente importa código de ejecución del motor (guarda estática), para que no arrastre `ajv` al *bundle* |
 | `vitest` | `devDependencies` | `4.1.12` | El *runner* del monorepo, la misma versión que resuelve el *lockfile* para la API y los paquetes |
 | `@playwright/test` | `devDependencies` | `1.64.1` | E2E en un navegador real: foco, teclado, `role=log`, red, *viewport* de 320 px y diálogos. Fija la versión de Chromium |
-| `pg` | `devDependencies` | `8.23.1` | Solo para el arnés E2E: crear y borrar la base de cada *worker* y vaciarla entre tests (D20). Es la versión que ya está en el *lockfile* (la usa `@prisma/adapter-pg`) |
+| `pg` | `devDependencies` | `8.23.1` | Solo para el arnés E2E: crear y borrar la base de la ejecución y vaciarla entre tests (D20). Es la versión que ya está en el *lockfile* (la usa `@prisma/adapter-pg`) |
 | `@types/pg` | `devDependencies` | `8.23.1` | Tipos de lo anterior, también ya en el *lockfile* |
 | `@types/node` | `devDependencies` (ya está, `^20`) | `24.19.2` | Se **sube** a la que resuelve la API. Así `vitest` y `vite` no se duplican en el *lockfile* por un `@types/node` distinto (son *peers* de `vite`). La web corre en Node 22 o superior |
 
@@ -407,7 +415,7 @@ Descartadas:
   - Ningún fichero `'use client'` importa `@/server/`.
   - `transport.ts` solo lo importa `operations.ts`, y `operations.ts` exporta exactamente ocho funciones.
   - Ningún `use cache`, `cacheLife` ni `unstable_cache`.
-  - Los *scripts* `dev` y `start` de `package.json` (D6).
+  - Los *scripts* `dev` y `start` de `package.json` (D6, D26), sin `--experimental-https`.
   - Ningún cliente importa `@franca/engine` sin `import type`.
   - Ningún `mode:` en una llamada a `fetch` y ningún `<form` con `action=` o `method=` en `src/` (D9).
   - La frontera no lee `x-forwarded-*`, `nextUrl.host` ni `request.url` para decidir (D2).
@@ -438,7 +446,7 @@ Descartadas:
 
   «Evento desconocido» exige **cero**.
 - **Escenarios lentos**: «Avance largo» espera de verdad 150 s (`test.setTimeout(200_000)`, etiqueta `@lento`). Corre en la CI dentro de la misma ejecución en serie, así que suma unos 150 s (R5). «Ocupada al enviar» usa `page.clock` para avanzar 10 s sin esperarlos.
-- **«Otra interfaz de la máquina»**: elige una IPv4 no interna de `os.networkInterfaces()` (`test.skip` anotado si no la hay). Para la web de la pila y arranca por turno `pnpm --filter @franca/web dev` y `start` en el 3000. Comprueba conexión rechazada en esa dirección y respuesta en `127.0.0.1:3000`, y después restaura la pila. Con D26, `dev` es el guardián, y se comprueba igual.
+- **«Otra interfaz de la máquina»**: elige una IPv4 no interna de `os.networkInterfaces()` (`test.skip` anotado si no la hay). Para la web de la pila y arranca por turno `pnpm --filter @franca/web dev` y `start` en el 3000. Comprueba conexión rechazada en esa dirección y respuesta en `127.0.0.1:3000`, y después restaura la pila. En la variante `dev` comprueba además, contra el puerto real y **solo con `Host: evil.example`** (con un `Host` local se abriría el inspector si faltara el parche), que `/__nextjs_attach-nodejs-inspector` da 403 y que no aparece ningún puerto nuevo en escucha (D26).
 
 ### D21. Turbo, raíz y CI
 
@@ -483,12 +491,13 @@ La lista se limita, como se aprobó, a **seguridad** (frontera, filtro de URLs, 
 | `useGlobalAgent` (sustituye `createConnection` por `host` y `port`) | `transport.ts` | `api-transport-env-proxy.test.ts` (muere porque la trampa recibe la conexión) |
 | `showErrorMessage` | `transcript-view.ts` | `transcript-view.test.ts` |
 | `noIfMatch`, `autoResendOnLoss`, `allowDoubleSend` | `conversation-session.ts` / `web-client.ts` | `conversation-session.test.ts`, `web-client.test.ts` |
+| `skipInspectorPatch` (sin sustituir `inspector.open`), `skipHostGuard` (sin la guarda en `request`), `skipUpgradeGuard` (sin la guarda en `upgrade`) | `scripts/local-only-preload.cjs` | `local-only-preload.test.ts` (`skipInspectorPatch` muere porque el middleware real de Next devuelve una URL e `inspector.url()` deja de ser `undefined`; el test cierra el inspector, abierto en el puerto 0 de loopback) |
 
 Los demás tests negativos («no contiene», «no recibe», «no pide», paridad de códigos) se validan **una vez a mano**, provocando el caso prohibido y viendo que fallan (`testing-pyramid.md`, tasks 4.2), sin registrarlos como mutantes. La mutación se ejecuta a mano (`pnpm --filter @franca/web mutate`) y el resultado queda en el gate de la fase 4.
 
 ### D24. Sin marcos de otras páginas (delta `e88c5ed`)
 
-`frame-ancestors 'none'` y `X-Frame-Options: DENY` en toda respuesta, desde `checkFrontier` (D2). Lo cubren `frontier.test.ts` y el E2E «El chat dentro de un marco ajeno»: una página servida por la API simulada en otro puerto con un `iframe` de la web, con la excepción de consola de D20. En `next dev`, los recursos de desarrollo de Next no pasan por `checkFrontier` (D26).
+`frame-ancestors 'none'` y `X-Frame-Options: DENY` en toda respuesta, desde `checkFrontier` (D2). Lo cubren `frontier.test.ts` y el E2E «El chat dentro de un marco ajeno»: una página servida por la API simulada en otro puerto con un `iframe` de la web, con la excepción de consola de D20. En `next dev`, los recursos de desarrollo de Next no pasan por `checkFrontier`, y las cabeceras de marcos se las pone el *preload* de D26 a toda respuesta del proceso.
 
 No se añade una CSP completa: Next necesita *nonces* para sus *scripts* en línea, y ningún requisito lo pide.
 
@@ -498,45 +507,63 @@ No se añade una CSP completa: Next necesita *nonces* para sus *scripts* en lín
 
 Es una decisión presentacional con efecto en la red. Va aquí porque toca la promesa de «sin Internet» de los E2E.
 
-### D26. Guardián delante de `next dev` (PROPUESTA, pendiente de aprobación)
+### D26. Guarda local dentro del proceso de Next (preload) y sin inspector
 
-**El problema** (medido, ver la auditoría). En `next dev`, `router-server.js:387-403` atiende los recursos de desarrollo con `blockCrossSiteDEV` y `hotReloader.run` **antes** de `resolveRoutes`, así que `proxy.ts` no los ve. `blockCrossSiteDEV` deja pasar toda petición sin `Origin`. Una página con DNS rebinding (`evil.example:3000` resuelto a `127.0.0.1`) hace `GET` del mismo origen sin `Origin` y llega a:
+**El problema** (medido, ver la auditoría). En `next dev`, `router-server.js:387-403` atiende los recursos de desarrollo con `blockCrossSiteDEV` y `hotReloader.run` **antes** de `resolveRoutes`, así que `proxy.ts` no los ve, y `blockCrossSiteDEV` deja pasar toda petición sin `Origin`. Una página con DNS rebinding hace `GET` del mismo origen sin `Origin` y llega a:
 
 | Recurso | Qué hace | Gravedad |
 |---|---|---|
-| `/__nextjs_attach-nodejs-inspector` | Abre el inspector de Node (`inspector.open`) y devuelve su `devtoolsFrontendUrl` con el UUID. El inspector acepta un WebSocket con `Host: 127.0.0.1:<puerto>` y cualquier `Origin` (medido: `101`), así que la página se conecta y **ejecuta código** en el proceso de `next dev` con los permisos de quien desarrolla | Crítica: ejecución de código en la máquina |
-| `/__nextjs_launch-editor?file=…` | Abre el fichero en el editor y responde 204 o 404 según exista | Media: efecto lateral y oráculo de ficheros |
-| `/__nextjs_source-map?filename=…` | Mapas de fuentes de los módulos cargados (`findSourceMap`) o de Turbopack | Baja: código del repo, que es público |
+| `/__nextjs_attach-nodejs-inspector` | Abre el inspector de Node y devuelve su `devtoolsFrontendUrl` con el UUID. El inspector acepta un WebSocket con `Host: 127.0.0.1:<puerto>` y cualquier `Origin`, así que la página **ejecuta código** en el proceso de `next dev` | Crítica |
+| `/__nextjs_launch-editor?file=…` | Abre el fichero en el editor y responde 204 o 404 según exista | Media |
+| `/__nextjs_source-map?filename=…` | Mapas de fuentes de módulos cargados | Baja (código público) |
 
-Los recursos de desarrollo que cambian algo y son `POST` (`/__nextjs_restart_dev`, la configuración de las herramientas, `/__nextjs_original-stack-frames` y `/_next/mcp`) sí los para `blockCrossSiteDEV`: un `POST` del mismo origen lleva `Origin: http://evil.example:3000`, que no está permitido. El *websocket* de HMR también, porque lleva `Origin`. No es un fallo de Franca sino de `next dev`, pero la web promete «Toda petición» con `Host` local, y la cadena del inspector va más allá del *bundle*. Por eso **no** se acota la spec, sino que se propone cerrarlo.
+Un guardián delante (la revisión 2) **no lo cierra**: el `next dev` hijo, en su puerto efímero, atiende esos recursos con cualquier `Host`, y su puerto se puede localizar desde una página por tiempos.
 
-**Mitigación mínima propuesta**: `apps/web/scripts/dev-guard.mjs`, con `"dev": "node scripts/check-env.mjs && node scripts/dev-guard.mjs"`.
-- Arranca `next dev --hostname 127.0.0.1 --port <libre>` como proceso hijo.
-- Escucha en `127.0.0.1:3000` con `node:http`.
-- Responde 403 sin cuerpo a toda petición, y a toda petición de *upgrade*, cuyo `Host` en bruto no sea local. Usa la misma `isLocalHost`, que pasa a `src/server/config/local-host.mjs` para que la compartan `frontier.ts` y el guardián.
-- Lo demás lo reenvía tal cual al hijo, incluido el *upgrade* del *websocket* de HMR (un `net.connect` y `pipe` en los dos sentidos).
-- Imprime su propia línea «Franca web en http://localhost:3000».
-- Propaga `SIGINT` y `SIGTERM` y termina con el código del hijo.
+**Solución elegida, la opción (a')**: un *preload* en el árbol de procesos de Next, sin proceso guardián.
+- `apps/web/scripts/local-only-preload.cjs`, cargado con `--require` en **todo** proceso de Node que lance Next:
+  1. Sustituye `open` de `node:inspector` y de `node:inspector/promises` por una función que lanza. `_interop_require_wildcard` de Next copia las propiedades del módulo **después** del *preload*, así que el middleware recibe la función sustituida.
+  2. Envuelve `emit` de `http.Server.prototype` y de `https.Server.prototype`. En `request`, pone `Content-Security-Policy: frame-ancestors 'none'` y `X-Frame-Options: DENY` en la respuesta y, si la cabecera `host` en bruto no es local (`isLocalHost` de `src/server/config/local-host.cjs`, la misma que usa `frontier.ts`), responde `403` sin cuerpo y no emite el evento. En `upgrade`, si el `host` no es local, escribe `HTTP/1.1 403` y cierra el *socket*.
+- `apps/web/scripts/local-only.mjs` es el lanzador de los *scripts* `dev` y `start`:
+  1. Valida `FRANCA_API_URL` (D5) y sale con 1 sin escuchar.
+  2. Añade `--require "<ruta absoluta del preload>"` al `NODE_OPTIONS` que haya, sin pisarlo.
+  3. Ejecuta `next` (`next/dist/bin/next`, resuelto con `createRequire`) con los argumentos recibidos.
+  4. Reenvía `SIGINT` y `SIGTERM` y termina con el código del hijo.
+- *Scripts*: `"dev": "node scripts/local-only.mjs dev --hostname 127.0.0.1 --port 3000"` y `"start": "node scripts/local-only.mjs start --hostname 127.0.0.1 --port 3000"`. `next dev` escucha **directamente** en `127.0.0.1:3000` con la guarda dentro. No hay puerto interno ni proceso guardián, porque no aportaría nada más.
+- `proxy.ts` se queda igual (D2): `Origin`, ruta de conversación, `no-store`, `no-referrer` y `nosniff`, y repite `Host` y marcos como defensa por si alguien ejecuta `next` sin el lanzador.
 
-Así, en `next dev`, «Host local en la web» vuelve a valer para **toda** petición, sin delta de spec.
+**Mediciones** (Node 22.23.3, Next 16.4.2, `next dev --hostname 127.0.0.1 --port 3456` real sobre `apps/web`, con un prototipo del *preload* en el *scratchpad*):
 
-**Coste**:
-- Un fichero de unas 120 líneas y un proceso más en `pnpm dev`.
-- `isLocalHost` pasa a un `.mjs` compartido.
-- Tests en Vitest, sin Next: el guardián con un *upstream* simulado, con la matriz de `Host` (403 y sin reenvío), el *upgrade* local reenviado y el ajeno rechazado, y señales y código de salida. Además, mutantes `guardSkipHost` y `guardSkipUpgrade`.
-- El E2E «Otra interfaz de la máquina» ya arranca `dev`.
+| Comprobación | Sin *preload* | Con *preload* |
+|---|---|---|
+| `GET /__nextjs_attach-nodejs-inspector` con `Host: evil.example:3456` | **200** con `devtools://…ws=127.0.0.1:9229/<uuid>`, e inspector escuchando en `127.0.0.1:9229` | **403** sin cuerpo; nada en 9229 |
+| El mismo con `Host: localhost:3456` | (no se probó: abriría el inspector) | **500** sin URL (el middleware atrapa el error de `open`); nada en 9229 |
+| `_interop_require_wildcard` real de Next sobre `inspector`, y `getAttachNodejsDebuggerMiddleware()` de Next llamado en un proceso con el *preload* | — | `open` lanza, el middleware responde 500 sin URL e `inspector.url()` es `undefined` |
+| ¿El `--require` sobrevive al *fork* de `next-dev.js:393-416`, que reconstruye `NODE_OPTIONS`? | — | Sí. Lo cargan la CLI (`next/dist/bin/next`), `start-server.js` (el proceso `next-server`) y el *worker* de Turbopack (`pool_entry-[turbopack-node]…`). `formatNodeOptions` conserva `--require="<ruta con espacios>"` |
+| Procesos que escuchan | — | Solo `next-server` en `127.0.0.1:3456`. La CLI y el *worker* de Turbopack no escuchan |
+| `Host: evil.example` en `/`, `/__nextjs_launch-editor`, `/__nextjs_source-map`, `/_next/static/x`, `localhost.evil.example`, y `Host: evil.example` con `X-Forwarded-Host: localhost` | — | 403 en todos |
+| *Upgrade* de HMR (`/_next/hmr`, `router-server.js:757`) con `Host` local / ajeno | — | `101` / `403` |
+| Overlay (`POST /__nextjs_original-stack-frames` con `Origin` local), `/`, `/__nextjs_server_status`, `/__nextjs_source-map` con `Host` local, *chunks* y sus `.js.map` | — | 200, 200, 200, 204 y 200 (los mapas con `Host` ajeno, 403) |
+| `frame-ancestors 'none'` y `X-Frame-Options: DENY` en `/`, en un recurso de desarrollo y en el 403 | — | Presentes en los tres |
 
-**Lo que no cierra**:
-- Un proceso local puede seguir llegando al puerto interno de `next dev`, como hoy a la API.
-- Un DNS rebinding que **adivine** el puerto interno (efímero, distinto en cada arranque) tendría que barrer el rango de puertos con una resolución por intento. Es mucho más caro y queda como riesgo aceptado (R10).
+**Tests**, en Vitest y sin Next salvo lo indicado:
+- `tests/local-only-preload.test.ts` lanza un hijo `node --require scripts/local-only-preload.cjs --inspect-port=0` con un `http.createServer` propio. Comprueba:
+  - La matriz de `Host` en `request` y en `upgrade`, y las cabeceras de marcos.
+  - Que `inspector.open(0)` lanza, también desde `_interop_require_wildcard` de `@swc/helpers` (el que resuelve `next`) y desde el `getAttachNodejsDebuggerMiddleware` real de Next (500 sin URL).
+  - Que `inspector.url()` es `undefined`.
 
-**Alternativas descartadas**:
-- **`allowedDevOrigins`**: no ayuda, porque la petición del rebinding no lleva `Origin`.
-- **Un `pnpm patch` de Next** para quitar el middleware del inspector: se rompe en cada versión.
-- **`pnpm dev` como `next build && next start`**: sin HMR, inservible para desarrollar el editor (feature 8).
-- **Acotar la spec** a `next start`: deja abierta una ejecución de código en la máquina de quien desarrolla.
+  El puerto 0 hace que el mutante abra el inspector en un puerto aleatorio de loopback, y el test lo cierra.
+- `tests/local-only-launcher.test.ts` comprueba con un `next` simulado que `NODE_OPTIONS` lleva el `--require`, conserva el anterior, sale con 1 con un `FRANCA_API_URL` inválido sin lanzar `next`, y propaga señales y código. También pasa el `NODE_OPTIONS` resultante por `getParsedNodeOptions`/`formatNodeOptions` de `next/dist/server/lib/utils` (la función del *fork*) y comprueba que el `--require` sigue.
+- El `next dev` real se prueba en el E2E «Otra interfaz de la máquina» (5.6): con `Host: evil.example`, el endpoint del inspector da 403 y no aparece ningún puerto nuevo en escucha.
+- Mutantes `skipInspectorPatch`, `skipHostGuard` y `skipUpgradeGuard` (D23).
 
-**Si no se aprueba**: hay que añadir un delta `spec(web): …` que excluya de «Host local en la web» y de «Sin marcos de otras páginas» los recursos propios del servidor de desarrollo de Next en `next dev`, y documentar el riesgo del inspector como aceptado (R3).
+**Coste**: dos ficheros pequeños (*preload* y lanzador) y `isLocalHost` en un `.cjs` compartido. El botón «adjuntar el depurador de Node» de las herramientas de desarrollo de Next deja de funcionar (500). Para depurar, `NODE_OPTIONS=--inspect pnpm --filter @franca/web dev` abre el inspector al arrancar sin pasar por `open`.
+
+**Descartado**:
+- **(a) Solo neutralizar `inspector.open`**: deja `launch-editor` (oráculo de ficheros y efecto lateral), los mapas de fuentes y cualquier recurso futuro con un `Host` ajeno, y sin marcos en los recursos de desarrollo.
+- **Guardián delante** (revisión 1): no cubre el puerto real de `next dev`.
+- **`allowedDevOrigins`**: el rebinding no lleva `Origin`.
+- **Un `pnpm patch` de Next**: se rompe en cada versión.
+- **`next build && next start` como dev**: sin HMR.
 
 ## Contrato: navegador ↔ servidor de la web ↔ API
 
@@ -637,7 +664,7 @@ Ejemplos: `{"error":"revision_mismatch","currentRevision":2}` · `{"error":"conv
 |---|---|
 | `src/proxy.ts` | Llama a `checkFrontier` y aplica sus cabeceras (D2) |
 | `src/server/frontier.ts` (+ test) | `checkFrontier` y `SECURITY_HEADERS` (lee solo `host` en bruto) |
-| `src/server/config/local-host.mjs` (+ `local-host.test.ts`) | `isLocalHost`, compartida por `frontier.ts` y, con D26, por el guardián |
+| `src/server/config/local-host.cjs` (+ `local-host.test.ts`) | `isLocalHost`, compartida por `frontier.ts` y el *preload* (CommonJS, para que la cargue `--require` en cualquier Node 22) |
 | `src/server/ids.ts` (+ test) | `isConversationId`, `isFlowId`, `parseVersion` y `parseOffset` |
 | `src/server/config/api-url.mjs` (+ `api-url.test.ts`) | `parseApiUrl` y `DEFAULT_API_URL` (D5) |
 | `src/server/api/transport.ts` (+ test) | Una petición a la API (D4) |
@@ -652,8 +679,7 @@ Ejemplos: `{"error":"revision_mismatch","currentRevision":2}` · `{"error":"conv
 | `src/hooks/use-conversation-session.ts`, `use-paged-list.ts`, `use-start-conversation.ts` | Adaptadores de React |
 | `src/components/chat/home-screen.tsx`, `contact-field.tsx`, `flow-list.tsx`, `conversation-list.tsx`, `list-state.tsx`, `conversation-screen.tsx`, `conversation-header.tsx`, `message-list.tsx`, `flow-message.tsx`, `message-text.tsx`, `media-item.tsx`, `user-message.tsx`, `typing-indicator.tsx`, `pending-question.tsx`, `text-question.tsx`, `single-choice-question.tsx`, `multiple-choice-question.tsx`, `answer-reason.tsx`, `end-notice.tsx`, `conversation-notice.tsx`, `test-details-panel.tsx`, `technical-activity.tsx`, `delete-conversation-dialog.tsx`, `conversation-loading.tsx`, `conversation-not-found.tsx` (+ tests de marcado de `message-text`, `media-item`, `pending-question`, `end-notice` y `test-details-panel`) | Pantallas y componentes |
 | `src/components/ui/button.tsx`, `notice.tsx` | Genéricos |
-| `scripts/check-env.mjs`, `scripts/mutate.mjs` | D5, D23 |
-| `scripts/dev-guard.mjs` (+ `tests/dev-guard.test.ts`) | **Solo si se aprueba D26** |
+| `scripts/local-only.mjs` (lanzador), `scripts/local-only-preload.cjs` (+ `tests/local-only-launcher.test.ts`, `tests/local-only-preload.test.ts`), `scripts/mutate.mjs` | D5, D26, D23 |
 | `tests/static-guard.test.ts`, `api-error-codes-parity.test.ts`, `spec-coverage.test.ts`, `spec-text-parity.test.ts`, `flow-fixtures.test.ts`, `api-transport-env-proxy.test.ts`, `hostile/env-proxy.hostile.ts`, `helpers/spec-text.ts`, `helpers/fake-api.ts`, `mutations.json` | D19, D22, D23 |
 | `vitest.config.ts`, `vitest.hostile.config.ts`, `playwright.config.ts` | Configuración de tests |
 | `e2e/support/{stack,database,processes,api-shapes,admin,browser,test}.ts`, `e2e/fixtures/flows/{pregunta,saludo-contacto,hola,preguntas,medios}.json`, `e2e/{home,conversation-page,questions,rhythm,concurrency,lifecycle,frontier,accessibility,fake-api-shapes}.e2e.ts` | D20 |
@@ -690,7 +716,7 @@ Un fichero nuevo fuera de esa lista exige una decisión explícita en este docum
 - [x] Cada llamada del navegador tiene su ruta y cada ruta su operación. El comodín no llama a nada.
 - [x] Tipos de eventos desde `@franca/engine`, de flujo desde `@franca/spec`. El patrón de `id` se importa (`schema.$defs.id.pattern`). La web solo declara las formas de los recursos de la API (`api-types.ts`), y las comprueba `fake-api-shapes.e2e.ts`.
 - [x] Cada error de la API tiene manejo, aunque sea el genérico del contexto. Los códigos desconocidos son genéricos y la lista espejada tiene test de paridad. Las respuestas sin cuerpo (el 204 de `DELETE`, los 403 de la frontera, un 4xx/5xx sin `error`) se leen por su estado y nunca como `network_error` (D8, D9).
-- [x] Permisos: no hay usuarios. La frontera (`Host` en bruto y `Origin`) se aplica a toda ruta y a toda mutación en `next start`. En `next dev`, a todo lo que llega a `proxy.ts`; los recursos de desarrollo de Next, solo con D26. El navegador no puede borrar contactos ni tocar flujos (ocho operaciones).
+- [x] Permisos: no hay usuarios. La frontera (`Host` en bruto y `Origin`) se aplica a toda ruta y a toda mutación en `next start`. En `next dev`, el *preload* (D26) aplica `Host` y marcos a toda petición del proceso, recursos de desarrollo incluidos, y `proxy.ts` el resto. El navegador no puede borrar contactos ni tocar flujos (ocho operaciones).
 - [x] Constantes espejadas con paridad: `API_ERROR_CODES` (texto de la API), los motivos (`INVALID_ANSWER_REASONS` del motor), los *fixtures* de flujos (texto de la spec) y las listas de tipos conocidos en ejecución (`KNOWN_INPUT_TYPES` y `KNOWN_CONTENT_KINDS` frente a los `enum` del esquema de `@franca/spec`; `KNOWN_EVENT_TYPES` con exhaustividad de tipos frente a `EngineEvent['type']`, D10).
 - [x] Convivencia: cero ficheros de `apps/api` y `packages/`, y fuera de `apps/web` solo los de la tabla, con su porqué. Se ejerce con el criterio del *diff*.
 
@@ -735,19 +761,25 @@ Son 3 en Vitest y 60 en Playwright: 63 en total, uno por escenario, con el títu
 
 - **R1. Next 16 cambia el enrutado de `%2F`**. Si Next decodificara `%2F` antes de enrutar, `..%2F..%2Fflows%2Fhola` podría acabar en otra ruta. Mitigación: el paso 3 de la frontera (D2) valida el segmento antes de enrutar, y el comodín nunca llama a la API. Lo cubre «Id de conversación con una ruta dentro» contra `next start`.
 - **R2. `Cache-Control` en otros caminos de Next**. Algunos caminos de `base-server.js` fijan `private, no-cache, no-store, …` incondicionalmente. Contienen `no-store`, y el test acepta cualquier valor que lo contenga. Si Next quitara `no-store` en algún camino, falla «Conversación creada fuera del chat».
-- **R3. `next dev` frente a `next start`**. Los E2E corren contra el *build*, donde `proxy.ts` ve toda petición. En `next dev`, los recursos de desarrollo de Next se atienden antes de `proxy.ts` (`router-server.js:387-403`, `hot-reloader-turbopack.js:963-975`), y uno de ellos permite ejecutar código con un DNS rebinding (auditoría). Lo cierra D26 si se aprueba. Si no, se acota la spec y el riesgo queda aceptado y escrito. El resto de `next dev` solo lo ejercen «Otra interfaz de la máquina» y la verificación manual en el navegador (6.4). Si `next dev` bloquea recursos al abrir la web por `127.0.0.1`, se documenta usar `localhost` (FOLLOW-UP 7.4).
+- **R3. `next dev` frente a `next start`**. Los E2E corren contra el *build*. En `next dev`, los recursos de desarrollo de Next se atienden antes de `proxy.ts` (`router-server.js:387-403`, `hot-reloader-turbopack.js:963-975`), y los cubre el *preload* de D26 en el *socket* (medido). La guarda depende de que Next siga creando su servidor con `http.createServer` (`start-server.js:229-232`) y el inspector con `inspector.open`. Si una versión futura cambiara eso, fallarían el test del *preload* (que ejecuta el middleware real de Next) o el E2E de `dev`. El resto de `next dev` lo ejercen «Otra interfaz de la máquina» y la verificación manual (6.4). Si `next dev` bloquea recursos al abrir la web por `127.0.0.1`, se documenta usar `localhost` (FOLLOW-UP 7.4).
 - **R4. El proxy del entorno solo se prueba en el transporte**. Sin entorno hostil en los E2E (simplificación aprobada), una petición del servidor de la web que no pasara por `transport.ts` y obedeciera al proxy no se vería en los E2E. Mitigación: ESLint y la guarda estática prohíben `fetch` y `node:http` fuera de `transport.ts`, y el hijo de Vitest con `useGlobalAgent` cubre el transporte.
 - **R5. Duración de los E2E en la CI**. Un solo *worker* en serie con unos 60 escenarios con Chromium, la API y la web, más los 150 s de «Avance largo» en la misma ejecución. Se mide en el *runner*, nunca en el portátil (`lecciones-equipo`), y se anota en el PR (FOLLOW-UP 7.2).
 - **R6. Una transcripción muy larga**. Se lee entera en páginas de 100. Una conversación de miles de entradas tarda en abrirse, y en una herramienta de prueba es aceptable. No hay tope en esta feature.
 - **R7. `<Activity>` conserva el DOM oculto**. La conversación anterior sigue en el documento con `display: none` (hasta 3 rutas). Las comprobaciones de «la página no contiene» de los E2E se hacen sobre la página recién cargada o sobre el texto **visible**. No es almacenamiento del navegador.
 - **R8. Contenido de terceros**. Imágenes, audio, vídeo y marcos del flujo piden a esos servidores (la IP y el momento de quien prueba), y el marco ejecuta *scripts* en un origen opaco. Es inherente a probar el flujo (propuesta). Sin `Referer`, la URL de la conversación no sale.
 - **R9. La extracción por texto de `API_ERROR_CODES`**. Si la API reescribe la declaración, el test falla en vez de pasar en verde (exige 20 o más). Se corrige el extractor en el mismo PR que el cambio de la API.
-- **R10. Puerto interno de `next dev` con D26**. El guardián cubre el 3000, pero `next dev` escucha en un puerto efímero de `127.0.0.1`. Un DNS rebinding que barriera el rango de puertos podría llegar a él. Es caro y lento (una resolución por intento), y queda aceptado: es el mismo nivel de exposición que la API frente a los procesos locales.
+- **R10. Lo que queda abierto tras D26**. No hay puerto interno: `next dev` y `next start` escuchan solo en `127.0.0.1:3000` y rechazan un `Host` ajeno en todo el proceso, como hace la API (`local-only.ts:16-31`), así que un DNS rebinding no llega a ningún recurso. Sigue abierto:
+  - (1) **Una página servida desde otro puerto de `localhost`** (otra herramienta de desarrollo de la máquina) manda `Host: localhost:3000` y un `Origin` que `blockCrossSiteDEV` admite (`localhost` y `**.localhost` van siempre en la lista): puede **provocar** `GET /__nextjs_launch-editor` (se abre un fichero en el editor) sin leer la respuesta, que no tiene CORS. El inspector ya no se abre. Se acepta: esa página ya es código local.
+  - (2) **Un proceso local** puede usar la web y la API como hoy (propuesta) y abrir el inspector con `SIGUSR1`, que requiere ser el mismo usuario.
+  - (3) **Arrancar `next` sin el lanzador** (`pnpm exec next dev`) se salta el *preload*. La guarda estática obliga a que los *scripts* pasen por él, `pnpm dev` lo usa (turbo ejecuta el *script*), y `proxy.ts` sigue aplicando `Host` y `Origin` a lo que no es de desarrollo.
+  - (4) **`--experimental-https`** usaría `https.Server`. El *preload* también lo envuelve, pero no se prueba con certificados: la guarda estática prohíbe esa opción en los *scripts*.
 
 ## Open Questions
 
-Resueltas por el orquestador: el delta `e88c5ed` (aprobado), `test:e2e` serializado (aprobado), «Avance largo» en la misma ejecución en serie de cada PR, y las simplificaciones de la revisión 2.
+Resueltas por el orquestador dentro del flujo autónomo «de corrido» que acordó el usuario, que solo se para ante decisiones de producto. **El usuario puede revertir cualquiera**:
+- El delta `e88c5ed` (sin marcos).
+- `test:e2e` serializado.
+- «Avance largo» en la misma ejecución en serie de cada PR.
+- Las simplificaciones de la revisión 2 (una pila, sin entorno hostil, mutantes recortados).
 
-Pendiente de aprobación humana:
-
-1. **D26, guardián delante de `next dev`**: un script de unas 120 líneas y un proceso más en `pnpm dev`, a cambio de cerrar la ejecución de código por el inspector de Node con DNS rebinding. Recomendación: **sí**. La alternativa es un delta que acote la spec y acepte el riesgo. Mientras no se decida, solo quedan en espera las tareas 2.10 y la variante `dev` de 5.6. El resto del plan no depende de esto.
+Nada pendiente de aprobación. D26 es una decisión técnica sin efecto de producto. Su único coste visible es que el botón de adjuntar el depurador de Node de las herramientas de desarrollo de Next deja de funcionar, con la alternativa documentada.
