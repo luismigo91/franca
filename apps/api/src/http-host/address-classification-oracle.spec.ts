@@ -145,7 +145,11 @@ const classify = (text: string): boolean => {
   return isGlobalUnicast(parsed);
 };
 
-describe('QA clasificación: IPv4 frente a un oráculo independiente', () => {
+// Decenas de miles de direcciones por test: medio segundo en local, más de 7 s en el runner de la CI con turbo
+// corriendo a la vez los tests de todos los paquetes. El límite de 5 s por defecto daba falsos rojos.
+const HEAVY = { timeout: 30_000 };
+
+describe('QA clasificación: IPv4 frente a un oráculo independiente', HEAVY, () => {
   it('los bordes de cada rango (primero, último, anterior y siguiente) y 60 000 direcciones al azar coinciden con el oráculo', () => {
     const points = new Set<bigint>();
     for (const [start, end] of [...V4_NOT_GLOBAL, ...V4_REACHABLE_EXCEPTIONS]) {
@@ -205,7 +209,7 @@ describe('QA clasificación: IPv4 frente a un oráculo independiente', () => {
   });
 });
 
-describe('QA clasificación: IPv6 frente a un oráculo independiente', () => {
+describe('QA clasificación: IPv6 frente a un oráculo independiente', HEAVY, () => {
   it('bordes de cada rango y 60 000 direcciones al azar (también incrustando IPv4 en mapeadas y NAT64) coinciden con el oráculo', () => {
     const points = new Set<bigint>();
     const ranges: Range[] = [
@@ -369,7 +373,7 @@ describe('QA clasificación: IPv6 frente a un oráculo independiente', () => {
   });
 });
 
-describe('QA política de destinos: resoluciones hostiles', () => {
+describe('QA política de destinos: resoluciones hostiles', HEAVY, () => {
   const none = createAllowedDestinations([]);
   const decide = (
     entries: readonly { address: unknown; family: unknown }[],

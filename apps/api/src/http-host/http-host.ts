@@ -1,6 +1,6 @@
 import type { HttpAttemptResult, HttpCapability, HttpRequest } from '@franca/engine';
 import { parseIp } from './addresses.js';
-import { attemptBudget } from './attempt-budget.js';
+import { abortAfter, attemptBudget } from './attempt-budget.js';
 import { decideDestination, type AllowedDestinations, type ResolvedEntry } from './destination-policy.js';
 import type { HttpNetwork } from './network.js';
 import type { HttpNotices } from './notices.js';
@@ -118,7 +118,7 @@ export function createHttpHost(deps: HttpHostDeps): HttpHost {
     const budgetMs = attemptBudget(request.timeoutMs, context.deadlineMs - context.now());
     if (budgetMs <= 0) return { kind: 'timeout' };
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), budgetMs);
+    const cancelTimer = abortAfter(controller, budgetMs);
     try {
       const resolution = await resolveName(deps.network, url, controller.signal);
       if (resolution.kind === 'aborted') return { kind: 'timeout' };
@@ -142,7 +142,7 @@ export function createHttpHost(deps: HttpHostDeps): HttpHost {
           return { kind: 'timeout' };
       }
     } finally {
-      clearTimeout(timer);
+      cancelTimer();
     }
   }
 
