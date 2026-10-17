@@ -14,7 +14,7 @@ Monorepo pnpm workspaces + Turborepo, Node 22+.
 
 | Paquete | Ruta | Stack | Puerto |
 |---|---|---|---|
-| `@franca/api` | `apps/api` | NestJS 12 (ESM), Vitest, oxlint — skill `popi:stack-nestjs` | 3001 |
+| `@franca/api` | `apps/api` | NestJS 12 (ESM), Prisma 7 + Postgres, Vitest, oxlint — skill `popi:stack-nestjs` | 3001 |
 | `@franca/web` | `apps/web` | Next.js 16 App Router, React 19, Tailwind 4, ESLint — skill `popi:stack-nextjs` | 3000 |
 | `@franca/spec` | `packages/spec` | JSON Schema 2020-12 + tipos generados + validador (ajv), tsdown, Vitest | — |
 | `@franca/engine` | `packages/engine` | TypeScript puro sin IO (motor de ejecución de flujos), tsdown, Vitest | — |
@@ -28,12 +28,14 @@ Las apps importan `@franca/spec` compilado (`dist/`); turbo lo construye antes (
 |---|---|
 | Arrancar en local | `pnpm dev` |
 | Verificación canónica (lint + typecheck + tests) | `pnpm check` |
-| Tests | `pnpm test` (unit) · `pnpm test:e2e` (api) · `pnpm validate` (ejemplos de la spec) |
+| Postgres local (para `dev` y `test:e2e`) | `docker compose up -d` (parar: `docker compose stop`; borrar datos: `docker compose down -v`) |
+| Migraciones de la api | `pnpm --filter @franca/api db:migrate` (aplicar) · `db:migrate:dev --create-only` (escribir una nueva; revisa el SQL) |
+| Tests | `pnpm test` (unit) · `pnpm test:e2e` (api; **necesita Postgres y `DATABASE_URL`**) · `pnpm validate` (ejemplos de la spec) |
 | Regenerar tipos de la spec | `pnpm --filter @franca/spec generate` |
 | Test en vivo del adaptador de Claude (opcional, gasta céntimos, nunca en CI) | `FRANCA_LIVE_ANTHROPIC=1 pnpm --filter @franca/llm-anthropic test:live` |
 | Lint de la wiki | `pnpm wiki:lint` |
 
-`pnpm check` es el **veredicto canónico**: se ejecuta en local (pre-push), en el Stop hook y su equivalente en CI. Informa solo de checks realmente ejecutados; nunca describas como pasado un check que no corriste.
+`pnpm check` es el **veredicto canónico**: se ejecuta en local (pre-push), en el Stop hook y su equivalente en CI. **No necesita Postgres ni `DATABASE_URL`** (lint, typecheck y unit); `test:e2e` sí. Informa solo de checks realmente ejecutados; nunca describas como pasado un check que no corriste.
 
 ## Ramas y PRs
 
@@ -60,6 +62,7 @@ Lista completa en `.claude/rules/always/gotchas.md`. Los imprescindibles:
 
 - `packages/spec/src/types.ts` es generado: se cambia el esquema y se regenera.
 - `apps/api` es ESM: imports relativos con `.js`.
+- El cliente de Prisma se genera en `apps/api/src/generated/prisma` (ignorado por git): turbo lo regenera con `db:generate` antes de compilar, lintar y testear. Si una app sin turbo falla con `Cannot find module '../generated/prisma/client.js'`, ejecuta `pnpm --filter @franca/api db:generate`.
 - Next.js 16 rompe APIs anteriores: lee `apps/web/node_modules/next/dist/docs/` antes de asumir.
 - El formato de flujo vive solo en `@franca/spec`; ni la api ni la web redefinen tipos o reglas de validación.
 
@@ -67,6 +70,9 @@ Lista completa en `.claude/rules/always/gotchas.md`. Los imprescindibles:
 
 Solo nombres; los valores viven en ficheros de entorno locales que nunca se leen, copian ni versionan.
 
-- `PORT` (api, por defecto 3001)
+- `DATABASE_URL` (api, obligatoria): cadena de conexión a Postgres. Con `docker compose up -d`, la del servicio `postgres` (usuario y base `franca`, sin contraseña, `127.0.0.1:5432`). La leen `pnpm dev` y `pnpm test:e2e` del entorno de la shell; el fichero de ejemplo de variables lo crea una persona.
+- `HOST` (api, por defecto `127.0.0.1`): solo admite `127.0.0.1` y `::1` mientras la api no tenga autenticación; cualquier otro valor, también vacío, impide arrancar.
+- `PORT` (api, por defecto 3001; `0` elige un puerto libre)
+- `FRANCA_POSTGRES_PORT` (opcional): puerto local del contenedor de Postgres de `docker-compose.yml` (por defecto 5432)
 - `ANTHROPIC_API_KEY` (la lee el SDK de Anthropic en el cliente por defecto de `@franca/llm-anthropic`; solo para el test en vivo, exportada en la shell)
 - `FRANCA_LIVE_ANTHROPIC` (`1` activa el test en vivo del adaptador; con `CI` exige además `FRANCA_LIVE_ANTHROPIC_CI=1`)
