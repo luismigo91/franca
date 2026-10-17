@@ -24,7 +24,7 @@ Reglas para todas las fases:
 
 ## 1. Núcleo del frontend — dueño: `popi:frontend-developer`
 
-- [ ] 1.1 Dependencias y *scripts* de `apps/web/package.json` (D18, D6):
+- [x] 1.1 Dependencias y *scripts* de `apps/web/package.json` (D18, D6):
   - `@franca/spec` y `@franca/engine` (`workspace:*`).
   - `vitest` `4.1.12`, `@playwright/test` `1.64.1`, `pg` `8.23.1` y `@types/pg` `8.23.1`, todas exactas.
   - **`@types/node` sube a `24.19.2`**, la que resuelve la API.
@@ -35,8 +35,8 @@ Reglas para todas las fases:
     - `mutate`: `node scripts/mutate.mjs`
 
   Después, `pnpm install`. Comprueba en `pnpm-lock.yaml` que `vitest@4.1.12` de la web resuelve con **el mismo** `vite@…(@types/node@24.19.2)` que la API: no hay una segunda copia de `vite`.
-- [ ] 1.2 `apps/web/vitest.config.ts` (D19): alias `@/`, entorno `node`, `include` y JSX automático. Un primer test de marcado (`renderToStaticMarkup` de un componente trivial) demuestra que el JSX se transforma. Si no, se fija `oxc.jsx.runtime`. `.gitignore` de la web: `/test-results`, `/playwright-report` y `/blob-report`.
-- [ ] 1.3 Reglas de `apps/web/eslint.config.mjs`:
+- [x] 1.2 `apps/web/vitest.config.mts` (D19; **desviación**: `.mts`, porque el paquete no es ESM y Vite avisa de un `.ts` con `import`; igual `vitest.hostile.config.mts`): alias `@/`, entorno `node`, `include` y JSX automático. Un primer test de marcado (`renderToStaticMarkup` de un componente trivial) demuestra que el JSX se transforma. Si no, se fija `oxc.jsx.runtime`. `.gitignore` de la web: `/test-results`, `/playwright-report` y `/blob-report`.
+- [x] 1.3 Reglas de `apps/web/eslint.config.mjs`:
   - `no-restricted-imports` de `node:http`, `node:https`, `node:net`, `http`, `https`, `net` y `undici`, salvo en `src/server/api/transport.ts` (y `node:http`, `node:https` y `node:inspector` en `scripts/local-only-preload.cjs`, D26), y de `next/image` en `src/components/chat/**`.
   - `no-restricted-globals`: `fetch` salvo en `src/lib/web-client.ts`, más `localStorage`, `sessionStorage`, `indexedDB` y `caches`.
   - `no-restricted-properties` de `document.cookie`.
@@ -44,33 +44,33 @@ Reglas para todas las fases:
   - `react/no-danger`.
 
   Cada restricción se valida a mano una vez: se escribe la línea prohibida, `pnpm --filter @franca/web lint` falla, y se quita.
-- [ ] 1.4 `src/config/endpoints.ts` (`WEB_ENDPOINTS` y `API_OPERATIONS`), `api-error-codes.ts` (26 códigos), `web-error-codes.ts` y `limits.ts`:
+- [x] 1.4 `src/config/endpoints.ts` (`WEB_ENDPOINTS` y `API_OPERATIONS`), `api-error-codes.ts` (26 códigos), `web-error-codes.ts` y `limits.ts`:
   - Páginas de 20 y de 100.
   - Plazos de 180 000 y 15 000 ms en el servidor, y de 200 000 y 30 000 ms en el navegador.
   - Topes de 1 MiB del cuerpo y 32 MiB de la respuesta.
 
   Con `tests/api-error-codes-parity.test.ts`, que contiene **«Paridad de códigos»**, y un test de que los códigos de la API y los de la web son disjuntos. Validación a mano, una vez: se añade un código al espejo, el test falla, y se quita. No es un mutante registrado (D23).
-- [ ] 1.5 `src/server/config/api-url.mjs` (D5), con `src/server/config/api-url.test.ts` (el lanzador que la usa antes de `next` llega en 2.9):
+- [x] 1.5 `src/server/config/api-url.mjs` (D5), con `src/server/config/api-url.test.ts` (el lanzador que la usa antes de `next` llega en 2.9):
   - La matriz de la spec (`https://127.0.0.1:3001`, `http://api.example.com:3001`, `/v1`, credenciales, sin esquema, `""`, `localhost`, `[::1]` y ausente).
   - Controles y espacios.
   - Puerto `0`.
   - Mayúsculas.
   - El mensaje nombra `FRANCA_API_URL` y nunca contiene el valor.
-- [ ] 1.6 `src/server/ids.ts` y `src/server/config/local-host.cjs` (CommonJS con `module.exports = { isLocalHost }` explícito) + tests. El **primer** test de `local-host.test.ts` importa el módulo exactamente como lo hará `frontier.ts` (`import { isLocalHost } from '@/server/config/local-host.cjs'`) y comprueba que es una función, y el *preload* lo carga con `require`:
+- [x] 1.6 `src/server/ids.ts` y `src/server/config/local-host.cjs` (CommonJS con `module.exports = { isLocalHost }` explícito) + tests. El **primer** test de `local-host.test.ts` importa el módulo exactamente como lo hará `frontier.ts` (`import { isLocalHost } from '@/server/config/local-host.cjs'`) y comprueba que es una función, y el *preload* lo carga con `require`:
   - UUID en minúsculas (también `…00A` y `..%2F..`), patrón de `id` importado de `@franca/spec`, versión y `offset`.
   - `isLocalHost` con la matriz de la spec: `localhost.evil.example`, `127.0.0.1.nip.io`, `localhost.`, mayúsculas y puertos.
-- [ ] 1.7 `src/lib/chat/url-filter.ts` + test (D13), con **«Direcciones rechazadas»** y **«Direcciones admitidas y su serialización»**, más los casos de `medios` y de `preguntas`.
-- [ ] 1.8 `src/lib/chat/api-types.ts`, `events.ts` y `known-types.ts` (D10):
+- [x] 1.7 `src/lib/chat/url-filter.ts` + test (D13), con **«Direcciones rechazadas»** y **«Direcciones admitidas y su serialización»**, más los casos de `medios` y de `preguntas`.
+- [x] 1.8 `src/lib/chat/api-types.ts`, `events.ts` y `known-types.ts` (D10):
   - Guardas de tipo defensivas para eventos, contenido y entradas. Test con eventos **del motor real** (`startSession`/`continueSession` sobre `captacion-leads`, `preguntas`, `medios` y `pregunta`) y con formas desconocidas o rotas que se ignoran sin lanzar.
   - `KNOWN_EVENT_TYPES`, `KNOWN_CONTENT_KINDS` y `KNOWN_INPUT_TYPES` con `satisfies` y comprobación de exhaustividad en tipos.
   - `known-types.test.ts`: las dos últimas, iguales a los `enum` de `schema.$defs` de `@franca/spec`, y los eventos reales, solo con tipos de la primera.
   - Se valida a mano, una vez: se quita un tipo de una lista y `pnpm typecheck` o el test fallan.
-- [ ] 1.9 `src/lib/chat/copy.ts` + test:
+- [x] 1.9 `src/lib/chat/copy.ts` + test (**desviación**: `version_not_found` al empezar da el genérico, como dice la auditoría de `design.md` y la spec; solo `flow_not_found` dice «Ese flujo ya no existe». La fila de la tabla de errores del contrato que los agrupa queda corregida en el diseño de facto):
   - Un aviso por cada valor de `INVALID_ANSWER_REASONS`, con las claves comparadas con las del motor, y el genérico.
   - Los mapas de error por contexto de la tabla del contrato, cada código con escenario con su texto, y un desconocido o `unknown` con el genérico.
   - Los estados en español.
   - Ningún texto contiene `@franca/`.
-- [ ] 1.10 `src/lib/chat/transcript-view.ts` + test (D12):
+- [x] 1.10 `src/lib/chat/transcript-view.ts` + test (D12):
   - Orden por `seq`.
   - Etiquetas de `choice` y `choices` (en el orden de las opciones, con «, »).
   - Un `id` desconocido.
@@ -79,7 +79,7 @@ Reglas para todas las fases:
   - Paginación de 150 entradas con `limit=100`.
   - `total` cambiante.
   - Pendiente desde el recurso.
-- [ ] 1.11 `src/lib/web-client.ts` + test, con un `fetch` falso inyectado. Cada fila de la tabla «Cómo lee el cliente del navegador una respuesta» de D9:
+- [x] 1.11 `src/lib/web-client.ts` + test, con un `fetch` falso inyectado. Cada fila de la tabla «Cómo lee el cliente del navegador una respuesta» de D9:
   - 204 → `{ok: true, status: 204, body: null}`.
   - 4xx/5xx **sin cuerpo** (403 de la frontera, 405) → `unknown` con su estado, **nunca** `network_error`.
   - 2xx sin JSON → `invalid_api_response`.
@@ -87,7 +87,7 @@ Reglas para todas las fases:
   - `cache: 'no-store'`, modo `cors` (sin `mode:`), `credentials: 'same-origin'`.
   - `If-Match: "<n>"` en las entradas.
   - Contacto `''` → cuerpo `{"flowId":"…"}` sin `contactId`, y `' '` → con `contactId: " "`.
-- [ ] 1.12 `src/lib/chat/conversation-session.ts` y `first-advance.ts` + test (D10, D11), con un cliente falso, `sleep` controlado y temporizadores falsos:
+- [x] 1.12 `src/lib/chat/conversation-session.ts` y `first-advance.ts` + test (D10, D11), con un cliente falso, `sleep` controlado y temporizadores falsos:
   - Ritmo: espera `typingDelayMs` tras cada confirmación, y la pregunta aparece después del último mensaje.
   - El indicador durante la espera de la API.
   - Cerrojo de doble envío.
@@ -97,8 +97,8 @@ Reglas para todas las fases:
   - `draft` recuperado en la pregunta siguiente.
   - Regla de reanudación con `StrictMode` y `<Activity>`.
   - **`remove()`**: el 204 y el 404 navegan a `/`, un error de conexión o uno sin cuerpo se queda con su aviso y sin reintentar, y cancelar no llama a nada.
-- [ ] 1.13 `src/lib/chat/paged-list.ts` + test: añadir una página sin repetir `id`, y saber si quedan más (`offset + items < total`).
-- [ ] 1.14 **Gate 1**:
+- [x] 1.13 `src/lib/chat/paged-list.ts` + test: añadir una página sin repetir `id`, y saber si quedan más (`offset + items < total`).
+- [x] 1.14 **Gate 1**:
   - `pnpm check` en verde.
   - `pnpm exec openspec validate web-chat --strict` en verde.
   - `git diff --name-only main...HEAD -- apps/api packages` vacío.

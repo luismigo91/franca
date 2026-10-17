@@ -1,0 +1,47 @@
+{
+  "specVersion": "0.1",
+  "id": "pregunta",
+  "name": "Pregunta",
+  "settings": {
+    "sessionTimeoutMinutes": 30
+  },
+  "variables": [
+    {
+      "name": "nombre",
+      "type": "string"
+    },
+    {
+      "name": "email",
+      "type": "email",
+      "scope": "contact",
+      "pii": true
+    }
+  ],
+  "start": "p",
+  "nodes": [
+    {
+      "id": "p",
+      "type": "input",
+      "inputType": "text",
+      "variable": "nombre",
+      "prompt": [
+        {
+          "kind": "text",
+          "text": "¿Nombre?"
+        }
+      ],
+      "next": "fin"
+    },
+    {
+      "id": "fin",
+      "type": "end",
+      "outcome": "ok",
+      "content": [
+        {
+          "kind": "text",
+          "text": "Adiós, {{email}}."
+        }
+      ]
+    }
+  ]
+}

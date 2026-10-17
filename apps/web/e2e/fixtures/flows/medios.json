@@ -1,0 +1,61 @@
+{
+  "specVersion": "0.1",
+  "id": "medios",
+  "name": "Medios",
+  "settings": {
+    "typingDelayMs": 0
+  },
+  "start": "m",
+  "nodes": [
+    {
+      "id": "m",
+      "type": "message",
+      "content": [
+        {
+          "kind": "text",
+          "text": "<b>Hola</b>\nhttps://example.com"
+        },
+        {
+          "kind": "image",
+          "url": "https://example.com/logo.png",
+          "alt": "Logo"
+        },
+        {
+          "kind": "image",
+          "url": "javascript:alert(1)",
+          "alt": "Malo"
+        },
+        {
+          "kind": "image",
+          "url": "/relativa.png"
+        },
+        {
+          "kind": "image",
+          "url": "https://usuario:clave@example.com/a.png"
+        },
+        {
+          "kind": "video",
+          "url": "data:video/mp4;base64,AAAA"
+        },
+        {
+          "kind": "audio",
+          "url": "https://example.com/audio.mp3"
+        },
+        {
+          "kind": "embed",
+          "url": "https://example.com/widget",
+          "alt": "Widget"
+        },
+        {
+          "kind": "embed",
+          "url": "http://example.com/widget"
+        }
+      ],
+      "next": "fin"
+    },
+    {
+      "id": "fin",
+      "type": "end"
+    }
+  ]
+}
