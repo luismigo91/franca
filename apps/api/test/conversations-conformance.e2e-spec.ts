@@ -3,9 +3,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createConversationsHarness, ResettableOutput, type ConformanceHarness } from './helpers/conversations-harness.js';
 import { startConversationsContext, type ConversationsContext } from './helpers/conversations.js';
 
-/** Los casos de `HOST_CONFORMANCE_CASES` que cubre el host de conversaciones; los de `http` son de la feature 6b. */
-const CASE_IDS = ['registros-llm', 'custodia-estado', 'una-continuacion', 'reclamacion-caducada'] as const;
-
 describe('conformidad del host de conversaciones (e2e)', () => {
   const output = new ResettableOutput();
   let ctx: ConversationsContext;
@@ -27,14 +24,17 @@ describe('conformidad del host de conversaciones (e2e)', () => {
   });
 
   it('Suite de conformidad', async () => {
-    const cases = CASE_IDS.map((id) => ({ id, found: HOST_CONFORMANCE_CASES.find((candidate) => candidate.id === id) }));
-    expect(cases.filter((candidate) => candidate.found === undefined).map((candidate) => candidate.id), 'casos que ya no existen en @franca/engine/conformance').toEqual([]);
-    for (const { id, found } of cases) {
-      // Vaciar la base, la salida y el reloj, y calentar el pool de Postgres, antes de cada caso: `una-continuacion` solo da
+    const executed: string[] = [];
+    for (const found of HOST_CONFORMANCE_CASES) {
+      // Vaciar la base, la salida, la red y el reloj, y calentar el pool de Postgres, antes de cada caso: `una-continuacion` solo da
       // 200 ms para que las dos continuaciones lleguen a reclamar, y una conexión nueva podría comerse ese margen.
       await harness.reset();
       await harness.warmUp();
-      expect(await found!.run(harness), id).toEqual([]);
+      expect(await found.run(harness), found.id).toEqual([]);
+      executed.push(found.id);
     }
+    // Un caso nuevo del motor entra solo; si alguno no se ejecutó, el test falla.
+    expect(executed).toEqual(HOST_CONFORMANCE_CASES.map((candidate) => candidate.id));
+    expect(executed).toHaveLength(HOST_CONFORMANCE_CASES.length);
   });
 });

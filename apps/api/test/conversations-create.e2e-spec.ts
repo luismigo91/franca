@@ -167,8 +167,9 @@ describe('crear conversaciones (e2e)', () => {
     await ctx.say(id, { text: 'Ana' });
     await ctx.say(id, { text: 'ana@example.com' });
     const body = await ctx.say(id, { choice: 'grande' });
-    expect(body.conversation).toMatchObject({ status: 'failed', error: { code: 'unsupported_node', nodeId: 'enviar-crm' }, pendingInput: null });
+    expect(body.conversation).toMatchObject({ status: 'failed', error: { code: 'missing_secret', nodeId: 'enviar-crm' }, pendingInput: null });
     expect(body.events).toHaveLength(1);
-    expect(body.events[0]).toMatchObject({ type: 'error', code: 'unsupported_node', nodeId: 'enviar-crm' });
+    expect(body.events[0]).toMatchObject({ type: 'error', code: 'missing_secret', nodeId: 'enviar-crm' });
+    expect(ctx.testApp.network.connections()).toEqual([]);
   });
 });
