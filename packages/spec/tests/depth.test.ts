@@ -38,12 +38,14 @@ describe('exceedsFlowDepth', () => {
     expect(exceedsFlowDepth(cyclic)).toBe(true);
   });
 
+  // Umbrales de 1 s: lo que se descarta es recorrer 2^31 posiciones o 2^60 caminos (segundos o nunca), y en el runner
+  // de la CI, con los tests de todos los paquetes a la vez, un recorrido correcto ya ha llegado a 140 ms.
   it('un array disperso enorme es barato', () => {
     const sparse = new Array(2 ** 31);
     sparse[0] = [1];
     const started = performance.now();
     expect(exceedsFlowDepth(sparse)).toBe(false);
-    expect(performance.now() - started).toBeLessThan(100);
+    expect(performance.now() - started).toBeLessThan(1000);
   });
 
   it('una estructura compartida no se recorre una vez por camino', () => {
@@ -52,7 +54,7 @@ describe('exceedsFlowDepth', () => {
     for (let i = 0; i < 60; i++) shared = [shared, shared];
     const started = performance.now();
     expect(exceedsFlowDepth(shared)).toBe(false);
-    expect(performance.now() - started).toBeLessThan(100);
+    expect(performance.now() - started).toBeLessThan(1000);
   });
 });
 
