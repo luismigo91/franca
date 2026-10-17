@@ -17,6 +17,19 @@ describe('recursos', () => {
     updatedAt: updated,
   };
 
+  it('con los avisos que ya dio el validador no vuelve a validar: usa esos, recortados', () => {
+    // Un aviso que `validateFlow` no daría para `hola`: si se recalculara, saldría `[]`.
+    const warning = { code: 'url_template_in_origin', path: '/nodes/0/url', message: 'dato' } as const;
+    expect(toFlowResource(row, [warning]).warnings).toEqual([warning]);
+    expect(toFlowResource(row).warnings).toEqual([]);
+    const version = { flowId: 'hola', version: 1, nameJson: JSON.stringify('Hola'), definition: JSON.stringify(hola), publishedAt: created };
+    expect(toVersionResource(version, [warning]).warnings).toEqual([warning]);
+    const many = Array.from({ length: 150 }, () => warning);
+    const capped = toFlowResource(row, many).warnings;
+    expect(capped).toHaveLength(101);
+    expect(capped.at(-1)?.code).toBe('too_many_warnings');
+  });
+
   it('el recurso flujo tiene exactamente sus claves, en orden', () => {
     const resource = toFlowResource(row);
     expect(Object.keys(resource)).toEqual(['id', 'name', 'revision', 'latestVersion', 'unpublishedChanges', 'createdAt', 'updatedAt', 'flow', 'warnings']);
