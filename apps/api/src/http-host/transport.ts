@@ -58,13 +58,14 @@ const bareHostname = (url: URL): string => (url.hostname.startsWith('[') ? url.h
  * @returns La respuesta, `response_too_large`, un fallo de red (con `requestSent`) o `aborted` si venció el plazo.
  */
 export async function sendRequest(input: TransportInput): Promise<TransportResult> {
+  const wire = buildRequestHeaders({ method: input.method, url: input.url, headers: input.headers, body: input.body });
   const opened = new Set<Socket>();
   try {
     for (const target of input.targets) {
       if (input.signal.aborted) return ABORTED;
       const socket = await connectTo(input, target, opened);
       if (socket === null) continue;
-      return input.signal.aborted ? ABORTED : await exchange(input, socket);
+      return input.signal.aborted ? ABORTED : await exchange(input, wire, socket);
     }
     return input.signal.aborted ? ABORTED : NOT_SENT;
   } catch {
@@ -135,7 +136,7 @@ function connectTo(input: TransportInput, target: ConnectTarget, opened: Set<Soc
 }
 
 /** Envía la petición sobre un socket ya conectado y verificado, y lee la respuesta. */
-function exchange(input: TransportInput, socket: Socket): Promise<TransportResult> {
+function exchange(input: TransportInput, wire: readonly WireHeader[], socket: Socket): Promise<TransportResult> {
   return new Promise<TransportResult>((resolve) => {
     let settled = false;
     let gotResponse = false;
@@ -153,12 +154,11 @@ function exchange(input: TransportInput, socket: Socket): Promise<TransportResul
     };
     input.signal.addEventListener('abort', onAbort, { once: true });
     try {
-      const headers = buildRequestHeaders({ method: input.method, url: input.url, headers: input.headers, body: input.body });
       // Sin `agent` (ni `agent: false`, que ignora `createConnection`): Node usa este socket y no hay pool ni proxy del entorno.
       request = httpRequest({
         method: input.method,
         path: requestPath(input.url),
-        headers: headers.flat(),
+        headers: wire.flat(),
         setHost: false,
         createConnection: () => socket,
         insecureHTTPParser: false,
