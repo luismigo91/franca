@@ -125,10 +125,10 @@ Descartadas:
 
 ### D6. Cómo convive con turbo
 
-- **La demo arranca lo mismo que `pnpm dev`**: el arranque lanza `node_modules/.bin/turbo run dev --ui=stream --no-daemon` desde la raíz del repositorio, con `detached: true`, la entrada `ignore` y la salida heredada.
+- **La demo arranca lo mismo que `pnpm dev`**: el arranque lanza `node_modules/.bin/turbo run dev --ui=stream` desde la raíz del repositorio, con `detached: true`, la entrada `ignore` y la salida heredada.
   - `detached` da a turbo un grupo propio para poder pararlo (A5, D7).
   - `--ui=stream` fija la interfaz de líneas: un grupo en segundo plano no puede tener la terminal, que sí necesitaría la interfaz interactiva de turbo.
-  - `--no-daemon` evita que turbo deje un proceso de larga vida que hereda el entorno de esta ejecución, token incluido.
+  - Sin `--no-daemon` (implementación): turbo 2.11.8 lo marca obsoleto, ya no usa el daemon en `run`, y tras parar no queda ningún proceso de turbo.
   - Las tareas son las mismas que las de `pnpm dev`.
 - **`turbo.json`**:
   - `FRANCA_HTTP_LOCAL_NAMES` entra en el `passThroughEnv` de `@franca/api#dev`. Sin eso, la API de la demo no vería la variable y la conversación terminaría en `lead-sin-enviar`. También sirve para quien la defina con `pnpm dev`.
@@ -553,7 +553,7 @@ Resumen; el detalle con ficheros y gates está en `tasks.md`.
 - **R6 (4010 ocupado)**: lo detecta el propio `listen` (D8). Ningún test usa el 4010.
 - **R7 (token en el entorno)**: D5.
 - **R8 (acoplamiento con la web)**: la semilla importa un fichero de `apps/web`. Si la web lo mueve, fallan el typecheck, el lint y los tests de la API, y las tareas `@franca/api#test`, `#lint` y `#typecheck` lo vigilan en la caché (D6).
-- **R10 (herramientas que llaman a casa)**: Next y turbo tienen la telemetría desactivada (D6). Prisma y pnpm pueden intentar sus comprobaciones. La promesa de la demo es que la llamada http del flujo y Claude no salen de la máquina, no que ningún proceso intente salir (`proposal.md`).
+- **R10 (herramientas que llaman a casa)** (observado en la implementación: `next dev` consulta `registry.npmjs.org` para saber si hay una versión nueva de Next, sin opción para evitarlo; ver tasks, «Resultado de la implementación»): Next y turbo tienen la telemetría desactivada (D6). Prisma y pnpm pueden intentar sus comprobaciones. La promesa de la demo es que la llamada http del flujo y Claude no salen de la máquina, no que ningún proceso intente salir (`proposal.md`).
 - **R9 (`--ui=stream`)**: el aspecto de la salida de turbo en la demo puede diferir del de `pnpm dev` en una terminal. Es una diferencia de presentación; las tareas son las mismas.
 
 ## Migration Plan
