@@ -201,7 +201,9 @@ describe('FRANCA_HTTP_ALLOWED_DESTINATIONS', () => {
   });
 
   it.each(['127.0.0.1:8080,', ',127.0.0.1:8080', '127.0.0.1:8080,,[::1]:8443', ',', ' '])('la entrada vacía «%s» impide arrancar', async (value) => {
-    expect((await rejection({ FRANCA_HTTP_ALLOWED_DESTINATIONS: value })).message).toContain('FRANCA_HTTP_ALLOWED_DESTINATIONS');
+    const error = await rejection({ FRANCA_HTTP_ALLOWED_DESTINATIONS: value });
+    expect(error.message).toContain('FRANCA_HTTP_ALLOWED_DESTINATIONS');
+    if (value.includes(',')) expect(error.message).toContain('vacía');
   });
 });
 

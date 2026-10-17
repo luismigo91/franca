@@ -95,6 +95,7 @@ function readAllowedDestinations(value: string | undefined): AllowedDestinationE
   const entries: AllowedDestinationEntry[] = [];
   const keys = new Set<string>();
   for (const [index, entry] of value.split(',').entries()) {
+    if (entry === '') throw new ConfigError(`${ALLOWED_DESTINATIONS_VARIABLE} no es válida: la entrada nº ${index + 1} está vacía (sobra una coma o un espacio).`);
     const parsed = parseDestination(entry);
     if (parsed === null) {
       throw new ConfigError(
