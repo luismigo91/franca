@@ -6,7 +6,7 @@ import type { HttpNetwork } from './network.js';
 import type { HttpNotices } from './notices.js';
 import type { WireHeader } from './request-headers.js';
 import type { SecretStore } from './secrets.js';
-import { portOf, sendRequest } from './transport.js';
+import { bareHostname, portOf, sendRequest } from './transport.js';
 
 /** Lo que la salida http necesita saber de un avance: a qué conversación pertenece y cuándo acaba su plazo. */
 export interface AdvanceContext {
@@ -17,11 +17,13 @@ export interface AdvanceContext {
   now(): number;
 }
 
+/** La salida http de producción, de la que cada avance saca su capacidad `http`. */
 export interface HttpHost {
   /** La capacidad `http` de un avance. */
   forAdvance(context: AdvanceContext): HttpCapability;
 }
 
+/** Las piezas de las que depende `createHttpHost`: todas inyectables en un test. */
 export interface HttpHostDeps {
   /** Los secretos de este host (la instalación en la API; un tenant en el arnés). */
   readonly secrets: SecretStore;
@@ -38,7 +40,7 @@ type Resolution = { readonly kind: 'entries'; readonly entries: readonly Resolve
 
 /** Un host literal (IP entre corchetes o escrita) se resuelve a sí mismo; el motor no lo deja pasar, es solo defensa. */
 function literalEntries(url: URL): ResolvedEntry[] | null {
-  const hostname = url.hostname.startsWith('[') ? url.hostname.slice(1, -1) : url.hostname;
+  const hostname = bareHostname(url);
   const parsed = parseIp(hostname);
   return parsed === null ? null : [{ address: hostname, family: parsed.family }];
 }
@@ -127,7 +129,6 @@ export function createHttpHost(deps: HttpHostDeps): HttpHost {
         notify(() => deps.notices.blocked({ conversationId: context.conversationId, nodeId: request.nodeId, reason: decision.reason }));
         return { kind: 'blocked' };
       }
-      if (decision.targets.length === 0) return NETWORK_ERROR_NOT_SENT();
 
       const outcome = await sendRequest({ method: request.method, url, headers, body: request.body, targets: decision.targets, network: deps.network, signal: controller.signal });
       switch (outcome.kind) {

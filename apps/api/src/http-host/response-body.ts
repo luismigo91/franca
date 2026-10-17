@@ -4,12 +4,14 @@ import type { Readable, Transform } from 'node:stream';
 /** Tope de la respuesta: 1 MiB de bytes ya descomprimidos (el motor cuenta 1 048 576 unidades UTF-16: nunca menos). */
 export const MAX_RESPONSE_BYTES = 1_048_576;
 
+/** El resultado de leer un cuerpo: el texto, que se pasó del tope, o que se cortó o no se pudo descomprimir. */
 export type ResponseBodyResult =
   | { readonly kind: 'text'; readonly text: string }
   | { readonly kind: 'too_large' }
   /** La respuesta se cortó, o su cuerpo comprimido no se puede descomprimir. */
   | { readonly kind: 'failed' };
 
+/** Las cabeceras de la respuesta que cambian cómo se lee su cuerpo. */
 export interface ResponseBodyHeaders {
   readonly contentEncoding?: string | undefined;
   readonly contentLength?: string | undefined;
@@ -17,7 +19,7 @@ export interface ResponseBodyHeaders {
 
 type Encoding = 'gzip' | 'deflate' | 'br';
 
-/** Solo `gzip`/`x-gzip`, `deflate` y `br` exactos (sin espacios ni mayúsculas); una lista u otra codificación se entrega tal cual. */
+/** `gzip`/`x-gzip`, `deflate` o `br`, tras quitar espacios y pasar a minúsculas; una lista (`gzip, br`) u otra codificación se entrega tal cual. */
 function parseEncoding(header: string | undefined): Encoding | null {
   switch (header?.trim().toLowerCase()) {
     case 'gzip':

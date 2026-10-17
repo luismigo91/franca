@@ -4,8 +4,13 @@ export interface InstalledSecret {
   readonly origins: ReadonlySet<string>;
 }
 
-export type SecretLookup = { readonly kind: 'found'; readonly value: string } | { readonly kind: 'not_configured' } | { readonly kind: 'origin_not_allowed' };
+/** Por qué un secreto no está disponible para un origen. */
+export type MissingSecretReason = 'not_configured' | 'origin_not_allowed';
 
+/** El resultado de buscar un secreto: su valor, o el motivo por el que no está disponible. */
+export type SecretLookup = { readonly kind: 'found'; readonly value: string } | { readonly kind: MissingSecretReason };
+
+/** Busca el secreto de un nombre para un origen. */
 export interface SecretStore {
   /**
    * @param name El nombre del secreto (`secretRef` del nodo).

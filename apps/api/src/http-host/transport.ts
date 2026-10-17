@@ -15,6 +15,7 @@ const VERIFY_PEER = true;
 const peerVerification = () => ({ rejectUnauthorized: VERIFY_PEER });
 const isPeerVerified = (socket: TLSSocket): boolean => !VERIFY_PEER || socket.authorized === true;
 
+/** Lo que necesita `sendRequest` para hacer un intento ya validado por la política. */
 export interface TransportInput {
   readonly method: HttpMethod;
   readonly url: URL;
@@ -28,6 +29,7 @@ export interface TransportInput {
   readonly signal: AbortSignal;
 }
 
+/** El resultado de un intento en el transporte, antes de convertirlo en el resultado que lee el motor. */
 export type TransportResult =
   | { readonly kind: 'response'; readonly status: number; readonly body: string }
   | { readonly kind: 'response_too_large' }
@@ -46,7 +48,7 @@ export function portOf(url: URL): number {
 }
 
 /** `hostname` sin corchetes si es una IPv6 literal. */
-const bareHostname = (url: URL): string => (url.hostname.startsWith('[') ? url.hostname.slice(1, -1) : url.hostname);
+export const bareHostname = (url: URL): string => (url.hostname.startsWith('[') ? url.hostname.slice(1, -1) : url.hostname);
 
 /**
  * Hace **un** intento sobre las direcciones ya validadas: abre una conexión por intento (sin agente ni *pool*), la verifica

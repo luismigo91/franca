@@ -28,12 +28,15 @@ export interface ConnectTarget {
   readonly family: 4 | 6;
 }
 
+/** Por qué se bloquea un destino: una dirección interna (gana siempre) o `http://` hacia un destino que no es un par permitido. */
 export type BlockReason = 'internal_destination' | 'insecure_transport';
 
+/** La decisión sobre un destino: bloquearlo, con su motivo, o conectar con las direcciones validadas (canónicas, sin repetir, en el orden de la resolución). */
 export type DestinationDecision =
   | { readonly kind: 'blocked'; readonly reason: BlockReason }
   | { readonly kind: 'connect'; readonly targets: readonly ConnectTarget[] };
 
+/** Lo que `decideDestination` necesita saber de un intento. */
 export interface DestinationInput {
   /** La resolución completa del nombre, en su orden. */
   readonly entries: readonly ResolvedEntry[];

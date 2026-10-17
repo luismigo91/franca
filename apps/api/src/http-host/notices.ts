@@ -1,10 +1,10 @@
-export type MissingSecretReason = 'not_configured' | 'origin_not_allowed';
-export type BlockedReason = 'internal_destination' | 'insecure_transport';
+import type { BlockReason } from './destination-policy.js';
+import type { MissingSecretReason } from './secrets.js';
 
 /** Los dos avisos de operación de la salida http. Nada de una llamada va a los registros fuera de ellos. */
 export interface HttpNotices {
   missingSecret(notice: { conversationId: string; nodeId: string; secret: string; reason: MissingSecretReason }): void;
-  blocked(notice: { conversationId: string; nodeId: string; reason: BlockedReason }): void;
+  blocked(notice: { conversationId: string; nodeId: string; reason: BlockReason }): void;
 }
 
 /** Destino de los avisos: el logger de Nest en producción. */

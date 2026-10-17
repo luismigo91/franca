@@ -3,6 +3,7 @@ import type { HttpMethod } from '@franca/engine';
 /** Una cabecera del cable: nombre con su capitalización y valor. */
 export type WireHeader = readonly [name: string, value: string];
 
+/** Lo que hace falta para construir las cabeceras del cable de un intento. */
 export interface RequestHeadersInput {
   readonly method: HttpMethod;
   readonly url: URL;
