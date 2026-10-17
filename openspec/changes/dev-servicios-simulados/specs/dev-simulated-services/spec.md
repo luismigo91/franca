@@ -157,6 +157,14 @@ El repositorio SHALL incluir `captacion-leads-local`, fuera de `packages/spec/ex
 - **WHEN** se ejecuta `pnpm demo:seed` con `FRANCA_API_URL` = `http://192.168.1.10:3001`, y en otra ronda con `""`
 - **THEN** las dos terminan con un código distinto de 0 sin hacer ninguna petición y su salida nombra `FRANCA_API_URL`
 
+### Requirement: Semilla sin migraciones
+Si la API responde con un error interno (500) a la primera lectura del flujo, `pnpm demo:seed` SHALL terminar con un código distinto de 0 y decir que puede faltar aplicar las migraciones de la base de datos, nombrando `pnpm --filter @franca/api db:migrate`.
+
+#### Scenario: Base de datos sin migraciones para la semilla
+- **GIVEN** la API en marcha contra una base de Postgres vacía, a la que no se le han aplicado las migraciones
+- **WHEN** se ejecuta `pnpm demo:seed`
+- **THEN** termina con un código distinto de 0 y su salida nombra `pnpm --filter @franca/api db:migrate`
+
 ### Requirement: Siembra al arrancar la demo
 La demo SHALL esperar hasta 120 segundos a que la API local responda y entonces ejecutar la semilla. Si la API no responde a tiempo o la semilla falla, la demo sigue en marcha y su salida dice el motivo y que se puede repetir con `pnpm demo:seed`.
 
