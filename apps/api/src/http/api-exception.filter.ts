@@ -1,6 +1,6 @@
 import { type ArgumentsHost, BadRequestException, Catch, type ExceptionFilter, HttpException, Logger, NotFoundException } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { isDatabaseUnavailable } from '../prisma/database-errors.js';
+import { DATABASE_CONFIGURATION_CODES, isDatabaseUnavailable } from '../prisma/database-errors.js';
 import { ApiException, type ApiErrorCode, describeApiError } from './api-error.js';
 
 /** Respuesta de error ya resuelta: estado, cuerpo exacto y cabeceras. */
@@ -72,6 +72,11 @@ export class ApiExceptionFilter implements ExceptionFilter {
 
   private describe(request: Request, status: number, code: ApiErrorCode, exception: unknown): string {
     const base = `${request.method} ${request.path} ${status} ${code}`;
+    if (code === 'database_unavailable') {
+      // Una `DATABASE_URL` mal configurada se distingue de una caída por el código de Prisma (sin su mensaje: lleva la base).
+      const configuration = prismaCode(exception);
+      return configuration && DATABASE_CONFIGURATION_CODES.has(configuration) ? `${base} ${configuration}` : base;
+    }
     if (code !== 'internal_error') return base;
     const kind = exception instanceof Error || exception instanceof HttpException ? exception.constructor.name : typeof exception;
     const prisma = prismaCode(exception);
