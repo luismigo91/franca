@@ -73,6 +73,8 @@ Solo nombres; los valores viven en ficheros de entorno locales que nunca se leen
 - `DATABASE_URL` (api, obligatoria): cadena de conexión a Postgres. Con `docker compose up -d`, la del servicio `postgres` (usuario y base `franca`, sin contraseña, `127.0.0.1:5432`). La leen `pnpm dev` y `pnpm test:e2e` del entorno de la shell; el fichero de ejemplo de variables lo crea una persona.
 - `HOST` (api, por defecto `127.0.0.1`): solo admite `127.0.0.1` y `::1` mientras la api no tenga autenticación; cualquier otro valor, también vacío, impide arrancar.
 - `PORT` (api, por defecto 3001; `0` elige un puerto libre)
+- `FRANCA_ANTHROPIC_API_KEY` (api, opcional): clave de Claude del proveedor `principal` de los nodos `llm` de las conversaciones. Sin ella, o vacía, la API arranca y cada nodo `llm` falla con `llm_not_configured` (queda un aviso en el registro). La API **ignora** `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL` y `ANTHROPIC_CUSTOM_HEADERS` (las del SDK): sus peticiones llevan solo esta clave y van solo a `api.anthropic.com`. Solo `pnpm dev` la recibe (turbo `passThroughEnv`), nunca los e2e
+- `FRANCA_CONVERSATION_COST_LIMIT_USD` (api, opcional): presupuesto de coste `llm` por conversación en dólares (decimal de 0, excluido, a 1000, con dígitos y como mucho un punto; por defecto `0.5`); un valor inválido, también vacío, impide arrancar
 - `FRANCA_POSTGRES_PORT` (opcional): puerto local del contenedor de Postgres de `docker-compose.yml` (por defecto 5432)
 - `ANTHROPIC_API_KEY` (la lee el SDK de Anthropic en el cliente por defecto de `@franca/llm-anthropic`; solo para el test en vivo, exportada en la shell)
 - `FRANCA_LIVE_ANTHROPIC` (`1` activa el test en vivo del adaptador; con `CI` exige además `FRANCA_LIVE_ANTHROPIC_CI=1`)
