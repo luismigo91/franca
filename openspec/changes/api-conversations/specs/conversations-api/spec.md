@@ -400,12 +400,20 @@ Con `FRANCA_ANTHROPIC_API_KEY` definida y no vacía, la API SHALL ofrecer la cap
 - **THEN** queda en `failed` con `llm_not_configured` y el proveedor `principal` simulado no se ha llamado
 
 ### Requirement: Sin credenciales de Claude
-Sin `FRANCA_ANTHROPIC_API_KEY`, o vacía, la API SHALL arrancar sin proveedores `llm`, y cada nodo `llm` falla con `llm_not_configured`. Las variables del SDK (`ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`) no configuran ni cambian el proveedor. La salida de arranque dice si hay proveedor `principal`, sin mostrar ninguna clave.
+Sin `FRANCA_ANTHROPIC_API_KEY`, o vacía, la API SHALL arrancar sin proveedores `llm`, y cada nodo `llm` falla con `llm_not_configured`. Las variables del SDK (`ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, `ANTHROPIC_CUSTOM_HEADERS`) no configuran ni cambian el proveedor. La salida de arranque dice si hay proveedor `principal`, sin mostrar ninguna clave.
 
 #### Scenario: Solo la variable del SDK
 - **GIVEN** la API arrancada sin `FRANCA_ANTHROPIC_API_KEY` y con `ANTHROPIC_API_KEY` igual a `sk-no-usar`, y `faq-ia` publicado
 - **WHEN** se crea una conversación de `faq-ia`
 - **THEN** queda en `failed` con `llm_not_configured`, la API no ha abierto ninguna conexión saliente, su salida de arranque dice que no hay proveedor `principal` y no contiene `sk-no-usar`
+
+### Requirement: Peticiones a Claude solo con la clave de Franca
+Cada petición del proveedor `principal` SHALL ir a `https://api.anthropic.com/v1/messages` con `FRANCA_ANTHROPIC_API_KEY` como única credencial (`x-api-key`), sin `Authorization` y sin ninguna cabecera que venga del entorno (`ANTHROPIC_CUSTOM_HEADERS`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`). Una petición a cualquier otra dirección no sale y su turno se resuelve como `failed`.
+
+#### Scenario: Cabeceras del entorno ignoradas
+- **GIVEN** `FRANCA_ANTHROPIC_API_KEY` igual a `clave-de-prueba`, `ANTHROPIC_API_KEY` igual a `sk-no-usar`, `ANTHROPIC_AUTH_TOKEN` igual a `token-no-usar`, `ANTHROPIC_BASE_URL` igual a `http://127.0.0.1:9`, `ANTHROPIC_CUSTOM_HEADERS` con las líneas `x-api-key: otra-clave`, `Authorization: Bearer otro-token`, `anthropic-beta: otra-beta` y `X-Extra: 1`, y la red sustituida en el test por una que registra cada petición sin enviarla
+- **WHEN** el proveedor `principal` hace un turno con el modelo por defecto y otro con `claude-haiku-5-5`
+- **THEN** cada petición va a `https://api.anthropic.com/v1/messages` (la del modelo por defecto, con `?beta=true`), lleva `x-api-key` `clave-de-prueba`, no lleva `authorization`, `x-extra` ni `otra-beta`, y su URL y sus cabeceras son exactamente las mismas que sin esas cuatro variables
 
 ### Requirement: Aviso de proveedor no configurado
 Cuando una conversación falla con `llm_not_configured`, la API SHALL registrar un aviso con el `id` de la conversación, el `nodeId` y el `provider`, para que quien opera vea una instalación sin credenciales o con la clave rechazada (el adaptador da `not_configured` ante un 401). El aviso no incluye claves, textos ni valores de la conversación.
