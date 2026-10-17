@@ -176,7 +176,7 @@ describe('QA configuración de la salida http: orígenes de secretos', () => {
   it('sin variables no hay secretos ni destinos y la línea lo dice', async () => {
     const config = await load({});
     expect(describeHttpHostConfig(config)).toBe(
-      'salida http: secretos ninguno; variables ignoradas: ninguna; destinos permitidos: ninguno',
+      'salida http: secretos ninguno; variables ignoradas: ninguna; destinos permitidos: ninguno; nombres locales: ninguno',
     );
     expect(
       (await load({ [ORIGINS]: '', [DESTINATIONS]: '' })).secrets.size,

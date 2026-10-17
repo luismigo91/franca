@@ -211,7 +211,7 @@ describe('FRANCA_HTTP_ALLOWED_DESTINATIONS', () => {
 
 describe('describeHttpHostConfig', () => {
   it('sin configuración dice ninguno / ninguna', async () => {
-    expect(describeHttpHostConfig(await loadHttpHostConfig({}))).toBe('salida http: secretos ninguno; variables ignoradas: ninguna; destinos permitidos: ninguno');
+    expect(describeHttpHostConfig(await loadHttpHostConfig({}))).toBe('salida http: secretos ninguno; variables ignoradas: ninguna; destinos permitidos: ninguno; nombres locales: ninguno');
   });
 
   it('con configuración contiene nombres, orígenes y pares, y nunca un valor', async () => {
@@ -224,7 +224,7 @@ describe('describeHttpHostConfig', () => {
       }),
     );
     expect(line).toBe(
-      'salida http: secretos CRM_TOKEN (https://crm.example.com, https://crm.example.com:8443); variables ignoradas: FRANCA_SECRET_SOPORTE_TOKEN; destinos permitidos: 127.0.0.1:8080, [::1]:8443',
+      'salida http: secretos CRM_TOKEN (https://crm.example.com, https://crm.example.com:8443); variables ignoradas: FRANCA_SECRET_SOPORTE_TOKEN; destinos permitidos: 127.0.0.1:8080, [::1]:8443; nombres locales: ninguno',
     );
     expect(line).not.toContain(MARKER);
     expect(line.split('\n')).toHaveLength(1);

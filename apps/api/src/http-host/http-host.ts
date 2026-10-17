@@ -2,6 +2,7 @@ import type { HttpAttemptResult, HttpCapability, HttpRequest } from '@franca/eng
 import { parseIp } from './addresses.js';
 import { abortAfter, attemptBudget } from './attempt-budget.js';
 import { decideDestination, type AllowedDestinations, type ResolvedEntry } from './destination-policy.js';
+import type { LocalNames } from './local-names.js';
 import type { HttpNetwork } from './network.js';
 import type { HttpNotices } from './notices.js';
 import type { WireHeader } from './request-headers.js';
@@ -30,6 +31,11 @@ export interface HttpHostDeps {
   readonly allowed: AllowedDestinations;
   readonly network: HttpNetwork;
   readonly notices: HttpNotices;
+  /**
+   * Nombres locales (`FRANCA_HTTP_LOCAL_NAMES`): su resolución son sus direcciones de loopback, sin preguntar al resolutor.
+   * Ausente, no hay ninguno; la política de destinos se aplica igual.
+   */
+  readonly localNames?: LocalNames;
 }
 
 const NETWORK_ERROR_NOT_SENT = (): HttpAttemptResult => ({ kind: 'network_error', requestSent: false });
@@ -46,12 +52,15 @@ function literalEntries(url: URL): ResolvedEntry[] | null {
 }
 
 /**
- * Resuelve el nombre de la `url` en cada intento, en carrera con el plazo. `lookup` no se puede cancelar: al vencer el
+ * Resuelve el nombre de la `url` en cada intento, en carrera con el plazo. Un nombre local se resuelve a sus direcciones sin
+ * preguntar al resolutor (el resultado entra después en la política de destinos como cualquier otra resolución). `lookup` no se puede cancelar: al vencer el
  * intento se abandona su promesa (con su `catch`) y el hilo del sistema termina cuando responda.
  */
-async function resolveName(network: HttpNetwork, url: URL, signal: AbortSignal): Promise<Resolution> {
+async function resolveName(network: HttpNetwork, url: URL, signal: AbortSignal, localNames?: LocalNames): Promise<Resolution> {
   const literal = literalEntries(url);
   if (literal !== null) return { kind: 'entries', entries: literal };
+  const local = localNames?.lookup(url.hostname);
+  if (local !== undefined) return { kind: 'entries', entries: local };
   const lookup = (async (): Promise<Resolution> => {
     try {
       const answers: unknown = await network.resolver.lookup(url.hostname);
@@ -88,7 +97,7 @@ function notify(send: () => void): void {
  * resolución del nombre, la política de destinos (`blocked`, sin conectar), la conexión y TLS, y el envío y la lectura.
  * El `timeoutMs` (recortado por el plazo) cuenta desde el primer paso de la resolución. No hay espera entre intentos.
  *
- * @param deps Secretos, pares permitidos, red y avisos.
+ * @param deps Secretos, pares permitidos, red, avisos y, si los hay, nombres locales.
  * @returns El host, del que cada avance saca su capacidad `http`.
  */
 export function createHttpHost(deps: HttpHostDeps): HttpHost {
@@ -120,7 +129,7 @@ export function createHttpHost(deps: HttpHostDeps): HttpHost {
     const controller = new AbortController();
     const cancelTimer = abortAfter(controller, budgetMs);
     try {
-      const resolution = await resolveName(deps.network, url, controller.signal);
+      const resolution = await resolveName(deps.network, url, controller.signal, deps.localNames);
       if (resolution.kind === 'aborted') return { kind: 'timeout' };
       if (resolution.kind === 'failed') return NETWORK_ERROR_NOT_SENT();
 

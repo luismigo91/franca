@@ -1,6 +1,7 @@
 import { isIPv6 } from 'node:net';
 import { ConfigError } from '../config/app-config.js';
 import { canonicalIp, destinationKey, parseIp } from './addresses.js';
+import { describeLocalNames, LOCAL_NAMES_VARIABLE, readLocalNames, type LocalNameEntry } from './local-names.js';
 import { isNodeUrlOrigin } from './secret-origin.js';
 import type { InstalledSecret } from './secrets.js';
 
@@ -29,6 +30,8 @@ export interface HttpHostConfig {
   readonly unprintableIgnoredCount: number;
   /** Pares permitidos, en el orden escrito y sin repetidos. */
   readonly allowedDestinations: readonly AllowedDestinationEntry[];
+  /** Nombres locales (`FRANCA_HTTP_LOCAL_NAMES`) con sus direcciones de loopback, por orden de primera aparición. */
+  readonly localNames: readonly LocalNameEntry[];
 }
 
 /** El nombre de un secreto: el mismo patrón que `secretRef` del formato de flujo (un test de paridad lo comprueba). */
@@ -134,7 +137,8 @@ function parseDestination(entry: string): AllowedDestinationEntry | null {
  * 1. `FRANCA_HTTP_SECRET_ORIGINS`: entradas `NOMBRE=origen` con el origen escrito exacto y admitido por el motor;
  * 2. `FRANCA_SECRET_<NOMBRE>` de cada nombre de los orígenes: de 1 a 8192 caracteres visibles, sin blancos en los extremos;
  * 3. las `FRANCA_SECRET_*` restantes se ignoran;
- * 4. `FRANCA_HTTP_ALLOWED_DESTINATIONS`: pares `dirección:puerto`.
+ * 4. `FRANCA_HTTP_ALLOWED_DESTINATIONS`: pares `dirección:puerto`;
+ * 5. `FRANCA_HTTP_LOCAL_NAMES` (`LOCAL_NAMES_VARIABLE`): entradas `nombre=dirección` con nombres `.test` y direcciones de loopback.
  * Ausente o vacía, cada lista queda vacía; una entrada vacía o mal escrita impide arrancar.
  *
  * @param env Variables de entorno (`process.env`).
@@ -151,12 +155,13 @@ export async function loadHttpHostConfig(env: Record<string, string | undefined>
     ignoredSecretVariables: printable,
     unprintableIgnoredCount: ignored.length - printable.length,
     allowedDestinations: readAllowedDestinations(env[ALLOWED_DESTINATIONS_VARIABLE]),
+    localNames: await readLocalNames(env[LOCAL_NAMES_VARIABLE]),
   };
 }
 
 /**
  * La línea de arranque de la salida http: qué secretos hay con sus orígenes, qué variables `FRANCA_SECRET_*` se ignoran y
- * qué destinos se permiten. Sin ningún valor de secreto.
+ * qué destinos se permiten y qué nombres locales hay. Sin ningún valor de secreto.
  *
  * @param config La configuración.
  * @returns Una sola línea.
@@ -170,5 +175,6 @@ export function describeHttpHostConfig(config: HttpHostConfig): string {
     `salida http: secretos ${secrets.length > 0 ? secrets.join(', ') : 'ninguno'}`,
     `variables ignoradas: ${ignored.length > 0 ? ignored.join(', ') : 'ninguna'}`,
     `destinos permitidos: ${destinations.length > 0 ? destinations.join(', ') : 'ninguno'}`,
+    `nombres locales: ${describeLocalNames(config.localNames)}`,
   ].join('; ');
 }
