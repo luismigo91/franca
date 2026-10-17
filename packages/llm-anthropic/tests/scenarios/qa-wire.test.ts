@@ -89,7 +89,8 @@ function keysDeep(value: unknown, into: string[] = []): string[] {
   return into;
 }
 
-describe('Cuerpo de la petición: invariantes con 600 peticiones al azar (3 modelos)', () => {
+// 600 peticiones por test a través del SDK: en el runner de la CI pasan de los 5 s por defecto.
+describe('Cuerpo de la petición: invariantes con 600 peticiones al azar (3 modelos)', { timeout: 30_000 }, () => {
   it('claves, parámetros prohibidos, effort, beta y fallback según el modelo', async () => {
     const rand = prng(41);
     const seen = new Set<string>();
