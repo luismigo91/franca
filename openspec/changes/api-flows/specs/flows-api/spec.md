@@ -119,6 +119,11 @@ Un cuerpo de más de 1 048 576 bytes SHALL responderse 413 `payload_too_large` e
 - **WHEN** se hace `POST /flows/validate` con un cuerpo de 1 048 577 bytes
 - **THEN** la respuesta es 413 `payload_too_large`
 
+#### Scenario: Cuerpo que no llega entero
+- **GIVEN** una petición `POST /flows` que declara `Content-Length: 1048577`, envía 7 bytes y no cierra la conexión
+- **WHEN** pasa el tiempo máximo para recibir la petición entera (30 segundos; los e2e lo reducen)
+- **THEN** el servidor responde 408 y cierra la conexión, sin retenerla los 300 segundos que Node permite por defecto
+
 ### Requirement: Cuerpo JSON
 `POST /flows/validate`, `POST /flows` y `PUT /flows/:flowId` SHALL exigir un cuerpo. Un cuerpo vacío o que no es JSON bien formado responde 400 `invalid_json`, también al validar, porque no es un flujo. En cualquier otro endpoint, un cuerpo no vacío que no es JSON bien formado (o no es UTF-8 válido) también responde 400 `invalid_json`. Un JSON bien formado cuyo valor no es un objeto (array, texto, número, booleano o `null`) es un flujo inválido.
 
@@ -547,7 +552,7 @@ Una versión SHALL quedar igual para siempre: ningún endpoint la modifica ni la
 - **THEN** las tres responden 404 `flow_not_found`
 
 ### Requirement: Base de datos no disponible
-Si la base de datos no responde (no acepta conexiones, las acepta y no contesta, o una consulta tarda más de 8 segundos, también si está esperando un bloqueo; el corte de `pg` se llama «Query read timeout»), los endpoints que leen o escriben flujos SHALL responder 503 `database_unavailable` en menos de 10 segundos, sin datos de conexión en la respuesta ni en los registros. `POST /flows/validate` sigue respondiendo con normalidad.
+Si la base de datos no responde (no acepta conexiones, las acepta y no contesta, o una consulta tarda más de 4 segundos, también si espera un bloqueo, o el servidor corta la conexión a mitad de una consulta), los endpoints que leen o escriben flujos SHALL responder 503 `database_unavailable` en menos de 10 segundos, sin datos de conexión en la respuesta ni en los registros. `POST /flows/validate` sigue respondiendo con normalidad.
 
 #### Scenario: Postgres parado
 - **GIVEN** la API arrancada con `DATABASE_URL` apuntando a un puerto local sin servidor
@@ -564,10 +569,38 @@ Si la base de datos no responde (no acepta conexiones, las acepta y no contesta,
 - **WHEN** se hace `PUT /flows/hola` con `If-Match: *` y `hola`
 - **THEN** la respuesta es 503 `database_unavailable` en menos de 10 segundos
 
+#### Scenario: Tabla de flujos retenida
+- **GIVEN** `hola` creado y otra conexión a la base con `LOCK TABLE flows IN ACCESS EXCLUSIVE MODE` en una transacción que no termina
+- **WHEN** se hace a la vez `GET /flows/hola`, `GET /flows`, `POST /flows` con otro `id`, `PUT /flows/hola` con `If-Match: *`, `POST /flows/hola/versions` y `DELETE /flows/hola`
+- **THEN** todas responden 503 `database_unavailable`, cada una en menos de 10 segundos
+
+#### Scenario: Tabla de versiones retenida
+- **GIVEN** `hola` creado y publicado, y otra conexión con `LOCK TABLE flow_versions IN ACCESS EXCLUSIVE MODE` en una transacción que no termina
+- **WHEN** se hace `GET /flows/hola/versions`
+- **THEN** la respuesta es 503 `database_unavailable` en menos de 10 segundos, no 500
+
+#### Scenario: Conexión cortada por el servidor
+- **GIVEN** `hola` creado y una petición de la API esperando un bloqueo (de tabla en `GET /flows/hola`, de fila en `PUT /flows/hola` con `If-Match: *` y en `POST /flows/hola/versions`)
+- **WHEN** el servidor termina la conexión de esa petición mientras espera (`pg_terminate_backend`, lo que ve la API en un reinicio o una conmutación por error)
+- **THEN** cada petición responde 503 `database_unavailable`, no 500
+
+#### Scenario: Postgres que enmudece a mitad de una transacción
+- **GIVEN** `hola` creado y un Postgres que, tras aceptar `BEGIN`, deja de contestar y de transmitir en cuanto la API pide bloquear la fila
+- **WHEN** se hace `PUT /flows/hola` con `If-Match: *` y `POST /flows/hola/versions`
+- **THEN** ambas responden 503 `database_unavailable`, cada una en menos de 10 segundos (el corte de la consulta y el `ROLLBACK` sobre la conexión muda suman menos de 10 segundos)
+
 #### Scenario: Transacción caducada por el propio código
 - **GIVEN** una operación de la API cuya transacción interactiva supera su tiempo máximo antes de su última consulta (provocado en el test)
 - **WHEN** se hace la petición
 - **THEN** la respuesta es 500 `internal_error`, no 503, y el registro del 500 nombra la clase del error y el código `P2028`
+
+### Requirement: Base de datos mal configurada
+Si `DATABASE_URL` apunta a una base que no existe, a credenciales sin acceso o a una conexión segura (`sslmode`) que el servidor no admite, los endpoints que leen o escriben flujos SHALL responder 503 `database_unavailable`, como con una base caída, sin datos de conexión en la respuesta ni en los registros. El registro del 503 SHALL nombrar el código de Prisma (`P1000`, `P1003`, `P1010` o `P1011`) para que quien opera distinga una configuración errónea de una caída.
+
+#### Scenario: Base, usuario o conexión segura mal configurados
+- **GIVEN** la API arrancada con `DATABASE_URL` a una base inexistente, a un usuario inexistente o con `sslmode=require` contra un servidor sin TLS (cada uno por separado, con una contraseña reconocible en la cadena)
+- **WHEN** se hace `GET /flows`, `POST /flows` con `hola` y `POST /flows/validate` con `hola`
+- **THEN** las dos primeras responden 503 `database_unavailable` y la tercera 200; ni las respuestas ni el registro contienen la contraseña, el nombre de la base ni el del usuario, y el registro de cada 503 termina con `P1003`, `P1010` y `P1011` respectivamente
 
 ### Requirement: Privacidad de los registros
 La API SHALL no registrar cuerpos de petición ni de respuesta, ni valores de cabeceras; como mucho, método, ruta, código y duración. Así, una credencial pegada por error en un flujo no se copia a los registros.
