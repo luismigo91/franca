@@ -62,6 +62,59 @@ describe('isDatabaseUnavailable', () => {
     expect(isDatabaseUnavailable(known('P2010', message, meta))).toBe(true);
   });
 
+  const terminated = (originalCode: string, originalMessage: string) => ({
+    driverAdapterError: {
+      name: 'DriverAdapterError',
+      cause: { originalCode, originalMessage, kind: 'postgres', code: originalCode, severity: 'FATAL', message: originalMessage },
+    },
+  });
+
+  it('P2039 con 57P01: el servidor corta la conexión a mitad de findMany, count, create o update (pg_terminate_backend)', () => {
+    const meta = { modelName: 'Flow', ...terminated('57P01', 'terminating connection due to administrator command') };
+    for (const operation of ['findMany', 'count', 'create', 'update']) {
+      const message = `\nInvalid \`prisma.flow.${operation}()\` invocation:\n\n\nDatabase error. Code: \`57P01\`. Message: \`terminating connection due to administrator command\``;
+      expect(isDatabaseUnavailable(known('P2039', message, meta))).toBe(true);
+    }
+  });
+
+  it('P2010 con 57P01: el servidor corta la conexión a mitad de un $queryRaw (el FOR UPDATE de un escritor)', () => {
+    const message = '\nInvalid `prisma.$queryRaw()` invocation:\n\n\nRaw query failed. Code: `57P01`. Message: `terminating connection due to administrator command`';
+    expect(isDatabaseUnavailable(known('P2010', message, terminated('57P01', 'terminating connection due to administrator command')))).toBe(true);
+  });
+
+  it.each([
+    ['57P02', 'crash of another server process'],
+    ['57P03', 'the database system is starting up'],
+  ])('%s: el servidor se cae o está arrancando', (code, text) => {
+    expect(isDatabaseUnavailable(known('P2010', 'x', terminated(code, text)))).toBe(true);
+  });
+
+  it.each([
+    ['57P04', 'database "x" does not exist'],
+    ['23505', 'duplicate key value violates unique constraint'],
+    ['40001', 'could not serialize access'],
+  ])('P2039 con %s no es base caída', (code, text) => {
+    expect(isDatabaseUnavailable(known('P2039', 'x', terminated(code, text)))).toBe(false);
+  });
+
+  it('P1003, P1010 y P1011 (DATABASE_URL con base, usuario o TLS erróneos) son base no disponible', () => {
+    const fixtures: [string, string, Record<string, unknown>][] = [
+      ['P1003', 'Database `no_existe_zz` does not exist on the database server', { originalCode: '3D000', originalMessage: 'database "no_existe_zz" does not exist', kind: 'DatabaseDoesNotExist', db: 'no_existe_zz' }],
+      ['P1010', 'User was denied access on the database `(not available)`', { originalCode: '28000', originalMessage: 'role "nadie_zz" does not exist', kind: 'DatabaseAccessDenied' }],
+      ['P1011', 'Error opening a TLS connection: The server does not support SSL connections', { kind: 'TlsConnectionError', reason: 'The server does not support SSL connections' }],
+    ];
+    for (const [code, message, cause] of fixtures) {
+      expect(isDatabaseUnavailable(known(code, `\nInvalid \`prisma.flow.findMany()\` invocation:\n\n\n${message}`, { modelName: 'Flow', driverAdapterError: { name: 'DriverAdapterError', cause } }))).toBe(true);
+      expect(isDatabaseUnavailable(known(code, message, { driverAdapterError: { name: 'DriverAdapterError', cause } }))).toBe(true);
+    }
+  });
+
+  it('P1000 (autenticación fallida) también es configuración; P1008 y P1012 no', () => {
+    expect(isDatabaseUnavailable(known('P1000', 'Authentication failed against database server', {}))).toBe(true);
+    expect(isDatabaseUnavailable(known('P1012', 'Schema validation error', {}))).toBe(false);
+    expect(isDatabaseUnavailable(known('P2003', 'Foreign key constraint failed', {}))).toBe(false);
+  });
+
   it('P2010 con otro error de Postgres (por ejemplo una sintaxis incorrecta) no es base caída', () => {
     const meta = { driverAdapterError: { cause: { originalCode: '42601', kind: 'postgres' } } };
     expect(isDatabaseUnavailable(known('P2010', 'Raw query failed. Code: `42601`.', meta))).toBe(false);

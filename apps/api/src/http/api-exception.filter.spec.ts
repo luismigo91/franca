@@ -94,6 +94,12 @@ describe('ApiExceptionFilter: registro', () => {
     expect(lines).toEqual(['error GET /flows/hola 503 database_unavailable']);
   });
 
+  it.each(['P1000', 'P1003', 'P1010', 'P1011'])('un 503 por DATABASE_URL mal configurada (%s) añade el código de Prisma, no el mensaje (lleva el nombre de la base)', (code) => {
+    const sent = run(new Prisma.PrismaClientKnownRequestError('Database `no_existe_zz` does not exist on the database server', { code, clientVersion: '7.10.1' }));
+    expect(sent.status).toBe(503);
+    expect(lines).toEqual([`error GET /flows/hola 503 database_unavailable ${code}`]);
+  });
+
   it('un error cualquiera registra su clase pero no su mensaje ni su traza', () => {
     run(new TypeError('contenido del flujo: Bearer abc123'));
     expect(lines).toEqual(['error GET /flows/hola 500 internal_error TypeError']);

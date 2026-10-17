@@ -115,6 +115,42 @@ describe('base de datos no disponible y fallos internos (e2e)', () => {
     }
   });
 
+  it('Base, usuario o conexión segura mal configurados', async () => {
+    const base = new URL(process.env.DATABASE_URL ?? '');
+    base.password = SECRET_PASSWORD;
+    const variants = [
+      { code: 'P1003', url: withChange(base, (url) => (url.pathname = '/no_existe_zz')) },
+      { code: 'P1010', url: withChange(base, (url) => (url.username = 'nadie_zz')) },
+      // El servidor de los tests no tiene TLS: `require` falla al abrir la conexión segura.
+      { code: 'P1011', url: withChange(base, (url) => url.searchParams.set('sslmode', 'require')) },
+    ];
+    for (const { code, url } of variants) {
+      const output = captureOutput();
+      testApp = await createTestApp({ logger: output.logger, config: { databaseUrl: url } });
+      const api = client(testApp.server);
+
+      const list = await api.list();
+      const create = await api.create(hola());
+      const validate = await api.validate(hola());
+      expect({ code, list: [list.status, list.body], create: [create.status, create.body] }).toEqual({
+        code,
+        list: [503, UNAVAILABLE],
+        create: [503, UNAVAILABLE],
+      });
+      expect(validate.status).toBe(200);
+      for (const text of [list.text, create.text, output.text()]) {
+        expect(text).not.toContain(SECRET_PASSWORD);
+        expect(text).not.toContain('no_existe_zz');
+        expect(text).not.toContain('nadie_zz');
+      }
+      // El registro nombra el código de Prisma para que quien opera vea que es configuración.
+      expect(output.lines()).toContain(`error GET /flows 503 database_unavailable ${code} Http`);
+      await testApp.close();
+      testApp = undefined;
+      output.restore();
+    }
+  });
+
   it('Transacción caducada por el propio código', async () => {
     const output = captureOutput();
     class ExpiringRepository extends FlowsRepository {
@@ -177,3 +213,10 @@ describe('base de datos no disponible y fallos internos (e2e)', () => {
     expect(res.body.error).toBe('invalid_flow');
   });
 });
+
+/** Copia de `url` con un cambio. */
+function withChange(url: URL, change: (copy: URL) => void): string {
+  const copy = new URL(url);
+  change(copy);
+  return copy.toString();
+}
