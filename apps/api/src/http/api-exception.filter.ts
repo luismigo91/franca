@@ -11,6 +11,9 @@ export interface ErrorResponse {
   code: ApiErrorCode;
 }
 
+/** Comienzo del mensaje del `URIError` de Express al decodificar un parámetro de ruta. */
+const URI_DECODE_MESSAGE = 'Failed to decode param';
+
 function plain(code: ApiErrorCode): ErrorResponse {
   const { status, message } = describeApiError(code);
   return { status, body: { message, error: code }, headers: {}, code };
@@ -34,17 +37,19 @@ export function toErrorResponse(exception: unknown): ErrorResponse {
   }
   // Ruta o método sin manejador.
   if (exception instanceof NotFoundException) return plain('not_found');
-  // La única fuente de un BadRequestException ajeno es el `URIError` de una ruta con `%` mal formado
-  // (no hay `ValidationPipe` ni body parser de Nest): `GET /flows/%FF` es una ruta que no existe.
-  if (exception instanceof BadRequestException) return plain('not_found');
+  // `ExpressAdapter.mapException` envuelve el `URIError` de una ruta con `%` mal formado en un BadRequestException que
+  // solo conserva el mensaje de Express («Failed to decode param '%FF'»): `GET /flows/%FF` es una ruta que no existe.
+  // Cualquier otro BadRequestException (por ejemplo, de un pipe futuro) no es eso y sale como 500 hasta tener código.
+  if (exception instanceof BadRequestException && exception.message.startsWith(URI_DECODE_MESSAGE)) return plain('not_found');
   if (isDatabaseUnavailable(exception)) return plain('database_unavailable');
   return plain('internal_error');
 }
 
-/** `P####` de un error de Prisma, para el registro de un 500. */
+/** `P####` de un error de Prisma (`code`; `errorCode` en `PrismaClientInitializationError`), para el registro. */
 function prismaCode(exception: unknown): string | undefined {
-  const code = (exception as { code?: unknown } | null)?.code;
-  return typeof code === 'string' && /^P\d{4}$/.test(code) ? code : undefined;
+  const { code, errorCode } = (exception ?? {}) as { code?: unknown; errorCode?: unknown };
+  const found = code ?? errorCode;
+  return typeof found === 'string' && /^P\d{4}$/.test(found) ? found : undefined;
 }
 
 /**
