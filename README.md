@@ -40,7 +40,7 @@ Una sola app: `pnpm --filter @franca/api dev`.
 
 ## API
 
-Guarda y valida flujos en Postgres. Solo atiende desde la propia máquina (`127.0.0.1` o `::1`) y todavía no tiene autenticación. Arranque, variables y tests en [`apps/api/README.md`](apps/api/README.md); el contrato completo, en `openspec/changes/api-flows/specs/`.
+Guarda y valida flujos en Postgres. Solo atiende desde la propia máquina (`127.0.0.1` o `::1`) y todavía no tiene autenticación. Arranque, variables y tests en [`apps/api/README.md`](apps/api/README.md); el contrato completo, en [`openspec/specs/flows-api/spec.md`](openspec/specs/flows-api/spec.md).
 
 | Endpoint | Qué hace |
 |---|---|

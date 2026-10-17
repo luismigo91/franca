@@ -5,7 +5,7 @@
  * errores de un flujo también. Por eso la forma se revisa por piezas: la raíz (sin `nodes`) y cada nodo contra
  * la definición de su tipo. Un validador `fast` (`allErrors: false`, lineal) decide si una pieza falla; solo si
  * es pequeña se revalida con `detailed` (`allErrors: true`) para dar todos sus errores, dentro de un presupuesto.
- * Detalle del diseño: `openspec/changes/api-flows/design.md`, D11.
+ * Detalle del diseño: `openspec/changes/archive/2026-10-17-api-flows/design.md`, D11.
  */
 import { Ajv2020, type ErrorObject, type ValidateFunction } from 'ajv/dist/2020.js';
 import schema from '../flow.schema.json' with { type: 'json' };

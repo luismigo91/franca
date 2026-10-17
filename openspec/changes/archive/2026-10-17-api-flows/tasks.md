@@ -69,7 +69,7 @@ Fases secuenciales; cada una empieza cuando la anterior pasa su gate. Comportami
 - [x] 6.6 Alcance: `git diff --stat main...HEAD` solo lista ficheros de la tabla de D1 (más el lockfile); cualquier otro se justifica o se revierte
 - [x] 6.8 Ronda 2 de QA (commit `1ee994f`, 5 fallos): spec primero (`spec(api)`), después el código. 1) listados sin `$transaction`; 2) `query_timeout` 4 s y `statement_timeout` 3,5 s (servidor mudo a mitad de una transacción: ~8 s); 3) SQLSTATE `57P01`/`57P02`/`57P03` como base no disponible; 4) `P1000`/`P1003`/`P1010`/`P1011` como 503 con el código en el registro; 5) `requestTimeout` 30 s con 408. Los cuatro `it.fails` de `database-stalls.e2e-spec.ts` son `it` normales
 - [x] 6.9 Ronda de revisión de código: spec primero (`spec(api)`); clasificación de «base no disponible» por familias (errno de socket, `P1008`, `P2037`, SQLSTATE de clase 08, 53300 y 57P0x), `PrismaClientInitializationError` solo con `errorCode` de conectividad o configuración, `BadRequestException` a `not_found` solo por el `URIError` de la ruta, avisos reutilizados en las escrituras, `isObject` interno en `@franca/spec`, READMEs, y la ficha de wiki con la cota por consulta y la conexión muda que vuelve al pool
-- [ ] 6.7 Gate: informe de QA sin fallos abiertos de severidad alta
+- [x] 6.7 Gate: informe de QA sin fallos abiertos de severidad alta
 
 ## 7. Seguimiento (no bloquea verify/archive)
 

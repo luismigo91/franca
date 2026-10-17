@@ -2,7 +2,7 @@
 
 API de Franca: guarda, versiona y valida flujos conversacionales. NestJS 12 (ESM), Prisma 7 y Postgres. El formato de flujo y su validador son de `@franca/spec`; la API no redefine ninguno.
 
-Solo escucha en bucle local y todavía no tiene autenticación. La lista de endpoints está en el [README raíz](../../README.md) y el contrato, con sus escenarios, en [`openspec/changes/api-flows/`](../../openspec/changes/api-flows/) (`specs/flows-api/spec.md`).
+Solo escucha en bucle local y todavía no tiene autenticación. La lista de endpoints está en el [README raíz](../../README.md) y el contrato, con sus escenarios, en [`openspec/specs/flows-api/spec.md`](../../openspec/specs/flows-api/spec.md).
 
 ## Arrancar
 
