@@ -264,5 +264,483 @@
     "tests": [
       "tests/local-only-preload.test.ts"
     ]
+  },
+  {
+    "id": "reorderOnEdit",
+    "file": "src/lib/editor/json-edit.ts",
+    "find": "if (exists) return Object.fromEntries(entries.map(([key, current]) => (key === segment ? [key, next] : [key, current])));",
+    "replace": "if (exists) return Object.fromEntries([...entries.filter(([key]) => key !== segment), [segment, next]]);",
+    "tests": [
+      "src/lib/editor/fields.test.ts",
+      "src/lib/editor/json-edit.test.ts"
+    ]
+  },
+  {
+    "id": "unescapedPointer",
+    "file": "src/lib/editor/json-edit.ts",
+    "find": "return String(segment).replaceAll('~', '~0').replaceAll('/', '~1');",
+    "replace": "return String(segment);",
+    "tests": [
+      "src/lib/editor/json-edit.test.ts"
+    ]
+  },
+  {
+    "id": "appendRecreated",
+    "file": "src/lib/editor/json-edit.ts",
+    "find": "if (isRecord(savedParent) && Object.hasOwn(savedParent, key)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "src/lib/editor/fields.test.ts",
+      "src/lib/editor/json-edit.test.ts"
+    ]
+  },
+  {
+    "id": "writeDefaults",
+    "file": "src/lib/editor/fields.ts",
+    "find": "return ok(keptInSaved ? write(draft, saved, pointer, defaultValue) : clear(draft, saved, pointer));",
+    "replace": "return ok(write(draft, saved, pointer, defaultValue));",
+    "tests": [
+      "src/lib/editor/fields.test.ts"
+    ]
+  },
+  {
+    "id": "keepEmptyContainers",
+    "file": "src/lib/editor/fields.ts",
+    "find": "if (descriptorAt(current, at)?.prunable !== true) break;",
+    "replace": "break;",
+    "tests": [
+      "src/lib/editor/fields.test.ts"
+    ]
+  },
+  {
+    "id": "parseLooseNumber",
+    "file": "src/lib/editor/fields.ts",
+    "find": "const parsed = DECIMAL.test(text) ? Number(text) : Number.NaN;",
+    "replace": "const parsed = Number(text);",
+    "tests": [
+      "src/lib/editor/fields.test.ts"
+    ]
+  },
+  {
+    "id": "forgetSavedDefault",
+    "file": "src/lib/editor/fields.ts",
+    "find": "const keptInSaved = saved !== null && getIn(saved, pointer) === defaultValue;",
+    "replace": "const keptInSaved = false;",
+    "tests": [
+      "src/lib/editor/fields.test.ts"
+    ]
+  },
+  {
+    "id": "pruneSavedEmpty",
+    "file": "src/lib/editor/fields.ts",
+    "find": "if (saved !== null && isEmptyContainer(getIn(saved, pointerOf(at)))) break;",
+    "replace": "",
+    "tests": [
+      "src/lib/editor/fields.test.ts"
+    ]
+  },
+  {
+    "id": "callTargetsDirect",
+    "file": "src/lib/editor/node-targets.ts",
+    "find": "if (!hasMinimalShape(node)) return readableTargets(node);",
+    "replace": "",
+    "tests": [
+      "src/lib/editor/node-targets.test.ts",
+      "src/lib/editor/canvas-model.test.ts",
+      "src/lib/editor/layout.test.ts"
+    ]
+  },
+  {
+    "id": "keepNonTextTargetIds",
+    "file": "src/lib/editor/node-targets.ts",
+    "find": ".filter((target) => typeof target.id === 'string')",
+    "replace": ".filter(() => true)",
+    "tests": [
+      "src/lib/editor/node-targets.test.ts",
+      "src/lib/editor/canvas-model.test.ts"
+    ]
+  },
+  {
+    "id": "infinitePosition",
+    "file": "src/lib/editor/layout.ts",
+    "find": "&& Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;",
+    "replace": "? { x, y } : null;",
+    "tests": [
+      "src/lib/editor/layout.test.ts"
+    ]
+  },
+  {
+    "id": "skipOverlapCheck",
+    "file": "src/lib/editor/layout.ts",
+    "find": "if (overlaps({ x, y, ...size }, box, GAP_Y)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "src/lib/editor/layout.test.ts"
+    ]
+  },
+  {
+    "id": "skipDepthCheckOnApply",
+    "file": "src/lib/editor/node-ops.ts",
+    "find": "if (exceedsFlowDepth(setIn(flow, `/nodes/${index}`, parsed))) return { ok: false, error: DEPTH_ERROR };",
+    "replace": "",
+    "tests": [
+      "src/lib/editor/node-ops.test.ts"
+    ]
+  },
+  {
+    "id": "inspectorTargetWithoutFix",
+    "file": "src/lib/editor/node-ops.ts",
+    "find": "return setTarget(fixPositions(flow, positions), nodeId, pointer, destination);",
+    "replace": "return setTarget(flow, nodeId, pointer, destination);",
+    "tests": [
+      "src/lib/editor/node-ops.test.ts",
+      "src/lib/editor/drop.test.ts"
+    ]
+  },
+  {
+    "id": "fixOnlyMovedNode",
+    "file": "src/lib/editor/positions.ts",
+    "find": "const fixed = fixPositions(flow, positions);\n  if (base === undefined",
+    "replace": "const fixed = flow;\n  if (base === undefined",
+    "tests": [
+      "src/lib/editor/positions.test.ts"
+    ]
+  },
+  {
+    "id": "skipRenameReferences",
+    "file": "src/lib/editor/rename.ts",
+    "find": "return { ok: true, flow: repointReferences(setIn(flow, `/nodes/${index}/id`, to), from, to) };",
+    "replace": "return { ok: true, flow: setIn(flow, `/nodes/${index}/id`, to) };",
+    "tests": [
+      "src/lib/editor/rename.test.ts"
+    ]
+  },
+  {
+    "id": "allowDuplicateRename",
+    "file": "src/lib/editor/rename.ts",
+    "find": "if (next !== current && indexOfNode(flow, next) !== -1) return ID_TAKEN_ERROR;",
+    "replace": "",
+    "tests": [
+      "src/lib/editor/rename.test.ts"
+    ]
+  },
+  {
+    "id": "multipleChoiceOutputs",
+    "file": "src/lib/editor/outputs.ts",
+    "find": "node.inputType === 'choice' && node.multiple !== true ? choiceOutputs(node)",
+    "replace": "node.inputType === 'choice' ? choiceOutputs(node)",
+    "tests": [
+      "src/lib/editor/outputs.test.ts"
+    ]
+  },
+  {
+    "id": "allowSelfDrop",
+    "file": "src/lib/editor/drop.ts",
+    "find": "if (targetId !== sourceId) return true;",
+    "replace": "return true;",
+    "tests": [
+      "src/lib/editor/drop.test.ts"
+    ]
+  },
+  {
+    "id": "allowLlmExhaustedSelf",
+    "file": "src/lib/editor/drop.ts",
+    "find": "node.type === 'llm' && outputPointer === '/next'",
+    "replace": "node.type === 'llm'",
+    "tests": [
+      "src/lib/editor/drop.test.ts"
+    ]
+  },
+  {
+    "id": "clearOnEmptyDrop",
+    "file": "src/lib/editor/drop.ts",
+    "find": "if (cancelled || targetId === null) return { kind: 'none' };",
+    "replace": "if (cancelled) return { kind: 'none' };",
+    "tests": [
+      "src/lib/editor/drop.test.ts"
+    ]
+  },
+  {
+    "id": "dirtyByIdentity",
+    "file": "src/lib/editor/editor-session.ts",
+    "find": "dirty: draftText !== saved.text,",
+    "replace": "dirty: draft !== saved.flow,",
+    "tests": [
+      "src/lib/editor/editor-session.test.ts"
+    ]
+  },
+  {
+    "id": "ifMatchStar",
+    "file": "src/lib/editor/editor-session.ts",
+    "find": "return this.send(this.state.draftText, currentRevision);",
+    "replace": "return this.send(this.state.draftText, this.state.saved!.revision);",
+    "tests": [
+      "src/lib/editor/editor-session.test.ts"
+    ]
+  },
+  {
+    "id": "resendOnLoss",
+    "file": "src/lib/editor/editor-session.ts",
+    "find": "if (isLoss(result)) return this.recover(sent, result.code, epoch);",
+    "replace": "if (isLoss(result)) {\n      const again = await this.client.updateFlow(this.flowId, sent, revision);\n      return again.ok ? this.finishSave(again.body) : this.recover(sent, result.code, epoch);\n    }",
+    "tests": [
+      "src/lib/editor/editor-session.test.ts"
+    ]
+  },
+  {
+    "id": "trustLostWithoutCompare",
+    "file": "src/lib/editor/editor-session.ts",
+    "find": "if (reread.ok && flowText(reread.body.flow) === sent) return this.finishSave(reread.body);",
+    "replace": "if (reread.ok) return this.finishSave(reread.body);",
+    "tests": [
+      "src/lib/editor/editor-session.test.ts"
+    ]
+  },
+  {
+    "id": "ignoreEpoch",
+    "file": "src/lib/editor/editor-session.ts",
+    "find": "const result = await this.client.updateFlow(this.flowId, sent, revision);\n    if (epoch !== this.epoch) return { status: 'ignored' };",
+    "replace": "const result = await this.client.updateFlow(this.flowId, sent, revision);",
+    "tests": [
+      "src/lib/editor/editor-session.test.ts"
+    ]
+  },
+  {
+    "id": "publishWithChanges",
+    "file": "src/lib/editor/editor-session.ts",
+    "find": "const gate = checkPublishable(this.state);",
+    "replace": "const gate = { ok: true } as ReturnType<typeof checkPublishable>;",
+    "tests": [
+      "src/lib/editor/editor-session.test.ts"
+    ]
+  },
+  {
+    "id": "persistAutoLayout",
+    "file": "src/lib/editor/editor-session.ts",
+    "find": "...derive(resource.flow, saved), selection, busy: null, notice: null, loadCount:",
+    "replace": "...derive({ ...resource.flow, nodes: (resource.flow.nodes as Record<string, unknown>[]).map((node) => ({ ...node, position: { x: 0, y: 0 } })) }, saved), selection, busy: null, notice: null, loadCount:",
+    "tests": [
+      "src/lib/editor/editor-session.test.ts"
+    ]
+  },
+  {
+    "id": "saveInvalid",
+    "file": "src/lib/editor/save-gate.ts",
+    "find": "if (!state.verdict.valid) return blocked('invalid', GATE_COPY.invalid);",
+    "replace": "",
+    "tests": [
+      "src/lib/editor/save-gate.test.ts",
+      "src/lib/editor/editor-session.test.ts"
+    ]
+  },
+  {
+    "id": "skipLiteralCredentialCheck",
+    "file": "src/lib/editor/save-gate.ts",
+    "find": "if (state.verdict.warnings.some((warning) => warning.code === 'credential_header_literal')) return blocked('literal_credential', GATE_COPY.literalCredential);",
+    "replace": "",
+    "tests": [
+      "src/lib/editor/save-gate.test.ts",
+      "src/lib/editor/editor-session.test.ts"
+    ]
+  },
+  {
+    "id": "countCharsNotBytes",
+    "file": "src/lib/editor/save-gate.ts",
+    "find": "if (utf8Bytes(state.draftText) > MAX_FLOW_BYTES)",
+    "replace": "if (state.draftText.length > MAX_FLOW_BYTES)",
+    "tests": [
+      "src/lib/editor/save-gate.test.ts",
+      "src/lib/editor/editor-session.test.ts"
+    ]
+  },
+  {
+    "id": "forwardIssues",
+    "file": "src/server/bff/responses.ts",
+    "find": "const payload: Obj = { error: parsed.error };",
+    "replace": "const payload: Obj = { error: parsed.error, ...(parsed.issues === undefined ? {} : { issues: parsed.issues }) };",
+    "tests": [
+      "src/server/bff/editor-handlers.test.ts"
+    ]
+  },
+  {
+    "id": "genericFlowPassthrough",
+    "file": "src/server/api/operations.ts",
+    "find": "path: API_OPERATIONS.getFlow(flowId),",
+    "replace": "path: `${API_OPERATIONS.getFlow(flowId)}?published=true`,",
+    "tests": [
+      "src/server/bff/editor-handlers.test.ts"
+    ]
+  },
+  {
+    "id": "editorListPublished",
+    "file": "src/config/endpoints.ts",
+    "find": "listFlows: (offset: number) => `/flows?limit=${LIST_PAGE_SIZE}&offset=${offset}`,",
+    "replace": "listFlows: (offset: number) => `/flows?published=true&limit=${LIST_PAGE_SIZE}&offset=${offset}`,",
+    "tests": [
+      "src/server/bff/editor-handlers.test.ts"
+    ]
+  },
+  {
+    "id": "unvalidatedFlowId",
+    "file": "src/server/ids.ts",
+    "find": "return typeof value === 'string' && FLOW_ID.test(value);",
+    "replace": "return typeof value === 'string';",
+    "tests": [
+      "src/server/ids.test.ts",
+      "src/server/bff/editor-handlers.test.ts"
+    ]
+  },
+  {
+    "id": "skipFlowSegmentCheck",
+    "file": "src/server/frontier.ts",
+    "find": "if (request.pathname.startsWith(EDITOR_FLOW_ROUTE) && !hasValidFlowSegment(request.pathname)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "src/server/frontier-editor.test.ts"
+    ]
+  },
+  {
+    "id": "scriptSrcWithoutEval",
+    "file": "src/server/frontier.ts",
+    "find": "'Content-Security-Policy': \"frame-ancestors 'none'\",",
+    "replace": "'Content-Security-Policy': \"frame-ancestors 'none'; script-src 'self'\",",
+    "tests": [
+      "src/server/frontier-editor.test.ts"
+    ]
+  },
+  {
+    "id": "skipEditorFrontierRecheck",
+    "file": "src/server/bff/handlers.ts",
+    "find": "export async function handleUpdateFlow(request: Request, params: { flowId: string }): Promise<Response> {\n  const rejected = rejectedByFrontier(request);\n  if (rejected) return rejected;\n",
+    "replace": "export async function handleUpdateFlow(request: Request, params: { flowId: string }): Promise<Response> {\n",
+    "tests": [
+      "src/server/bff/editor-handlers.test.ts"
+    ]
+  },
+  {
+    "id": "optionalIfMatchOnEditor",
+    "file": "src/server/bff/handlers.ts",
+    "find": "const ifMatch = readIfMatch(request);\n  if (!ifMatch.ok) return failureResponse(ifMatch);\n  return respond('POST', TEMPLATES.editorVersions, 'json', () => operations.publishFlow(id, ifMatch.value));",
+    "replace": "const ifMatch = readIfMatch(request);\n  return respond('POST', TEMPLATES.editorVersions, 'json', () => operations.publishFlow(id, ifMatch.ok ? ifMatch.value : '*'));",
+    "tests": [
+      "src/server/bff/editor-handlers.test.ts"
+    ]
+  },
+  {
+    "id": "acceptNonObjectFlowBody",
+    "file": "src/server/bff/request.ts",
+    "find": "if (!isObject(parsed.value.value)) return fail(400, 'invalid_request');",
+    "replace": "",
+    "tests": [
+      "src/server/bff/editor-handlers.test.ts"
+    ]
+  },
+  {
+    "id": "stringifyWithoutDepthGuard",
+    "file": "src/server/bff/request.ts",
+    "find": "value: exceedsFlowDepth(parsed.value.value) ? parsed.value.text : JSON.stringify(parsed.value.value)",
+    "replace": "value: JSON.stringify(parsed.value.value)",
+    "tests": [
+      "src/server/bff/editor-handlers.test.ts"
+    ]
+  },
+  {
+    "id": "renderRawTitle",
+    "file": "src/components/editor/canvas/canvas-node.tsx",
+    "find": "asText(node.title)",
+    "replace": "(node.title as string)",
+    "tests": [
+      "src/components/editor/canvas/canvas-node.test.tsx"
+    ]
+  },
+  {
+    "id": "skipFieldFit",
+    "file": "src/components/editor/inspector/inspector-field.tsx",
+    "find": "descriptor.cls !== 'readonly' && !fitsField(descriptor, value)",
+    "replace": "false",
+    "tests": [
+      "src/components/editor/inspector/node-inspector.test.tsx"
+    ]
+  },
+  {
+    "id": "loadFlowUrls",
+    "file": "src/components/editor/inspector/content-field.tsx",
+    "find": "{/* La URL es texto: no se carga, no se enlaza ni se incrusta (D19). */}",
+    "replace": "<img src={asText(record.url)} alt=\"\" />",
+    "tests": [
+      "src/components/editor/inspector/content-field.test.tsx"
+    ]
+  },
+  {
+    "id": "noClamp",
+    "file": "src/lib/editor/layout.ts",
+    "find": "Math.min(MAX_COORDINATE, Math.max(-MAX_COORDINATE, value))",
+    "replace": "value",
+    "tests": [
+      "src/lib/editor/layout.test.ts"
+    ]
+  },
+  {
+    "id": "skipDepthOnRead",
+    "file": "src/lib/editor/api-types.ts",
+    "find": " || exceedsFlowDepth(value)",
+    "replace": "",
+    "tests": [
+      "src/lib/editor/api-types.test.ts"
+    ]
+  },
+  {
+    "id": "allowDuplicateIds",
+    "file": "src/lib/editor/api-types.ts",
+    "find": " || ids.has(node.id)",
+    "replace": "",
+    "tests": [
+      "src/lib/editor/api-types.test.ts"
+    ]
+  },
+  {
+    "id": "nonTextNodeIdOnRead",
+    "file": "src/lib/editor/api-types.ts",
+    "find": "typeof node.id !== 'string' || ids.has",
+    "replace": "false || ids.has",
+    "tests": [
+      "src/lib/editor/api-types.test.ts"
+    ]
+  },
+  {
+    "id": "staleJsonText",
+    "file": "src/lib/editor/local-text.ts",
+    "find": "local !== null && local.basis === canonicalOf(value) ? local.data : null",
+    "replace": "local !== null ? local.data : null",
+    "tests": [
+      "src/lib/editor/local-text.test.ts"
+    ]
+  },
+  {
+    "id": "validateDraftNoCatch",
+    "file": "src/lib/editor/validate-draft.ts",
+    "find": "  } catch {\n    const nodes",
+    "replace": "  } catch (error) {\n    throw error;\n    const nodes",
+    "tests": [
+      "src/lib/editor/validate-draft-fallback.test.ts"
+    ]
+  },
+  {
+    "id": "problemsAtPrefix",
+    "file": "src/lib/editor/issues-view.ts",
+    "find": "problem.path.startsWith(`${pointer}/`)",
+    "replace": "problem.path.startsWith(pointer)",
+    "tests": [
+      "src/lib/editor/issues-view.test.ts"
+    ]
+  },
+  {
+    "id": "keepOldAnnouncement",
+    "file": "src/lib/editor/editor-session.ts",
+    "find": "notice: null, announcement: null });",
+    "replace": "notice: null });",
+    "tests": [
+      "src/lib/editor/editor-session.test.ts"
+    ]
   }
 ]

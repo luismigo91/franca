@@ -6,8 +6,8 @@ interface ListStateProps {
   phase: 'loading' | 'ready' | 'error';
   /** Texto de «Cargando…». */
   loadingText: string;
-  /** Texto de la lista vacía. */
-  emptyText: string;
+  /** Contenido de la lista vacía (un texto, o un texto con un enlace). */
+  emptyText: ReactNode;
   isEmpty: boolean;
   error: ChatErrorCode | null;
   onRetry: () => void;

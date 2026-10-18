@@ -15,11 +15,15 @@ Datos de los escenarios:
 ## Requirements
 
 ### Requirement: Chat de prueba en local
-La web de Franca SHALL ofrecer un chat de prueba: la página de inicio (`/`) lista los flujos publicados y las conversaciones recientes, y cada conversación tiene su página en `/conversaciones/<id>`. Todo el texto visible está en español y nombra el producto como «Franca», nunca con el nombre de un paquete o del repositorio. Desde la página de una conversación siempre se puede volver al inicio.
+La web de Franca SHALL ofrecer un chat de prueba: la página de inicio (`/`) lista los flujos publicados y las conversaciones recientes, y cada conversación tiene su página en `/conversaciones/<id>`. Todo el texto visible está en español y nombra el producto como «Franca», nunca con el nombre de un paquete o del repositorio. Desde la página de una conversación siempre se puede volver al inicio, y desde el inicio, ir al editor de flujos (`/flujos`, ver `web-editor`).
 
 #### Scenario: Marca en la página de inicio
 - **WHEN** se abre `/`
 - **THEN** el título del documento contiene «Franca» y la página no contiene `@franca/`, `franca-web` ni «Create Next App»
+
+#### Scenario: Enlace al editor desde el inicio
+- **WHEN** se abre `/` y se sigue el enlace al editor de flujos
+- **THEN** el navegador llega a `/flujos`
 
 ### Requirement: Flujos publicados
 La página de inicio SHALL listar los flujos con alguna versión publicada (`GET /flows?published=true`), 20 por página y en el orden de la API, cada uno con su `name`, su `id`, su última versión y, si los tiene, el aviso de que hay cambios sin publicar (el chat usa la última versión publicada). «Ver más» carga la página siguiente. Los flujos sin publicar y los borrados no aparecen.
@@ -35,12 +39,12 @@ La página de inicio SHALL listar los flujos con alguna versión publicada (`GET
 - **THEN** la lista tiene primero 20 flujos y después 21, sin repetir ninguno
 
 ### Requirement: Estados de las listas
-Mientras carga una lista, la página de inicio SHALL indicarlo. Vacía, muestra un mensaje propio: sin flujos publicados, que se publique uno con la API de Franca y se vuelva; sin conversaciones, que aún no se ha probado ningún flujo. Si la API no responde o responde un error, muestra un mensaje en español, sin el texto de la API, con «Reintentar», que vuelve a pedir la lista.
+Mientras carga una lista, la página de inicio SHALL indicarlo. Vacía, muestra un mensaje propio: sin flujos publicados, que se publique uno desde el editor de flujos, con un enlace a `/flujos`; sin conversaciones, que aún no se ha probado ningún flujo. Si la API no responde o responde un error, muestra un mensaje en español, sin el texto de la API, con «Reintentar», que vuelve a pedir la lista.
 
 #### Scenario: Sin flujos publicados
 - **GIVEN** ningún flujo publicado
 - **WHEN** se abre `/`
-- **THEN** la página dice que todavía no hay flujos publicados y no ofrece ningún botón «Probar»
+- **THEN** la página dice que todavía no hay flujos publicados, enlaza con `/flujos` para publicar uno y no ofrece ningún botón «Probar»
 
 #### Scenario: API parada
 - **GIVEN** la API parada
@@ -379,7 +383,7 @@ Toda respuesta de la web SHALL impedir que otra página la muestre dentro de un 
 - **THEN** el marco no muestra el chat (su documento no contiene «Franca»), y la respuesta de `/` lleva `frame-ancestors 'none'` en `Content-Security-Policy` y `X-Frame-Options: DENY`
 
 ### Requirement: Operaciones del chat en la API
-La web SHALL usar solo estas operaciones de la API: `GET /flows?published=true`, `GET /flows/:flowId/versions/:version`, `GET /conversations`, `GET /conversations/:conversationId`, `GET /conversations/:conversationId/transcript`, `POST /conversations`, `POST /conversations/:conversationId/inputs` y `DELETE /conversations/:conversationId`. Nunca forma la ruta con texto del navegador sin validarlo: un id de conversación que no es un UUID en minúsculas no llega a la API.
+Las páginas del chat SHALL usar solo estas operaciones de la API: `GET /flows?published=true`, `GET /flows/:flowId/versions/:version`, `GET /conversations`, `GET /conversations/:conversationId`, `GET /conversations/:conversationId/transcript`, `POST /conversations`, `POST /conversations/:conversationId/inputs` y `DELETE /conversations/:conversationId`. Las del editor son las de `web-editor`, y la web no usa otras. Un id de conversación que no es un UUID en minúsculas no llega a la API.
 
 #### Scenario: Recorrido completo
 - **GIVEN** la API simulada delante de la API real, reenviando cada petición y registrándola, y `captacion-leads` publicado

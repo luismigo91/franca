@@ -20,6 +20,7 @@ import {
   type TranscriptItem,
 } from '@/lib/chat/api-types';
 import type { ChatErrorCode } from '@/lib/chat/copy';
+import { readFlowResource, readVersionResource, type FlowResource, type VersionResource } from '@/lib/editor/api-types';
 
 /**
  * Resultado de una llamada del navegador. `status` es `null` solo cuando no hubo respuesta (`network_error`).
@@ -54,7 +55,7 @@ function readErrorCode(body: unknown): { code: ChatErrorCode; currentRevision?: 
 }
 
 interface RequestOptions {
-  method: 'GET' | 'POST' | 'DELETE';
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
   body?: string;
   headers?: Record<string, string>;
   timeoutMs: number;
@@ -168,3 +169,58 @@ export function createWebClient(fetchImpl: Fetch): WebClient {
 
 /** El cliente del navegador: el único sitio de la web donde se usa `fetch` (ESLint lo impone). */
 export const webClient: WebClient = createWebClient((input, init) => fetch(input, init));
+
+/** Las seis llamadas del navegador del editor, contra las rutas `/api/editor/flows/**` de la web (`WEB_ENDPOINTS`). */
+export interface EditorClient {
+  listFlows(offset: number, signal?: AbortSignal): Promise<ClientResult<Page<FlowSummary>>>;
+  getFlow(flowId: string, signal?: AbortSignal): Promise<ClientResult<FlowResource>>;
+  /** Crea un flujo con su texto JSON (201). */
+  createFlow(text: string): Promise<ClientResult<FlowResource>>;
+  /** Guarda el borrador con `If-Match: "<revision>"`. */
+  updateFlow(flowId: string, text: string, revision: number): Promise<ClientResult<FlowResource>>;
+  /** Publica con `If-Match: "<revision>"`; `status` 201 (versión nueva) o 200 (ya existía). */
+  publishFlow(flowId: string, revision: number): Promise<ClientResult<VersionResource>>;
+  /** Borra con `If-Match: "<revision>"` (204). */
+  deleteFlow(flowId: string, revision: number): Promise<ClientResult<null>>;
+}
+
+const ifMatch = (revision: number) => ({ 'If-Match': `"${revision}"` });
+
+/**
+ * Crea el cliente del editor con un `fetch` inyectado (en los tests, uno falso).
+ *
+ * @param fetchImpl El `fetch` del navegador.
+ * @returns Las seis llamadas del editor.
+ */
+export function createEditorClient(fetchImpl: Fetch): EditorClient {
+  const read = { timeoutMs: BROWSER_READ_TIMEOUT_MS };
+  return {
+    async listFlows(offset, signal) {
+      const result = await call(fetchImpl, WEB_ENDPOINTS.editorFlows(offset), { method: 'GET', ...read, signal });
+      return shaped(result, (body) => readPage(body, readFlowSummary));
+    },
+    async getFlow(flowId, signal) {
+      const result = await call(fetchImpl, WEB_ENDPOINTS.editorFlow(flowId), { method: 'GET', ...read, signal });
+      return shaped(result, readFlowResource);
+    },
+    async createFlow(text) {
+      const result = await call(fetchImpl, WEB_ENDPOINTS.editorFlowCreate, { method: 'POST', body: text, headers: JSON_HEADERS, ...read });
+      return shaped(result, readFlowResource);
+    },
+    async updateFlow(flowId, text, revision) {
+      const result = await call(fetchImpl, WEB_ENDPOINTS.editorFlow(flowId), { method: 'PUT', body: text, headers: { ...JSON_HEADERS, ...ifMatch(revision) }, ...read });
+      return shaped(result, readFlowResource);
+    },
+    async publishFlow(flowId, revision) {
+      const result = await call(fetchImpl, WEB_ENDPOINTS.editorFlowVersions(flowId), { method: 'POST', headers: ifMatch(revision), ...read });
+      return shaped(result, readVersionResource);
+    },
+    async deleteFlow(flowId, revision) {
+      const result = await call(fetchImpl, WEB_ENDPOINTS.editorFlow(flowId), { method: 'DELETE', headers: ifMatch(revision), ...read });
+      return result.ok ? { ok: true, status: result.status, body: null } : result;
+    },
+  };
+}
+
+/** El cliente del editor: usa el mismo `fetch` que el del chat, este fichero es el único con `fetch` (ESLint lo impone). */
+export const editorClient: EditorClient = createEditorClient((input, init) => fetch(input, init));

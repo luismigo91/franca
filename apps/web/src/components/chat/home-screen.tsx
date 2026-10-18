@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { ContactField } from '@/components/chat/contact-field';
 import { ConversationList } from '@/components/chat/conversation-list';
@@ -7,6 +8,7 @@ import { FlowList } from '@/components/chat/flow-list';
 import { ListState } from '@/components/chat/list-state';
 import { Button } from '@/components/ui/button';
 import { Notice } from '@/components/ui/notice';
+import { WEB_PAGES } from '@/config/endpoints';
 import { useListFocus } from '@/hooks/use-list-focus';
 import { usePagedList } from '@/hooks/use-paged-list';
 import { useStartConversation } from '@/hooks/use-start-conversation';
@@ -48,6 +50,9 @@ export function HomeScreen() {
           {COPY.appTitle} de {COPY.brand}
         </h1>
         <p className="text-sm opacity-70">{COPY.pageDescription}</p>
+        <Link href={WEB_PAGES.flows} className="self-start text-sm underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground">
+          {COPY.editorLink}
+        </Link>
       </header>
 
       <ContactField value={contactId} onChange={setContactId} error={contactError} inputRef={contactInput} />
@@ -61,7 +66,14 @@ export function HomeScreen() {
         <ListState
           phase={flows.state.phase}
           loadingText={COPY.loadingFlows}
-          emptyText={COPY.noFlows}
+          emptyText={
+            <>
+              {COPY.noFlows}{' '}
+              <Link href={WEB_PAGES.flows} className="underline underline-offset-2">
+                {COPY.goToEditor}
+              </Link>
+            </>
+          }
           isEmpty={flows.state.list.items.length === 0}
           error={flows.state.error}
           onRetry={reloadFlows}

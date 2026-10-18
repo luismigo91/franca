@@ -27,7 +27,7 @@ const isClient = (path: string) => /^\s*['"]use client['"]/.test(readFileSync(pa
 describe('guarda estática', () => {
   it('cada manejador de una ruta de la web empieza con await connection()', () => {
     const routes = sources.filter((path) => /src\/app\/api\/.*route\.ts$/.test(path));
-    expect(routes.length).toBe(7);
+    expect(routes.length).toBe(10);
     let handlers = 0;
     for (const path of routes) {
       const text = code(path);
@@ -37,7 +37,7 @@ describe('guarda estática', () => {
       }
       expect(text, rel(path)).not.toMatch(/export\s+(const|function)\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/);
     }
-    expect(handlers).toBeGreaterThanOrEqual(13);
+    expect(handlers).toBeGreaterThanOrEqual(19);
   });
 
   it("ningún 'use server' en src/", () => {
@@ -58,7 +58,7 @@ describe('guarda estática', () => {
     }
   });
 
-  it('transport.ts solo lo importa operations.ts, y operations.ts exporta exactamente ocho funciones', () => {
+  it('transport.ts solo lo importa operations.ts, y operations.ts exporta exactamente catorce funciones', () => {
     // Los `import type` no cuentan: no hay nada que ejecutar.
     const importers = sources
       .filter((path) => code(path).split('\n').some((line) => /^import\s+(?!type\b)[\s\S]*from\s+['"](@\/server\/api\/transport|\.\/transport)['"]/.test(line)))
@@ -66,8 +66,23 @@ describe('guarda estática', () => {
     expect(importers).toEqual(['src/server/api/operations.ts']);
     const exports = [...code(join(SRC, 'server/api/operations.ts')).matchAll(/^export\s+/gm)];
     const functions = [...code(join(SRC, 'server/api/operations.ts')).matchAll(/^export\s+function\s+(\w+)/gm)];
-    expect(exports).toHaveLength(8);
-    expect(functions).toHaveLength(8);
+    expect(exports).toHaveLength(14);
+    expect(functions.map((match) => match[1]).sort()).toEqual([
+      'createConversation',
+      'createFlow',
+      'deleteConversation',
+      'deleteFlow',
+      'getConversation',
+      'getFlow',
+      'getFlowVersion',
+      'getTranscriptPage',
+      'listConversations',
+      'listFlows',
+      'listPublishedFlows',
+      'publishFlow',
+      'sendConversationInput',
+      'updateFlow',
+    ]);
   });
 
   it('nadie más que operations.ts importa operations.ts salvo los manejadores', () => {
@@ -131,5 +146,86 @@ describe('guarda estática', () => {
     const bad = 'export async function GET() { return handle(); }';
     const match = /export\s+async\s+function\s+(GET)\b[^{]*\{\s*([^;]*;)/.exec(bad);
     expect(match![2]!.trim()).not.toBe('await connection();');
+  });
+});
+
+// ---- Guardas del editor (D19, D21)
+
+/** Importaciones de `@franca/spec` de un texto de código: cada una con su sentencia entera. */
+function specImports(text: string): string[] {
+  const found: string[] = [];
+  for (const match of text.matchAll(/import\s+(?:type\s+)?[^;'"]*?from\s+['"]@franca\/spec(?:\/[^'"]*)?['"]/g)) found.push(match[0]);
+  for (const match of text.matchAll(/import\s+['"]@franca\/spec(?:\/[^'"]*)?['"]/g)) found.push(match[0]);
+  for (const match of text.matchAll(/import\(\s*['"]@franca\/spec(?:\/[^'"]*)?['"]\s*\)/g)) found.push(match[0]);
+  return found;
+}
+
+/** Una importación con nombre que incluye `targets` (también `targets as x`), una de espacio de nombres o dinámica. */
+function reachesTargets(statement: string): boolean {
+  if (/^import\(/.test(statement) || /import\s+\*\s+as\b/.test(statement)) return true;
+  if (/^import\s+type\b/.test(statement)) return false;
+  const named = /\{([^}]*)\}/.exec(statement)?.[1] ?? '';
+  return named.split(',').some((part) => /^\s*(type\s+)?targets(\s+as\s+\w+)?\s*$/.test(part));
+}
+
+/** Un import de `@franca/spec` que no es `import type`: código que se ejecutaría. */
+const isRuntimeSpecImport = (statement: string) => !/^import\s+type\b/.test(statement);
+
+const rest = (path: string) => rel(path).replace(/\\/g, '/');
+const inEditorLib = (path: string) => rest(path).startsWith('src/lib/editor/');
+const inServer = (path: string) => rest(path).startsWith('src/server/') || rest(path) === 'src/proxy.ts' || rest(path).startsWith('src/app/api/');
+
+/** Etiquetas que cargan o enlazan contenido ajeno. */
+const MEDIA_TAGS = /<(img|video|audio|iframe|embed|object|source|picture|a)(?=[\s>/])/g;
+
+function hrefsNotFromPages(text: string): string[] {
+  return [...text.matchAll(/\bhref=(\{[^}]*\}|"[^"]*"|'[^']*')/g)].map((match) => match[1]!).filter((value) => !value.includes('WEB_PAGES'));
+}
+
+describe('guarda estática del editor', () => {
+  it('solo src/lib/editor/node-targets.ts llega a targets de @franca/spec', () => {
+    for (const path of sources.filter((candidate) => rest(candidate) !== 'src/lib/editor/node-targets.ts')) {
+      for (const statement of specImports(code(path))) expect(reachesTargets(statement), `${rel(path)}: ${statement}`).toBe(false);
+    }
+    expect(specImports(code(join(SRC, 'lib/editor/node-targets.ts'))).some(reachesTargets)).toBe(true);
+  });
+
+  it('import * as, import() y cualquier importación con nombre que incluya targets se detectan (control)', () => {
+    expect(reachesTargets("import { targets } from '@franca/spec'")).toBe(true);
+    expect(reachesTargets("import { validateFlow, targets as t } from '@franca/spec'")).toBe(true);
+    expect(reachesTargets("import { type targets } from '@franca/spec'")).toBe(true);
+    expect(reachesTargets("import * as spec from '@franca/spec'")).toBe(true);
+    expect(reachesTargets("import('@franca/spec')")).toBe(true);
+    expect(reachesTargets("import { validateFlow } from '@franca/spec'")).toBe(false);
+    expect(reachesTargets("import { retargets } from '@franca/spec'")).toBe(false);
+    expect(specImports("import('@franca/spec')\nimport * as s from '@franca/spec'\nimport { a } from '@franca/spec/flow.schema.json'")).toHaveLength(3);
+  });
+
+  it('@franca/spec solo entra en el navegador desde src/lib/editor/** (sin import type en el resto del navegador)', () => {
+    const browser = sources.filter((path) => !inEditorLib(path) && !inServer(path));
+    for (const path of browser) {
+      for (const statement of specImports(code(path))) expect(isRuntimeSpecImport(statement), `${rel(path)}: ${statement}`).toBe(false);
+    }
+    expect(isRuntimeSpecImport("import { validateFlow } from '@franca/spec'")).toBe(true);
+    expect(isRuntimeSpecImport("import type { Flow } from '@franca/spec'")).toBe(false);
+    expect(isRuntimeSpecImport("import schema from '@franca/spec/flow.schema.json'")).toBe(true);
+  });
+
+  it('src/components/editor/** no carga ni enlaza direcciones del flujo: ni <img, <video, <audio, <iframe, <embed, <object, <source, <picture ni <a ', () => {
+    const files = sources.filter((path) => rest(path).startsWith('src/components/editor/'));
+    for (const path of files) {
+      expect([...code(path).matchAll(MEDIA_TAGS)].map((match) => match[0]), rel(path)).toEqual([]);
+      expect(hrefsNotFromPages(code(path)), rel(path)).toEqual([]);
+    }
+  });
+
+  it('las etiquetas prohibidas y un href que no sale de WEB_PAGES se detectan (control)', () => {
+    for (const tag of ['<img src={x} />', '<video src={x}>', '<audio>', '<iframe src={x}>', '<embed>', '<object>', '<source>', '<picture>', '<a href="/x">', '<a\n href="/x">']) {
+      expect([...tag.matchAll(MEDIA_TAGS)], tag).not.toHaveLength(0);
+    }
+    expect([...'<abbr title="x"><article>'.matchAll(MEDIA_TAGS)]).toHaveLength(0);
+    expect(hrefsNotFromPages('<Link href="/flujos">')).toEqual(['"/flujos"']);
+    expect(hrefsNotFromPages('<Link href={url}>')).toEqual(['{url}']);
+    expect(hrefsNotFromPages('<Link href={WEB_PAGES.flows}>')).toEqual([]);
   });
 });

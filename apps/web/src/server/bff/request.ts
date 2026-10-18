@@ -1,3 +1,4 @@
+import { exceedsFlowDepth } from '@franca/spec';
 import { MAX_REQUEST_BODY_BYTES } from '@/config/limits';
 import { parseOffset } from '@/server/ids';
 
@@ -12,14 +13,14 @@ export type Parsed<T> = { ok: true; value: T } | ({ ok: false } & RequestFailure
 const fail = (status: RequestFailure['status'], error: RequestFailure['error']): { ok: false } & RequestFailure => ({ ok: false, status, error });
 
 /**
- * Lee el cuerpo de un `POST` como texto UTF-8 estricto, con un tope de 1 MiB, y lo parsea como JSON. Solo se llama en los
- * dos `POST`: un `GET` o un `DELETE` con cuerpo no lo leen. El tope está por debajo de los 10 MB que `proxy.ts` guarda en
- * memoria (más allá trunca en silencio), así que nunca se reenvía un cuerpo truncado.
+ * Lee el cuerpo de una mutación como texto UTF-8 estricto, con un tope de 1 MiB, y lo parsea como JSON. Solo lo llaman las
+ * mutaciones que llevan cuerpo: un `GET` o un `DELETE` con cuerpo no lo leen. El tope está por debajo de los 10 MB que
+ * `proxy.ts` guarda en memoria (más allá trunca en silencio), así que nunca se reenvía un cuerpo truncado.
  *
  * @param request La petición.
- * @returns El valor JSON, `413 payload_too_large` por encima del tope o `400 invalid_json`.
+ * @returns El texto recibido y su valor JSON, `413 payload_too_large` por encima del tope o `400 invalid_json`.
  */
-export async function readJsonBody(request: Request): Promise<Parsed<unknown>> {
+export async function readJsonText(request: Request): Promise<Parsed<{ text: string; value: unknown }>> {
   const declared = request.headers.get('content-length');
   if (declared !== null && /^[0-9]+$/.test(declared) && Number(declared) > MAX_REQUEST_BODY_BYTES) return fail(413, 'payload_too_large');
   if (request.body === null) return fail(400, 'invalid_json');
@@ -45,14 +46,40 @@ export async function readJsonBody(request: Request): Promise<Parsed<unknown>> {
   }
   try {
     const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
-    return { ok: true, value: JSON.parse(text) as unknown };
+    return { ok: true, value: { text, value: JSON.parse(text) as unknown } };
   } catch {
     return fail(400, 'invalid_json');
   }
 }
 
+/**
+ * Lee el cuerpo de un `POST` del chat como JSON.
+ *
+ * @param request La petición.
+ * @returns El valor JSON, `413 payload_too_large` por encima del tope o `400 invalid_json`.
+ */
+export async function readJsonBody(request: Request): Promise<Parsed<unknown>> {
+  const parsed = await readJsonText(request);
+  return parsed.ok ? { ok: true, value: parsed.value.value } : parsed;
+}
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Cuerpo de un flujo (crear o guardar): un objeto JSON de hasta 1 MiB. Se reenvía su texto JSON (`JSON.stringify` del valor,
+ * el mismo que el del navegador byte a byte); si el valor anida más de 1000 niveles se reenvía el texto recibido tal
+ * cual, porque `JSON.stringify` lanzaría `RangeError` con lo que cabe en 1 MiB (la API responde 400 `invalid_flow`).
+ *
+ * @param request La petición.
+ * @returns El texto a reenviar, `413`, `400 invalid_json` o `400 invalid_request` si no es un objeto.
+ */
+export async function readFlowBody(request: Request): Promise<Parsed<string>> {
+  const parsed = await readJsonText(request);
+  if (!parsed.ok) return parsed;
+  if (!isObject(parsed.value.value)) return fail(400, 'invalid_request');
+  return { ok: true, value: exceedsFlowDepth(parsed.value.value) ? parsed.value.text : JSON.stringify(parsed.value.value) };
 }
 
 /**
