@@ -722,7 +722,7 @@
     "find": "  } catch {\n    const nodes",
     "replace": "  } catch (error) {\n    throw error;\n    const nodes",
     "tests": [
-      "src/lib/editor/validate-draft.test.ts"
+      "src/lib/editor/validate-draft-fallback.test.ts"
     ]
   },
   {

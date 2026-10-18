@@ -296,14 +296,14 @@ Reglas para todas las fases:
 - [ ] 7.3 DEPLOY-TIME: no aplica. Es una herramienta local sin despliegue: el cambio se cierra con el merge.
 - [ ] 7.4 FOLLOW-UP: si alguna vez la web necesita una CSP con `script-src`, precompilar ajv (*standalone*) en `packages/spec` con su propio cambio antes de añadirla (D7, R2).
 
-- [ ] 7.5 FOLLOW-UP: `NODE_DEFS` de `packages/spec/src/shape.ts` con `Map`/`Object.hasOwn` (`validateFlow` lanza con `type` `constructor`/`toString`/`__proto__`; la API responde 500). Se arregla en un cambio propio, con su test de regresión; después se puede quitar `validateDraft`.
+- [x] 7.5 FOLLOW-UP (hecho en #16): `NODE_DEFS` de `packages/spec/src/shape.ts` con `Map`/`Object.hasOwn` (`validateFlow` lanza con `type` `constructor`/`toString`/`__proto__`; la API responde 500). Corregido en #16 (`Map`); `validateDraft` se queda como defensa en profundidad.
 
 ## 8. Desviaciones y notas de la aplicación (apply, 2026-10-18)
 
 Lo que se hizo distinto de lo escrito, con su porqué. Nada toca `apps/api`, `packages/`, `turbo.json`, el *lockfile*, la CI ni `apps/web/package.json`.
 
 **Código**
-- **`validateDraft` (nuevo, `src/lib/editor/validate-draft.ts` y su test), no estaba en la tabla «Ficheros».** `validateFlow` **lanza** con un nodo cuyo `type` es `constructor`, `toString`, `__proto__`… (`NODE_DEFS[kind]` de `packages/spec/src/shape.ts` es un objeto plano). Lo alcanza «Editar como JSON» y la validación en vivo rompería el editor. `validateDraft` envuelve la llamada y da el veredicto de «tipo de nodo desconocido». **La API tiene el mismo fallo** (medido: `POST /flows` y `POST /flows/validate` responden 500 `internal_error`); no se corrige aquí por el criterio del *diff*. Ficha `gotcha-validateflow-type-de-prototipo`. **Pendiente para otro cambio**, con su test de regresión en `packages/spec`.
+- **`validateDraft` (nuevo, `src/lib/editor/validate-draft.ts` y su test), no estaba en la tabla «Ficheros».** `validateFlow` **lanza** con un nodo cuyo `type` es `constructor`, `toString`, `__proto__`… (`NODE_DEFS[kind]` de `packages/spec/src/shape.ts` es un objeto plano). Lo alcanza «Editar como JSON» y la validación en vivo rompería el editor. `validateDraft` envuelve la llamada y da el veredicto de «tipo de nodo desconocido». La API tenía el mismo fallo (500); lo corrigió #16 (`NODE_DEFS` pasa a `Map`) y `validateDraft` queda como defensa en profundidad.
 - Ficheros nuevos de apoyo que no estaban en la tabla (todos en `apps/web`): `src/components/editor/use-modal-dialog.ts` (el `<dialog>` modal compartido), `src/components/editor/inspector/field-context.ts` y `field-shell.tsx` (propiedades y mensajes comunes de los campos), `src/lib/editor/validate-draft.ts`. Un `GuardedLink` recibe `page` (`'home' | 'flows'`) y no `href`, para que la guarda estática («un `href=` solo de `WEB_PAGES`») se cumpla sin excepciones.
 - `insertEntry` (`json-edit.ts`): si no queda ninguna clave anterior del guardado, inserta **antes de la primera siguiente presente** y solo si tampoco hay ninguna, al final. El diseño decía «al final»; así el texto vuelve a ser exactamente el guardado también cuando la clave era la primera.
 - `EditorSession.saveOver()` no recibe argumento: lee la `currentRevision` del aviso de conflicto (`EditorNotice.currentRevision`). `EditorSnapshot.loadCount` es nuevo: las pantallas lo usan como `key` para soltar su estado local al releer.
@@ -321,7 +321,7 @@ Lo que se hizo distinto de lo escrito, con su porqué. Nada toca `apps/api`, `pa
 - **5.2** «El arrastre y el inspector dan el mismo flujo», «Conectar desde el inspector no mueve los nodos» y el recorrido con teclado eligen el destino con `selectOption` (sin ratón): los desplegables nativos no responden a las teclas en Chromium sin cabeza. El resto del recorrido usa foco e Intro.
 - **5.2** `fitCanvas` ensancha la ventana a 1920 × 1000 y reduce el zoom antes de arrastrar: con 1280 px, el destino de un arrastre queda fuera de la zona visible y no cuenta (`elementFromPoint` solo ve lo pintado).
 - **5.5** La skill `web-design-guidelines` no estaba disponible en este entorno. Revisión manual de `/flujos` y `/flujos/<id>` (también a 320 px, foco visible, textos y nombres accesibles); **sigue pendiente la revisión con la skill**.
-- **6.2** `gotchas.md` lleva tres líneas nuevas (`JSON.stringify` recursivo, `targets` y `validateFlow`, y la CSP), no las dos de la tarea. Fichas nuevas: `gotcha-json-stringify-recursivo`, `gotcha-targets-asume-forma-valida`, `gotcha-validateflow-type-de-prototipo` y `decision-editor-lienzo-y-validacion`.
+- **6.2** `gotchas.md` lleva tres líneas nuevas (`JSON.stringify` recursivo, `targets` y la CSP), no las dos de la tarea. Fichas nuevas: `gotcha-json-stringify-recursivo`, `gotcha-targets-asume-forma-valida` y `decision-editor-lienzo-y-validacion` (la de `validateFlow` con `type` de prototipo se borró al corregirlo #16).
 - **Duración del job de E2E de la web** (portátil, solo orientativa): antes, los 74 tests del chat, 4,3 min; ahora, los 143 (74 del chat y 69 del editor), 5,5 min. En el *runner* sigue pendiente (7.1).
 
 **No verificado**

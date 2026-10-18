@@ -12,19 +12,14 @@ describe('validateDraft', () => {
     expect(validateDraft({ id: 'x' })).toEqual(validateFlow({ id: 'x' }));
   });
 
-  it('un type como constructor, toString o __proto__ (que hace lanzar a validateFlow) da «tipo de nodo desconocido»', () => {
+  it('un type como constructor, toString o __proto__ da «tipo de nodo desconocido», igual que validateFlow', () => {
     for (const type of ['constructor', 'toString', '__proto__', 'hasOwnProperty', 'valueOf']) {
-      expect(() => validateFlow(withType(type)), `${type} lanzaba en validateFlow`).toThrow();
-      expect(validateDraft(withType(type))).toEqual({
-        valid: false,
-        issues: [{ layer: 'shape', path: '/nodes/0', nodeId: 'a', message: `tipo de nodo desconocido: "${type}"` }],
-        warnings: [],
-      });
+      expect(validateDraft(withType(type)), type).toEqual(validateFlow(withType(type)));
+      expect(validateDraft(withType(type)).issues).toEqual([{ layer: 'shape', path: '/nodes/0', nodeId: 'a', message: `tipo de nodo desconocido: "${type}"` }]);
     }
   });
 
   it('nunca lanza', () => {
     for (const value of [null, 5, 'x', [], {}, { nodes: 'x' }, { nodes: [null, { type: 'constructor' }] }]) expect(() => validateDraft(value)).not.toThrow();
-    expect(validateDraft({ nodes: [null, { type: 'constructor' }] }).issues[0]).toMatchObject({ path: '/nodes/1' });
   });
 });

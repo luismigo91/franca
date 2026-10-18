@@ -17,4 +17,6 @@ metadata:
 
 **Límite aceptado: atrás del navegador con cambios sin guardar pregunta nada y los pierde.** `<Activity>` oculta el editor y `reset()` descarta el borrador al ocultarse; Next no da una API estable para interceptar `popstate`. La confirmación cubre los enlaces de la web, recargar y cerrar. No es un fallo: está escrito para que nadie lo tome por uno.
 
+**`validateDraft`** (`apps/web/src/lib/editor/validate-draft.ts`) envuelve `validateFlow` como defensa en profundidad: hasta #16, `validateFlow` lanzaba con un `type` como `constructor` (`NODE_DEFS` era un objeto plano) y la API respondía 500; ya no lo hace, pero una excepción en la validación en vivo rompería la pantalla.
+
 Ver [[gotcha-cache-components-activity-y-prerender]], [[decision-frontera-local-de-la-web]] y [[gotcha-ajv-allerrors-cuadratico]].
