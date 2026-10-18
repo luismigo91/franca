@@ -6,6 +6,8 @@ Antes de este diseño se corrigió la spec en `4ced695` (`spec:`), con dos cambi
 - En el inspector, `position` es de solo lectura, como `type` (D8).
 - Vaciar el último campo de un objeto o una lista opcionales quita también el contenedor (D5).
 
+**Revisión 5**, tras la cuarta ronda: `setIn` crea los pasos ausentes (al final de su padre, `{}` o `[]` según el segmento siguiente) y solo lanza si un paso existe y no es contenedor; `removeIn` sobre un paso ausente no hace nada (D5). `fitsField(content)` comprueba `text`, `url` y `alt`, y la `position` inválida se conserva al fijar las demás (D8, D11).
+
 **Revisión 4**, tras la tercera ronda de `popi:architecture-reviewer` (un bloqueante de la misma familia, en el inspector):
 - `fitsField(descriptor, value)` decide antes de pintar cada campo si su valor encaja en la clase. Si no, el campo pasa a JSON libre con su nota (D8).
 - `getIn` devuelve `undefined` al pasar por algo que no es objeto ni lista (D5).
@@ -229,7 +231,15 @@ Descartado:
 `src/lib/editor/json-edit.ts` (puro) tiene `getIn`, `setIn` y `removeIn` sobre rutas de JSON Pointer, con copia por la ruta y el resto compartido:
 
 - **Lectura tolerante**: `getIn` devuelve `undefined` en cuanto un paso intermedio no es un objeto ni una lista: `null`, un número o un texto. Nunca indexa un texto (`"ab"` no da `"a"`). Por ejemplo, `/request/method` con `request: null`, `5` o `"x"` da `undefined`. Con una clave que no es propia (`constructor`, `toString`), también `undefined` (`Object.hasOwn`).
-- **Escritura estricta**: `setIn` y `removeIn` lanzan un error de programación si un paso intermedio no es un objeto ni una lista. Solo se llaman sobre rutas que ya pasaron `fitsField` (D8) o que salen de `nodeOutputs` (D10), y un test comprueba que nunca se llega a ese error desde la interfaz (D25).
+- **Escritura** (revisión 5): un paso intermedio **ausente** es lo normal, porque un valor ausente encaja en todas las clases (D8). Ejemplos: `validation.maxRetries` en un `input` sin `validation` (`pedir-nombre` de `captacion-leads`), `settings.typingDelayMs` en `hola` o la primera cabecera de un `request` sin `headers`.
+  - `setIn` **crea** el paso ausente al final de su padre: una lista `[]` si el segmento siguiente es `-` (añadir al final, RFC 6901, la forma con la que se añaden elementos de lista) y un objeto `{}` en cualquier otro caso. Después escribe dentro.
+  - `setIn` solo lanza (error de programación) si un paso intermedio **existe** y no es ni objeto ni lista. A eso solo se llega saltándose `fitsField` o `nodeOutputs`, y lo vigila `malformed-flows.test.ts` (D25).
+  - `removeIn` sobre un paso ausente no hace nada y devuelve el mismo objeto. Sobre uno que existe y no es contenedor, tampoco hace nada.
+  - La poda de contenedores opcionales vacíos (delta `4ced695`) es la otra cara: crear `validation` para escribir `maxRetries` y vaciarlo después deja el nodo como estaba.
+
+  Lo prueban dos tests de `json-edit.test.ts` que comparan el texto completo:
+  - `setIn(/nodes/1/validation/maxRetries, 2)` sobre `captacion-leads` deja `"validation":{"maxRetries":2}` al final de `pedir-nombre`;
+  - `setIn(/settings/typingDelayMs, 0)` sobre `hola` deja `"settings":{"typingDelayMs":0}` al final del flujo, después de `nodes`.
 - **Conserva el sitio**: `setIn` de una clave que existe la sustituye en su posición (se reconstruye con `Object.entries`/`Object.fromEntries`). Una clave nueva va al final. Mutante `reorderOnEdit`.
 - **`__proto__`, `constructor` y claves numéricas** son claves propias normales: nunca `obj[key] = value`, siempre `Object.fromEntries` o *spread* ([[gotcha-variables-nombre-proto]]). Lo prueba un test con una cabecera `__proto__` y un `body` con claves `"10"` y `"a"`, comparando el texto.
 - **Profundidad** (delta `0520b08`): el borrador nunca pasa de 1000 niveles. El de la API está validado, y las únicas entradas de JSON escrito a mano son «Editar como JSON», `request.body`, los predicados y el modo JSON de un valor. Todas comprueban `exceedsFlowDepth(flujo resultante)` **antes** de aplicar, y lo que aplican es `JSON.parse(JSON.stringify(valor))`, como hace `inspectFlowBody` en la API: `1e400` se parsea como `Infinity` y se serializa como `null`, así que sin la ida y vuelta el borrador validaría un número y enviaría un `null`. Si lo supera, el campo dice «El JSON anida demasiados niveles: el máximo es 1000.», conserva el texto y no cambia nada (mutante `skipDepthCheckOnApply`). Por eso `flowText` (`src/lib/editor/flow-text.ts`) es un `JSON.stringify` sin caso nulo y ningún `RangeError` llega a la interfaz. «Crear desde JSON» no aplica nada: `validateFlow` da el problema de profundidad y no se envía.
@@ -313,7 +323,7 @@ Descartado:
   | `boolean` | `true` o `false` |
   | `object` (`request`, `validation`, `settings`) | Un objeto que no es una lista |
   | `list` (`rules`, `choices`, `assignments`, `responseMap`, `slots`, `variables`) | Una lista cuyos elementos son **todos** objetos que no son listas |
-  | `content` | Una lista de objetos, cada uno con `kind` de texto |
+  | `content` | Una lista de objetos, cada uno con `kind` de texto y, según el `kind`, `text` (en `text`) o `url` y `alt` (en multimedia) de texto o ausentes. `{"kind":"text","text":{}}` no encaja. `content-field.tsx` también la consulta antes de pintar (no pasa por `inspector-field.tsx`), con casos en `content-field.test.tsx` y `malformed-flows.test.ts` |
   | `headers` | Un objeto cuyos valores son todos texto o exactamente `{"secret": <texto>}`. `{"x": 1}`, `{"secret": 5}` o `{"secret": "A", "y": 1}` no encajan, y la lista entera pasa a JSON |
   | `predicate` (`when`) | Un objeto que no es una lista. Con `variable` es regla, y sus campos se comprueban a su vez; con `all` o `any` es JSON. `5`, `null` y `"x"` no encajan, y así no se llega al `'all' in current` que lanza |
   | `value` | Un valor de un modo que el esquema admite en ese campo: un objeto o una lista solo si admite JSON (`value` de regla y `default`; no `value` de asignación ni de opción) |
@@ -438,7 +448,7 @@ El coste es lineal más las comprobaciones contra los nodos con `position` de la
   - «Añadir nodo» (fija todas y crea el nuevo con su `position` en el centro de la zona visible);
   - conectar una salida, arrastrando **o eligiendo su destino en el selector del inspector**, también «(ninguno)» (delta `0520b08`). Los dos caminos usan `connectOutput(flow, positions, nodeId, pointer, destino)` = `setTarget(fixPositions(flow, positions), …)`, así que dan el mismo JSON, posiciones incluidas. Mutante `inspectorTargetWithoutFix`.
 - El resto de ediciones (textos, renombrar, borrar un nodo, «Editar como JSON») no fijan posiciones. Borrar un nodo o cambiar saltos por JSON puede recolocar los nodos que siguen sin `position`, como dice la spec.
-- Un nodo con una `position` inválida (escrita a mano: no es un objeto, o `x` o `y` no son números finitos) se pinta en la automática y no se toca hasta moverlo. Mover la sustituye en su sitio.
+- Un nodo con una `position` inválida (escrita a mano: no es un objeto, o `x` o `y` no son números finitos) se pinta en la automática y no se toca hasta moverlo. Mover la sustituye en su sitio. Al fijar las demás (mover otro nodo, añadir o conectar), su `position` inválida **se conserva**: `fixPositions` solo añade donde falta. El validador la señala («debe ser de tipo number»), así que no se puede guardar hasta corregirla o mover ese nodo.
 
 **Mundo**: los límites son el mínimo y el máximo de las posiciones mostradas, con margen. Mientras se arrastra un nodo, los límites quedan congelados. Al soltar, si el origen del mundo cambia, la zona corrige su `scrollLeft`/`scrollTop` en la misma diferencia, para que nada salte bajo el puntero.
 
@@ -790,7 +800,7 @@ Tras tres rondas de la misma familia (B1, el `title` objeto y el inspector), est
 | Crear desde JSON | El valor pegado | `validateFlow` antes de leer nada; el `id` solo se lee si el flujo es válido (D16) |
 | Abrir | La respuesta de la API | `readFlowResource` con la estructura mínima. Si no, `invalid_api_response` (D3) |
 
-Lo prueba, además de los tests de cada fila, **`malformed-flows.test.ts`** (`src/lib/editor/`). Construye un borrador con un nodo de cada tipo y cada propiedad sustituida a su vez por `null`, `5`, `"x"`, `[]`, `{}` e `Infinity` tras la ida y vuelta (`null`). Sobre cada variante pasa `canvasModel`, `autoLayout`, `nodeOutputs`, `renameNode`, `fixPositions`, `connectOutput` sobre cada salida, `fitsField` sobre cada campo, `validateFlow` y `JSON.stringify`, y comprueba que nada lanza y que ningún texto para pintar es `[object Object]`. Es la defensa de la familia entera, no de un caso.
+Lo prueba, además de los tests de cada fila, **`malformed-flows.test.ts`** (`src/lib/editor/`). Construye un borrador con un nodo de cada tipo y cada propiedad sustituida a su vez por `null`, `5`, `"x"`, `[]`, `{}` e `Infinity` tras la ida y vuelta (`null`). Añade la variante «propiedad ausente», que escribe cada campo anidado de cada descriptor (con `setIn`, como el inspector) sobre un nodo sin su contenedor. Comprueba que crea el contenedor al final y no lanza, y que vaciarlo lo poda. Sobre cada variante pasa `canvasModel`, `autoLayout`, `nodeOutputs`, `renameNode`, `fixPositions`, `connectOutput` sobre cada salida, `fitsField` sobre cada campo, `validateFlow` y `JSON.stringify`, y comprueba que nada lanza y que ningún texto para pintar es `[object Object]`. Es la defensa de la familia entera, no de un caso.
 
 ## Contrato: navegador ↔ servidor de la web ↔ API
 

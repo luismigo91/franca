@@ -1,5 +1,7 @@
 # Tasks: editor visual de flujos (`web-editor`)
 
+**Revisión 5** (cuarta ronda): `setIn` crea los pasos ausentes, `removeIn` los ignora; `fitsField(content)` completo; `position` inválida conservada.
+
 **Revisión 4** (tercera ronda): `fitsField` antes de pintar cada campo del inspector, `getIn` tolerante, posiciones finitas, tablas por tipo con `Map` u `Object.hasOwn`, ida y vuelta por JSON al aplicar, y la tabla de guardas D25 con su test de flujos mal formados.
 
 **Revisión 3** (segunda ronda de la revisión): `nodeTargets` filtra los saltos que no son texto y las salidas se identifican por `pointer`; `asText` para todo lo que se pinta; delta `eff3d08`.
@@ -40,7 +42,10 @@ Reglas para todas las fases:
   - `constructor`.
   - Comparación del **texto** antes y después.
   - `getIn` con pasos intermedios que no son objetos: `/request/method` con `request` `null`, `5`, `"x"` y `[]`; `/0` sobre `"ab"`; `/constructor` sobre `{}`. Todos dan `undefined` sin lanzar.
-  - `setIn` y `removeIn` lanzan el error de programación con un paso intermedio que no es objeto (revisión 4, D5).
+  - `setIn` **crea** un paso intermedio ausente al final de su padre (`[]` si el segmento siguiente es `-`, `{}` si no) y solo lanza si el paso existe y no es objeto ni lista. `removeIn` sobre un paso ausente no hace nada (revisión 5, D5). Comparando el texto completo:
+    - `/nodes/1/validation/maxRetries` sobre `captacion-leads` deja `"validation":{"maxRetries":2}` al final de `pedir-nombre`;
+    - `/settings/typingDelayMs` sobre `hola` deja `"settings":{"typingDelayMs":0}` al final del flujo;
+    - la primera cabecera de un `request` sin `headers` crea `headers` al final de `request`.
 - [ ] 1.3 `src/lib/editor/flow-text.ts` + test: `flowText` (un `JSON.stringify` sin caso nulo, D5) y `utf8Bytes` (`ñ` cuenta dos bytes).
 - [ ] 1.3b `src/lib/editor/node-targets.ts` + test (B1, D10): `nodeTargets(node)` comprueba la forma mínima (`rules` lista de objetos en `condition`; `choices` ausente o lista de objetos en `input`) y llama a `targets`, o devuelve los saltos legibles con las mismas `key` y `pointer`. Casos:
   - `rules` ausente, `5` y `[null]`;
@@ -110,7 +115,7 @@ Reglas para todas las fases:
   - El golden de «Mover un nodo guarda su posición».
   - Una `position` inválida se pinta en la automática.
   - `autoLayout` con las ocho plantillas de «Añadir nodo» y los nodos mal formados de 1.3b, sin lanzar y sin solapes.
-  - Posición válida solo con `x` e `y` finitos: `{x: Infinity, y: 0}`, `{x: "a", y: 0}`, `null` y `5` se pintan en la automática (mutante `infinitePosition`). Un nodo con id `constructor`.
+  - Posición válida solo con `x` e `y` finitos: `{x: Infinity, y: 0}`, `{x: "a", y: 0}`, `null` y `5` se pintan en la automática (mutante `infinitePosition`), y `fixPositions` al mover otro nodo las conserva tal cual. Un nodo con id `constructor`.
 - [ ] 1.11 `src/lib/editor/drop.ts` + test (D12):
   - Destino válido.
   - Sustitución.
@@ -141,7 +146,7 @@ Reglas para todas las fases:
     - `it('Probar sin versión publicada')`: `checkTryable` da «Publica el flujo antes de probarlo.» y no se llama al `start` falso;
     - `it('Cambio deshecho a mano')`;
     - `it('Flujo de más de 1 MiB')`: un flujo válido de 1 040 000 bytes generado de forma determinista, con 10 000 caracteres añadidos a un mensaje.
-- [ ] 1.14b `src/lib/editor/malformed-flows.test.ts` (D25): un nodo de cada tipo con cada propiedad sustituida a su vez por `null`, `5`, `"x"`, `[]`, `{}` y el `null` que deja `1e400`. Sobre cada variante, nada lanza en `canvasModel`, `autoLayout`, `nodeOutputs`, `renameNode`, `fixPositions`, `connectOutput` (cada salida), `fitsField` (cada campo), `validateFlow` y `JSON.stringify`, y ningún texto para pintar es `[object Object]`. `readFlowResource` rechaza `flow.nodes` que no es una lista de objetos, un `id` que no es texto y un `start` que no es texto.
+- [ ] 1.14b `src/lib/editor/malformed-flows.test.ts` (D25): un nodo de cada tipo con cada propiedad sustituida a su vez por `null`, `5`, `"x"`, `[]`, `{}` y el `null` que deja `1e400`, más la variante «propiedad ausente», que escribe cada campo anidado de cada descriptor sobre un nodo sin su contenedor (lo crea al final y vaciarlo lo poda). Incluye contenidos con `text`, `url` o `alt` que no son texto. Sobre cada variante, nada lanza en `canvasModel`, `autoLayout`, `nodeOutputs`, `renameNode`, `fixPositions`, `connectOutput` (cada salida), `fitsField` (cada campo), `validateFlow` y `JSON.stringify`, y ningún texto para pintar es `[object Object]`. `readFlowResource` rechaza `flow.nodes` que no es una lista de objetos, un `id` que no es texto y un `start` que no es texto.
 - [ ] 1.15 **Gate 1**:
   - `pnpm check` en verde.
   - `pnpm exec openspec validate web-editor --strict` en verde.
@@ -235,7 +240,8 @@ Reglas para todas las fases:
   - Los problemas de cada campo enlazados con `aria-describedby`.
   - `inspector-field.tsx` consulta `fitsField` antes de pintar cada campo, también los anidados, y si no encaja pinta el JSON libre con su nota (D8). Así, por ejemplo, una lista con elementos que no son objetos (`rules: [null]`, `choices: [null]`) pasa entera a JSON libre.
   - `node-inspector.test.tsx` (marcado): un `http` con `request: null`, otro con `headers: null`, una cabecera `{"x": 1}`, una condición con `when: 5` y un `type` `"constructor"`. Ninguno lanza, se ve el JSON libre con su nota y no aparece `[object Object]` (mutante `skipFieldFit`).
-  - `content-field.test.tsx` (URLs como texto) y `problems-list.test.tsx` (marcado; `nodeId` y partes del flujo con `asText`).
+  - `content-field.tsx` consulta `fitsField(content)` (que comprueba `text`, `url` y `alt` según el `kind`) antes de pintar; `{"kind":"text","text":{}}` va a JSON libre.
+  - `content-field.test.tsx` (URLs como texto, y `text: {}` sin `[object Object]`) y `problems-list.test.tsx` (marcado; `nodeId` y partes del flujo con `asText`).
 - [ ] 4.7 Composición y 320 px (D18): dos columnas en `lg`, lienzo con altura propia, `min-w-0` y `overflow-wrap: anywhere`.
 - [ ] 4.8 **Verificación en el navegador** (`/popi:verify frontend`) con `pnpm dev` y la API real. Se recorre: importar `captacion-leads`, mover, conectar arrastrando cada clase de salida, renombrar, guardar, publicar y probar, más el 412 con dos pestañas y salir con cambios. Consola limpia, y en la pestaña de red solo `/api/*` del propio origen. Hallazgos anotados en el gate.
 - [ ] 4.9 **Gate 4**: `pnpm check` en verde, la verificación 4.8 hecha y commit `feat(web): editor visual de flujos`.
