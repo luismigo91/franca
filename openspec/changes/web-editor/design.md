@@ -6,6 +6,11 @@ Antes de este diseño se corrigió la spec en `4ced695` (`spec:`), con dos cambi
 - En el inspector, `position` es de solo lectura, como `type` (D8).
 - Vaciar el último campo de un objeto o una lista opcionales quita también el contenedor (D5).
 
+**Revisión 6**, tres no bloqueantes de la quinta ronda (se aplican antes de implementar):
+- El tipo del contenedor que `setIn` crea sale del **descriptor** (`list` u `object` de `node-fields.ts`), no del segmento siguiente: una cabecera llamada `-` en un `request` sin `headers` crea `{}` (D5).
+- La poda respeta el último guardado: no poda un contenedor vacío que el guardado tenía vacío en esa ruta, y al recrear uno que el guardado tenía lo inserta en su posición de clave original, con el mismo mecanismo que `forgetSavedDefault` (D5).
+- JSON Pointer según RFC 6901: un único `pointerOf(segmentos)` escapa `~` como `~0` y `/` como `~1`, y `json-edit` decodifica. Coincide con los `path` de `validateFlow`, así que los avisos llegan a su campo (D5, D6).
+
 **Revisión 5**, tras la cuarta ronda: `setIn` crea los pasos ausentes (al final de su padre, `{}` o `[]` según el segmento siguiente) y solo lanza si un paso existe y no es contenedor; `removeIn` sobre un paso ausente no hace nada (D5). `fitsField(content)` comprueba `text`, `url` y `alt`, y la `position` inválida se conserva al fijar las demás (D8, D11).
 
 **Revisión 4**, tras la tercera ronda de `popi:architecture-reviewer` (un bloqueante de la misma familia, en el inspector):
@@ -232,7 +237,7 @@ Descartado:
 
 - **Lectura tolerante**: `getIn` devuelve `undefined` en cuanto un paso intermedio no es un objeto ni una lista: `null`, un número o un texto. Nunca indexa un texto (`"ab"` no da `"a"`). Por ejemplo, `/request/method` con `request: null`, `5` o `"x"` da `undefined`. Con una clave que no es propia (`constructor`, `toString`), también `undefined` (`Object.hasOwn`).
 - **Escritura** (revisión 5): un paso intermedio **ausente** es lo normal, porque un valor ausente encaja en todas las clases (D8). Ejemplos: `validation.maxRetries` en un `input` sin `validation` (`pedir-nombre` de `captacion-leads`), `settings.typingDelayMs` en `hola` o la primera cabecera de un `request` sin `headers`.
-  - `setIn` **crea** el paso ausente al final de su padre: una lista `[]` si el segmento siguiente es `-` (añadir al final, RFC 6901, la forma con la que se añaden elementos de lista) y un objeto `{}` en cualquier otro caso. Después escribe dentro.
+  - `setIn` **crea** el paso ausente al final de su padre (o en su posición original, ver «Último guardado» más abajo). **El tipo lo decide el descriptor** (revisión 6): `fields.ts` pasa a `setIn` una función `kindAt(ruta)` que devuelve `list` u `object` según el descriptor de `node-fields.ts` de esa ruta, y `setIn` crea `[]` o `{}`. Sin esa función (uso directo, tests de `json-edit`) cae al segmento siguiente: `[]` si es `-` y `{}` en cualquier otro caso. Así una cabecera llamada `-` en un `request` sin `headers` crea `{"-": …}` y no una lista. Después escribe dentro.
   - `setIn` solo lanza (error de programación) si un paso intermedio **existe** y no es ni objeto ni lista. A eso solo se llega saltándose `fitsField` o `nodeOutputs`, y lo vigila `malformed-flows.test.ts` (D25).
   - `removeIn` sobre un paso ausente no hace nada y devuelve el mismo objeto. Sobre uno que existe y no es contenedor, tampoco hace nada.
   - La poda de contenedores opcionales vacíos (delta `4ced695`) es la otra cara: crear `validation` para escribir `maxRetries` y vaciarlo después deja el nodo como estaba.
@@ -257,6 +262,12 @@ Descartado:
 | JSON libre (`request.body`, predicado con `all`/`any`) | Igual que el modo JSON. Vacío en `body`: quita la propiedad |
 
 - **Contenedores opcionales vacíos** (delta `4ced695`): si al quitar una propiedad o un elemento queda vacío un objeto o una lista **opcionales** del esquema (`settings`, `validation`, `request.headers`, `variables`, `responseMap`, `slots` y el `content` de un `end`), se quita también. Los obligatorios (`content` de un `message`, `rules`, `assignments`, `choices` de una selección) se quedan `[]` y el validador los señala. Mutante `keepEmptyContainers`.
+- **Último guardado** (revisión 6): la poda y la creación miran el último guardado en la misma ruta, con el mecanismo de `forgetSavedDefault`:
+  - **No poda** un contenedor opcional que queda vacío si el último guardado lo tenía vacío en esa ruta (`"headers": {}`): añadir una cabecera y quitarla deja el texto como estaba. Mutante `pruneSavedEmpty`.
+  - **Al crear** un contenedor ausente que el último guardado tenía en esa ruta (aunque lo haya quitado la poda), lo inserta en su **posición de clave original**: después de la clave anterior del guardado que siga presente, o al final si no queda ninguna. Vaciar `validation` de `pedir-email` y reescribir un campo lo deja entre `prompt` y `next`, no al final. Mutante `appendRecreated`.
+  - Si la ruta cambió (se borró un elemento anterior de una lista), degrada a quitar o a crear al final, que significa lo mismo.
+  - Lo prueban `fields.test.ts` con el texto completo: añadir y quitar una cabecera con `"headers": {}` guardado, y vaciar y reescribir `validation` de `pedir-email` (escenario «Cambio deshecho a mano»).
+- **JSON Pointer (RFC 6901)** (revisión 6): `pointerOf(segmentos)` (`json-edit.ts`) es la única función que arma un puntero: escapa `~` como `~0` y después `/` como `~1`, y `json-edit` decodifica en ese orden inverso (`~1` y después `~0`). Es la misma convención de los `path` de `validateFlow` y de `targets`, así que los problemas y avisos de una cabecera `a/b` o `x~y` llegan a su campo (`aria-describedby`). Prueba: cabeceras `a/b`, `x~y`, `-`, `10` y `__proto__` con su texto completo, y que el puntero de cada una coincide con el `path` del aviso `credential_header_literal` de `validateFlow`. Mutante `unescapedPointer`.
 - **Plantillas de elementos nuevos**, solo con lo obligatorio: variable `{name: "", type: "string"}`, opción `{id: "opcion-<n>", label: ""}`, regla `{when: {variable: "", op: "eq"}}`, asignación `{variable: "", value: ""}`, `responseMap` `{variable: "", pointer: ""}`, `slot` `{variable: "", description: ""}` y contenido `{kind: "text", text: ""}`. Cambiar el `kind` de un contenido de texto a multimedia sustituye el elemento en su sitio por `{kind, url: ""}`, y al revés por `{kind: "text", text: ""}`. Entre tipos multimedia solo cambia `kind`.
 - **Cabeceras**: cada fila tiene nombre, modo («Texto» o «Secreto») y valor. «Secreto» escribe `{"secret": "<NOMBRE>"}` y su campo pide **el nombre** («Nombre del secreto, en mayúsculas»), nunca un valor. Pasar de secreto a texto escribe `""` en su sitio. Una cabecera nueva se escribe con un mini formulario (nombre, modo, valor y «Añadir cabecera»), que la añade al final. Así nunca hay una clave a medias en el JSON. Renombrar una cabecera la cambia en su sitio, y un nombre repetido lo indica el campo sin cambiar nada.
 
@@ -729,6 +740,8 @@ Los mutantes nuevos se añaden a `tests/mutations.json`. Todos mueren con Vitest
 | Mutante | Fichero | Lo mata |
 |---|---|---|
 | `reorderOnEdit` (sustituir = quitar y añadir al final) | `src/lib/editor/json-edit.ts` | `fields.test.ts` |
+| `unescapedPointer` (`pointerOf` sin escapar `~` y `/`) | `src/lib/editor/json-edit.ts` | `json-edit.test.ts` |
+| `pruneSavedEmpty` (poda un contenedor que el guardado tenía vacío), `appendRecreated` (recrea al final y no en su sitio) | `src/lib/editor/fields.ts` | `fields.test.ts` |
 | `writeDefaults` (la casilla escribe el `default`) | `src/lib/editor/fields.ts` | `fields.test.ts` |
 | `keepEmptyContainers` | `src/lib/editor/fields.ts` | `fields.test.ts` |
 | `parseLooseNumber` (`Number(texto)` sin la expresión) | `src/lib/editor/fields.ts` | `fields.test.ts` |
@@ -758,7 +771,7 @@ Los mutantes nuevos se añaden a `tests/mutations.json`. Todos mueren con Vitest
 | `skipEditorFrontierRecheck`, `optionalIfMatchOnEditor` | `src/server/bff/handlers.ts` | `editor-handlers.test.ts` |
 | `acceptNonObjectFlowBody`, `stringifyWithoutDepthGuard` | `src/server/bff/request.ts` | `editor-handlers.test.ts` |
 
-Son 41 nuevos, más los 29 del chat. **`storeDraftInBrowser` de la propuesta no es mutante**: en Node, `sessionStorage` no existe y el mutante moriría por un `ReferenceError`, no por un test que lo vigile. Lo cubren ESLint (`no-restricted-globals`, validado a mano una vez) y el E2E «Marcas fuera de los registros del editor». Los demás tests negativos («no recibe ningún `PUT`», «no contiene», paridad) se validan **una vez a mano**, provocando el caso prohibido y viendo que fallan (`testing-pyramid.md`), como en el chat.
+Son 44 nuevos, más los 29 del chat. **`storeDraftInBrowser` de la propuesta no es mutante**: en Node, `sessionStorage` no existe y el mutante moriría por un `ReferenceError`, no por un test que lo vigile. Lo cubren ESLint (`no-restricted-globals`, validado a mano una vez) y el E2E «Marcas fuera de los registros del editor». Los demás tests negativos («no recibe ningún `PUT`», «no contiene», paridad) se validan **una vez a mano**, provocando el caso prohibido y viendo que fallan (`testing-pyramid.md`), como en el chat.
 
 ### D24. Cobertura de escenarios
 
@@ -951,7 +964,7 @@ Además, `git diff --name-only --diff-filter=M main...HEAD -- apps/web` lista ex
   - En `test:e2e`: `next start` real para `Host`, `Origin`, `%2F`, cabeceras y el recorrido.
 - **E2E opción-al-menos-una-vez (aplica)**: cada tipo de nodo en el inspector, cada clase de campo editada al menos una vez, cada clase de salida arrastrada, cada acción y cada error con escenario (D22).
 - **Smoke de ruta (aplica)**: `/flujos`, `/flujos/<id>` existente, no válido e inexistente, y el 403 con un `Host` ajeno («Host ajeno en el editor»).
-- **Mutación (aplica, manual)**: los 41 mutantes de D23.
+- **Mutación (aplica, manual)**: los 44 mutantes de D23.
 - **Cobertura de la spec (aplica)**: D24.
 
 ### Escenario → test (título exacto)

@@ -1,5 +1,7 @@
 # Tasks: editor visual de flujos (`web-editor`)
 
+**Revisión 6** (quinta ronda, tres no bloqueantes): el contenedor que crea `setIn` sale del descriptor (1.2, 1.5), la poda y la recreación respetan el último guardado (1.5) y los punteros se arman con `pointerOf` (RFC 6901, 1.2, 1.9).
+
 **Revisión 5** (cuarta ronda): `setIn` crea los pasos ausentes, `removeIn` los ignora; `fitsField(content)` completo; `position` inválida conservada.
 
 **Revisión 4** (tercera ronda): `fitsField` antes de pintar cada campo del inspector, `getIn` tolerante, posiciones finitas, tablas por tipo con `Map` u `Object.hasOwn`, ida y vuelta por JSON al aplicar, y la tabla de guardas D25 con su test de flujos mal formados.
@@ -42,10 +44,12 @@ Reglas para todas las fases:
   - `constructor`.
   - Comparación del **texto** antes y después.
   - `getIn` con pasos intermedios que no son objetos: `/request/method` con `request` `null`, `5`, `"x"` y `[]`; `/0` sobre `"ab"`; `/constructor` sobre `{}`. Todos dan `undefined` sin lanzar.
-  - `setIn` **crea** un paso intermedio ausente al final de su padre (`[]` si el segmento siguiente es `-`, `{}` si no) y solo lanza si el paso existe y no es objeto ni lista. `removeIn` sobre un paso ausente no hace nada (revisión 5, D5). Comparando el texto completo:
+  - `setIn` **crea** un paso intermedio ausente al final de su padre. El tipo lo da una función `kindAt(ruta)` que pasa `fields.ts` desde el descriptor (`list` u `object`); sin ella, `[]` si el segmento siguiente es `-` y `{}` si no. Una cabecera llamada `-` en un `request` sin `headers` crea `{}`. Solo lanza si el paso existe y no es objeto ni lista. `removeIn` sobre un paso ausente no hace nada (revisión 5, D5). Comparando el texto completo:
     - `/nodes/1/validation/maxRetries` sobre `captacion-leads` deja `"validation":{"maxRetries":2}` al final de `pedir-nombre`;
     - `/settings/typingDelayMs` sobre `hola` deja `"settings":{"typingDelayMs":0}` al final del flujo;
-    - la primera cabecera de un `request` sin `headers` crea `headers` al final de `request`.
+    - la primera cabecera de un `request` sin `headers` crea `headers` al final de `request`;
+    - la cabecera `-` con `kindAt` de `object` crea `{"-": …}`.
+  - `pointerOf(segmentos)` (RFC 6901, revisión 6): escapa `~` como `~0` y `/` como `~1`, y `getIn`/`setIn`/`removeIn` decodifican. Casos con cabeceras `a/b`, `x~y`, `-`, `10` y `__proto__`, y que el puntero coincide con el `path` que da `validateFlow` para el aviso `credential_header_literal` de cada una (mutante `unescapedPointer`).
 - [ ] 1.3 `src/lib/editor/flow-text.ts` + test: `flowText` (un `JSON.stringify` sin caso nulo, D5) y `utf8Bytes` (`ñ` cuenta dos bytes).
 - [ ] 1.3b `src/lib/editor/node-targets.ts` + test (B1, D10): `nodeTargets(node)` comprueba la forma mínima (`rules` lista de objetos en `condition`; `choices` ausente o lista de objetos en `input`) y llama a `targets`, o devuelve los saltos legibles con las mismas `key` y `pointer`. Casos:
   - `rules` ausente, `5` y `[null]`;
@@ -73,6 +77,7 @@ Reglas para todas las fases:
   - Valor en sus cinco modos y «(ninguno)».
   - JSON inválido conservado sin escribir.
   - Contenedores opcionales vacíos quitados y obligatorios conservados.
+  - Último guardado (revisión 6), comparando el texto completo: no poda un contenedor que el guardado tenía vacío (añadir y quitar una cabecera con `"headers": {}` guardado deja el texto como estaba) y recrea uno que el guardado tenía en su posición de clave original (vaciar y reescribir `validation` de `pedir-email` lo deja entre `prompt` y `next`). Mutantes `pruneSavedEmpty` y `appendRecreated`. `fields.ts` pasa a `setIn` el tipo del contenedor desde el descriptor.
   - Plantillas de elementos.
   - Cambio de `kind` de un contenido.
   - Cabeceras: secreto, texto, añadir al final, renombrar en su sitio y nombre repetido.
@@ -205,7 +210,7 @@ Reglas para todas las fases:
   - `readFlowBody` reenvía exactamente lo que `inspectFlowBody` de la API validará.
 
   Lo que falte se añade como test.
-- [ ] 3.2 Los 41 mutantes de D23 en `tests/mutations.json`, con `find` único en su fichero y `tests` con los que lo matan. `pnpm --filter @franca/web mutate`: ninguno sobrevive. La salida se pega en el gate.
+- [ ] 3.2 Los 44 mutantes de D23 en `tests/mutations.json`, con `find` único en su fichero y `tests` con los que lo matan. `pnpm --filter @franca/web mutate`: ninguno sobrevive. La salida se pega en el gate.
 - [ ] 3.3 Cada test negativo nuevo que no es mutante («no llama a la API», «sin `issues`», «no contiene», paridades) se valida una vez a mano, provocando el caso prohibido y viendo que falla. La lista va en el gate.
 - [ ] 3.4 **Gate 3**: `pnpm check` en verde, la mutación sin supervivientes y commit `test(web): mutantes y negativos del editor`.
 
