@@ -124,12 +124,17 @@ El lienzo SHALL colocar cada nodo en su `position`. Los nodos sin `position` los
 - **THEN** ningún nodo se solapa con otro, cada nodo aparece las dos veces en el mismo sitio, «Guardar» dice que no hay cambios y la API no ha recibido ningún `PUT`
 
 ### Requirement: Mover un nodo
-Un nodo del lienzo SHALL poderse mover arrastrándolo y, con el foco en él, con las flechas del teclado (10 unidades por pulsación). Mover o añadir un nodo, o crear una conexión arrastrando, escribe su `position` y, a la vez, la de todos los nodos que no la tenían, con la posición en que se ven, así que nada cambia de sitio después. Las posiciones se escriben como enteros.
+Un nodo del lienzo SHALL poderse mover arrastrándolo y, con el foco en él, con las flechas del teclado (10 unidades por pulsación). Mover o añadir un nodo, o conectar una salida (arrastrando o eligiendo su destino en el inspector, también «ninguno»), escribe su `position` y, a la vez, la de todos los nodos que no la tenían, con la posición en que se ven, así que nada cambia de sitio después. Las posiciones se escriben como enteros.
 
 #### Scenario: Mover un nodo guarda su posición
 - **GIVEN** `captacion-leads` creado y su editor abierto
 - **WHEN** se lleva el foco a `pedir-nombre`, se pulsa dos veces la flecha derecha y se pulsa «Guardar»
 - **THEN** en el flujo que recibe la API todos los nodos tienen `position` con enteros, `bienvenida` sigue en `{x: 0, y: 0}` y `pedir-nombre` tiene `x` 20 unidades mayor que la posición en que se pintó al abrir, y la misma `y`
+
+#### Scenario: Conectar desde el inspector no mueve los nodos
+- **GIVEN** el editor de `faq-ia` abierto
+- **WHEN** en el inspector de `crear-ticket` se elige `fin-resuelto` como `onError` usando solo el teclado
+- **THEN** ningún nodo cambia de sitio en el lienzo y, en «Ver JSON», todos los nodos tienen `position` con enteros
 
 ### Requirement: Salidas de cada tipo de nodo
 Cada nodo SHALL mostrar en el lienzo una salida por cada salto que usa el motor según su tipo: `next` en `message`, `set` e `input` que no sea de selección única; `choices[<id>].next` de cada opción en la selección única; `rules[<i>].next` de cada regla y `else` en `condition`; `next` y `onError` en `http`; `next` y `onExhausted` en `llm`, y `target` en `jump`. `end` no tiene salidas. Cada salida lleva el nombre de su campo.
@@ -262,7 +267,7 @@ Cambiar el `id` de un nodo SHALL cambiarlo también en `start` y en todos los sa
 - **THEN** el lienzo tiene 10 nodos y una conexión rota desde `enviar-crm`, y la lista de problemas tiene «onError apunta a un nodo inexistente: aviso-error» en `enviar-crm`
 
 ### Requirement: JSON de un nodo
-«Editar como JSON» SHALL mostrar el JSON del nodo seleccionado en un campo de texto y, al aplicarlo, sustituir el nodo por el objeto escrito. Si el texto no es un objeto JSON, lo dice, lo conserva y no cambia nada. Un `id` distinto se trata como en «Renombrar un nodo». Sirve para cualquier propiedad, también para cambiar `type`.
+«Editar como JSON» SHALL mostrar el JSON del nodo seleccionado en un campo de texto y, al aplicarlo, sustituir el nodo por el objeto escrito. Si el texto no es un objeto JSON, o si con él el flujo anidaría más de 1000 niveles (el máximo del validador), lo dice, lo conserva y no cambia nada; igual en los campos de texto JSON del inspector. Un `id` distinto se trata como en «Renombrar un nodo». Sirve para cualquier propiedad, también para cambiar `type`.
 
 #### Scenario: Aplicar el JSON de un nodo
 - **GIVEN** el editor de `captacion-leads` abierto
