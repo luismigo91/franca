@@ -100,7 +100,8 @@ describe('open', () => {
 });
 
 describe('edit', () => {
-  it('dirty compara el texto, también tras deshacer a mano: Cambio deshecho a mano', async () => {
+  // `dirty` compara el texto, también tras deshacer a mano.
+  it('Cambio deshecho a mano', async () => {
     const { session, client } = await opened();
     session.edit(renameTo('Otro'));
     expect(session.getSnapshot().dirty).toBe(true);
@@ -127,7 +128,8 @@ describe('edit', () => {
     expect(session.getSnapshot()).toBe(before);
   });
 
-  it('JSON de un nodo roto: el error y el borrador idéntico', async () => {
+  // El error y el borrador idéntico.
+  it('JSON de un nodo roto', async () => {
     const { session, client } = await opened();
     const before = session.getSnapshot().draftText;
     const result = session.edit((draft) => replaceNodeJson(draft, 'bienvenida', '{"id":'));
@@ -206,7 +208,8 @@ describe('save', () => {
     expect(session.getSnapshot().notice).toBeNull();
   });
 
-  it('Flujo de más de 1 MiB: un flujo válido de 1 040 000 bytes con 10 000 caracteres más no se guarda', async () => {
+  // Un flujo válido de 1 040 000 bytes con 10 000 caracteres más no se guarda.
+  it('Flujo de más de 1 MiB', async () => {
     const base = { specVersion: '0.1', id: 'grande', name: 'Grande', start: 'm', nodes: [{ id: 'm', type: 'message', content: [{ kind: 'text', text: '' }], next: 'fin' }, { id: 'fin', type: 'end' }] } as FlowDoc;
     const overhead = flowText(base).length;
     (base.nodes as { content: { text: string }[] }[])[0]!.content[0]!.text = 'a'.repeat(1_040_000 - overhead);
@@ -389,7 +392,8 @@ describe('persistencia del diseño automático', () => {
 });
 
 describe('publish', () => {
-  it('Publicar con cambios sin guardar: dice que hay que guardar y no llama a la API', async () => {
+  // Dice que hay que guardar y no llama a la API.
+  it('Publicar con cambios sin guardar', async () => {
     const { session, client } = await opened();
     session.edit(renameTo('Otro'));
     expect(await session.publish()).toEqual({ status: 'blocked', reason: 'unsaved_changes' });
@@ -425,7 +429,8 @@ describe('publish', () => {
 });
 
 describe('probar', () => {
-  it('Probar sin versión publicada: checkTryable lo impide y no se llama al start falso', async () => {
+  // `checkTryable` lo impide y no se llama al `start` falso.
+  it('Probar sin versión publicada', async () => {
     const { session } = await opened(clone('hola'));
     const { saved, dirty } = session.getSnapshot();
     const gate = checkTryable({ latestVersion: saved!.latestVersion, dirty });

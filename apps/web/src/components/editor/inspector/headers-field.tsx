@@ -85,7 +85,7 @@ export function HeadersField({ descriptor, pointer, value, ctx }: { descriptor: 
       {entries.map(([headerName, headerValue]) => (
         <HeaderRow key={headerName} headersPointer={pointer} name={headerName} value={headerValue} ctx={ctx} />
       ))}
-      <div className="flex min-w-0 flex-col gap-2 rounded-md border border-dashed border-foreground/30 p-2">
+      <div role="group" aria-label="Nueva cabecera" className="flex min-w-0 flex-col gap-2 rounded-md border border-dashed border-foreground/30 p-2">
         <p className="text-xs opacity-70">Nueva cabecera</p>
         <FieldBox label="Nombre de la cabecera" htmlFor={`${meta.id}-new-name`}>
           <input id={`${meta.id}-new-name`} type="text" value={name} className={CONTROL_CLASS} onChange={(event) => setName(event.target.value)} />

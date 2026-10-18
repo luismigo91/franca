@@ -20,7 +20,8 @@ function strings(value: unknown): string[] {
 }
 
 describe('renameNode', () => {
-  it('Renombrar un nodo: no queda ningún valor pedir-nombre y el flujo es válido', () => {
+  // No queda ningún valor pedir-nombre y el flujo es válido.
+  it('Renombrar un nodo', () => {
     const renamed = rename(clone('captacion-leads'), 'pedir-nombre', 'pedir-nombre-completo');
     expect(strings(renamed)).not.toContain('pedir-nombre');
     expect((renamed.nodes as Record<string, unknown>[])[0]!.next).toBe('pedir-nombre-completo');

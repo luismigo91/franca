@@ -5,6 +5,16 @@ type Json = Record<string, unknown>;
 
 export type FlowName = keyof typeof FLOWS;
 
+/** Lo que usan los E2E del recurso flujo de la API. */
+export interface FlowRecord {
+  id: string;
+  name: string;
+  revision: number;
+  latestVersion: number | null;
+  unpublishedChanges: boolean;
+  flow: Json;
+}
+
 /**
  * Operaciones «directamente en la API» (D20): contra la API real, sin pasar por la simulada ni por la web. Solo para
  * preparar y comprobar el estado.
@@ -12,7 +22,8 @@ export type FlowName = keyof typeof FLOWS;
 export class Admin {
   constructor(private readonly base: string) {}
 
-  private async call(method: string, path: string, body?: unknown, headers: Record<string, string> = {}): Promise<{ status: number; body: unknown }> {
+  /** Una petición cualquiera a la API real, con su estado y su cuerpo (para comprobar un 404 o un 412). */
+  async call(method: string, path: string, body?: unknown, headers: Record<string, string> = {}): Promise<{ status: number; body: unknown }> {
     const response = await fetch(`${this.base}${path}`, {
       method,
       headers: { ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...headers },
@@ -48,6 +59,16 @@ export class Admin {
   /** Publica el borrador actual de un flujo existente. */
   async publishDraft(flowId: string): Promise<void> {
     await this.expect('POST', `/flows/${flowId}/versions`, 201, {});
+  }
+
+  /** El recurso flujo de la API real (`GET /flows/:id`, 200). Un 404 se comprueba con `call`. */
+  async flow(flowId: string): Promise<FlowRecord> {
+    return (await this.expect('GET', `/flows/${flowId}`, 200)) as FlowRecord;
+  }
+
+  /** Las versiones publicadas de un flujo (`GET /flows/:id/versions?limit=100`). */
+  async versions(flowId: string): Promise<Page<{ version: number; name: string }>> {
+    return (await this.expect('GET', `/flows/${flowId}/versions?limit=100`, 200)) as Page<{ version: number; name: string }>;
   }
 
   async deleteFlow(flowId: string): Promise<void> {

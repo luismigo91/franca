@@ -10,7 +10,8 @@ const clone = (name: keyof typeof FLOWS): FlowDoc => structuredClone(FLOWS[name]
 const model = (flow: FlowDoc) => canvasModel(flow, displayPositions(flow));
 
 describe('canvasModel', () => {
-  it('Conexiones de captacion-leads: 12, las tres de pedir-tamano y onError de enviar-crm', () => {
+  // 12 conexiones, las tres de pedir-tamano y onError de enviar-crm.
+  it('Conexiones de captacion-leads', () => {
     const { edges, nodes } = model(clone('captacion-leads'));
     expect(nodes).toHaveLength(11);
     expect(edges).toHaveLength(12);

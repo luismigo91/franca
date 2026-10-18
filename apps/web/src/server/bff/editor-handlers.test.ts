@@ -231,7 +231,8 @@ describe('cuerpo de un flujo', () => {
     expect(fake.api.requests).toEqual([]);
   });
 
-  it('Cuerpo de un flujo demasiado grande: 1 048 577 bytes es 413 y [] es 400, sin llamar a la API', async () => {
+  // 1 048 577 bytes es 413 y `[]` es 400, sin llamar a la API.
+  it('Cuerpo de un flujo demasiado grande', async () => {
     const big = `{"x":"${'a'.repeat(1_048_577 - 8)}"}`;
     expect(Buffer.byteLength(big)).toBe(1_048_577);
     const tooBig = await handleCreateFlow(send('POST', '/api/editor/flows', big));

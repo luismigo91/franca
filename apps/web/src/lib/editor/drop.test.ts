@@ -68,7 +68,8 @@ describe('resolveDrop', () => {
     expect(canDropOn(faq, 'pedir-email', '/next', 'fin-resuelto')).toBe(true);
   });
 
-  it('Conectar una salida vacía arrastrando: ya no falta el next de message-1', () => {
+  // Tras conectar, el validador ya no dice que falte el next de message-1.
+  it('Conectar una salida vacía arrastrando', () => {
     const hola = structuredClone(FLOWS.hola) as FlowDoc;
     const added = addNode(hola, 'message', displayPositions(hola), { x: 400, y: 0 })!;
     expect(validateFlow(added.flow).issues.map((issue) => `${issue.nodeId}: ${issue.message}`)).toContain("message-1: falta la propiedad obligatoria 'next'");
