@@ -1,10 +1,12 @@
 # Tasks: editor visual de flujos (`web-editor`)
 
+**Revisión 4** (tercera ronda): `fitsField` antes de pintar cada campo del inspector, `getIn` tolerante, posiciones finitas, tablas por tipo con `Map` u `Object.hasOwn`, ida y vuelta por JSON al aplicar, y la tabla de guardas D25 con su test de flujos mal formados.
+
 **Revisión 3** (segunda ronda de la revisión): `nodeTargets` filtra los saltos que no son texto y las salidas se identifican por `pointer`; `asText` para todo lo que se pinta; delta `eff3d08`.
 
 **Revisión 2** (tras el FAIL de `popi:architecture-reviewer`): adaptador `node-targets.ts` (B1), 18 ficheros modificados con `operations.test.ts` y `admin.ts` (B2), y los no bloqueantes que resolvió el orquestador (ver `design.md`, cabecera).
 
-Las fases son secuenciales: cada una empieza cuando la anterior pasa su gate. El comportamiento está en `specs/web-editor/spec.md` (44 requisitos y 78 escenarios, con los deltas `4ced695`, `0520b08` y `eff3d08` pendientes de aprobación) y en el delta de `specs/web-chat/spec.md`. El cómo está en `design.md` (D1-D24, «Contrato» y «Ficheros»).
+Las fases son secuenciales: cada una empieza cuando la anterior pasa su gate. El comportamiento está en `specs/web-editor/spec.md` (44 requisitos y 78 escenarios, con los deltas `4ced695`, `0520b08` y `eff3d08` pendientes de aprobación) y en el delta de `specs/web-chat/spec.md`. El cómo está en `design.md` (D1-D25, «Contrato» y «Ficheros»).
 
 Reglas para todas las fases:
 - **Solo se tocan los ficheros de la tabla «Ficheros» de `design.md`.** En ningún gate imprimen nada `git diff --name-only main...HEAD -- apps/api packages turbo.json pnpm-lock.yaml .github apps/web/package.json`. Los ficheros existentes de `apps/web` que se modifican son solo los 18 de la tabla «Modificados». Uno que falte se añade antes al diseño, con su porqué.
@@ -37,6 +39,8 @@ Reglas para todas las fases:
   - Un `body` con claves `"10"` y `"a"`.
   - `constructor`.
   - Comparación del **texto** antes y después.
+  - `getIn` con pasos intermedios que no son objetos: `/request/method` con `request` `null`, `5`, `"x"` y `[]`; `/0` sobre `"ab"`; `/constructor` sobre `{}`. Todos dan `undefined` sin lanzar.
+  - `setIn` y `removeIn` lanzan el error de programación con un paso intermedio que no es objeto (revisión 4, D5).
 - [ ] 1.3 `src/lib/editor/flow-text.ts` + test: `flowText` (un `JSON.stringify` sin caso nulo, D5) y `utf8Bytes` (`ñ` cuenta dos bytes).
 - [ ] 1.3b `src/lib/editor/node-targets.ts` + test (B1, D10): `nodeTargets(node)` comprueba la forma mínima (`rules` lista de objetos en `condition`; `choices` ausente o lista de objetos en `input`) y llama a `targets`, o devuelve los saltos legibles con las mismas `key` y `pointer`. Casos:
   - `rules` ausente, `5` y `[null]`;
@@ -52,9 +56,12 @@ Reglas para todas las fases:
   - Paridad recursiva de claves y clases con `schema` de `@franca/spec` para los ocho tipos, `nodeBase`, la raíz y `variable`.
   - Las opciones de cada `enum` salen del esquema en ejecución.
   - Validación a mano, una vez: se quita una clave de un descriptor, el test falla, y se restaura.
+  - `fitsField(descriptor, value)` (revisión 4, D8): la matriz de cada clase contra `null`, `5`, `"x"`, `[]` y `{}`, y los casos de la tabla de D8 (cabeceras `{"x":1}`, `{"secret":5}` y `{"secret":"A","y":1}`; `when` `5`, `null` y `"x"`; `value` objeto donde no se admite JSON; un número infinito).
+  - Las tablas por tipo (`NODE_TYPE_LABELS` y descriptores) se leen con `Object.hasOwn` o son `Map`: `type` `"constructor"`, `"toString"` y `"__proto__"` dan «tipo desconocido».
 - [ ] 1.5 `src/lib/editor/fields.ts` + test (D5). Cada fila de la tabla de D5:
   - Texto, sin recortar.
-  - Número: `abc`, `1.50`, `-3`, `08` y el vacío.
+  - Número: `abc`, `1.50`, `-3`, `08`, una cifra de 400 dígitos (se queda como texto: `Number` daría `Infinity`) y el vacío.
+  - JSON libre y «Editar como JSON» aplican `JSON.parse(JSON.stringify(valor))`: `1e400` se queda en `null` en el borrador y en su texto.
   - `enum` con «(por defecto)».
   - Casilla que vuelve al `default`: quita la propiedad o, si el último guardado la tenía escrita **con el valor por defecto** en esa ruta (`"pii": false`), la vuelve a escribir con ese valor en su sitio. Marcar y desmarcar deja el texto como estaba. Con un guardado con `"pii": true`, desmarcar quita la propiedad.
   - Salto con «(ninguno)».
@@ -103,6 +110,7 @@ Reglas para todas las fases:
   - El golden de «Mover un nodo guarda su posición».
   - Una `position` inválida se pinta en la automática.
   - `autoLayout` con las ocho plantillas de «Añadir nodo» y los nodos mal formados de 1.3b, sin lanzar y sin solapes.
+  - Posición válida solo con `x` e `y` finitos: `{x: Infinity, y: 0}`, `{x: "a", y: 0}`, `null` y `5` se pintan en la automática (mutante `infinitePosition`). Un nodo con id `constructor`.
 - [ ] 1.11 `src/lib/editor/drop.ts` + test (D12):
   - Destino válido.
   - Sustitución.
@@ -133,6 +141,7 @@ Reglas para todas las fases:
     - `it('Probar sin versión publicada')`: `checkTryable` da «Publica el flujo antes de probarlo.» y no se llama al `start` falso;
     - `it('Cambio deshecho a mano')`;
     - `it('Flujo de más de 1 MiB')`: un flujo válido de 1 040 000 bytes generado de forma determinista, con 10 000 caracteres añadidos a un mensaje.
+- [ ] 1.14b `src/lib/editor/malformed-flows.test.ts` (D25): un nodo de cada tipo con cada propiedad sustituida a su vez por `null`, `5`, `"x"`, `[]`, `{}` y el `null` que deja `1e400`. Sobre cada variante, nada lanza en `canvasModel`, `autoLayout`, `nodeOutputs`, `renameNode`, `fixPositions`, `connectOutput` (cada salida), `fitsField` (cada campo), `validateFlow` y `JSON.stringify`, y ningún texto para pintar es `[object Object]`. `readFlowResource` rechaza `flow.nodes` que no es una lista de objetos, un `id` que no es texto y un `start` que no es texto.
 - [ ] 1.15 **Gate 1**:
   - `pnpm check` en verde.
   - `pnpm exec openspec validate web-editor --strict` en verde.
@@ -191,7 +200,7 @@ Reglas para todas las fases:
   - `readFlowBody` reenvía exactamente lo que `inspectFlowBody` de la API validará.
 
   Lo que falte se añade como test.
-- [ ] 3.2 Los 39 mutantes de D23 en `tests/mutations.json`, con `find` único en su fichero y `tests` con los que lo matan. `pnpm --filter @franca/web mutate`: ninguno sobrevive. La salida se pega en el gate.
+- [ ] 3.2 Los 41 mutantes de D23 en `tests/mutations.json`, con `find` único en su fichero y `tests` con los que lo matan. `pnpm --filter @franca/web mutate`: ninguno sobrevive. La salida se pega en el gate.
 - [ ] 3.3 Cada test negativo nuevo que no es mutante («no llama a la API», «sin `issues`», «no contiene», paridades) se valida una vez a mano, provocando el caso prohibido y viendo que falla. La lista va en el gate.
 - [ ] 3.4 **Gate 3**: `pnpm check` en verde, la mutación sin supervivientes y commit `test(web): mutantes y negativos del editor`.
 
@@ -224,7 +233,8 @@ Reglas para todas las fases:
   - `flow-panel.tsx`.
   - `problems-list.tsx`, con la nota de forma y los avisos.
   - Los problemas de cada campo enlazados con `aria-describedby`.
-  - Una lista con elementos que no son objetos (`rules: [null]`, `choices: [null]`) pasa entera a JSON libre con su nota (D8).
+  - `inspector-field.tsx` consulta `fitsField` antes de pintar cada campo, también los anidados, y si no encaja pinta el JSON libre con su nota (D8). Así, por ejemplo, una lista con elementos que no son objetos (`rules: [null]`, `choices: [null]`) pasa entera a JSON libre.
+  - `node-inspector.test.tsx` (marcado): un `http` con `request: null`, otro con `headers: null`, una cabecera `{"x": 1}`, una condición con `when: 5` y un `type` `"constructor"`. Ninguno lanza, se ve el JSON libre con su nota y no aparece `[object Object]` (mutante `skipFieldFit`).
   - `content-field.test.tsx` (URLs como texto) y `problems-list.test.tsx` (marcado; `nodeId` y partes del flujo con `asText`).
 - [ ] 4.7 Composición y 320 px (D18): dos columnas en `lg`, lienzo con altura propia, `min-w-0` y `overflow-wrap: anywhere`.
 - [ ] 4.8 **Verificación en el navegador** (`/popi:verify frontend`) con `pnpm dev` y la API real. Se recorre: importar `captacion-leads`, mover, conectar arrastrando cada clase de salida, renombrar, guardar, publicar y probar, más el 412 con dos pestañas y salir con cambios. Consola limpia, y en la pestaña de red solo `/api/*` del propio origen. Hallazgos anotados en el gate.
