@@ -1,7 +1,5 @@
 import { inputPoint, nodeSize, outputPoint, WORLD_MARGIN, type Point } from '@/lib/editor/canvas-geometry';
-import { asText } from '@/lib/editor/as-text';
 import { isRecord } from '@/lib/editor/json-edit';
-import { nodeTypeLabel } from '@/lib/editor/node-types';
 import { nodeTargets } from '@/lib/editor/node-targets';
 import { nodeOutputs, type NodeOutput } from '@/lib/editor/outputs';
 
@@ -10,8 +8,10 @@ export interface CanvasNode {
   /** Posición del nodo en `nodes` (la identidad para React junto con el puntero de sus salidas). */
   index: number;
   id: string;
-  type: string;
-  title: string;
+  /** El `type` del nodo tal como está en el flujo (de cualquier tipo): la vista lo convierte con `nodeTypeLabel`. */
+  type: unknown;
+  /** El `title` del nodo tal como está en el flujo (de cualquier tipo): la vista lo convierte con `asText`. */
+  title: unknown;
   isStart: boolean;
   position: Point;
   width: number;
@@ -66,8 +66,8 @@ export function canvasModel(flow: Record<string, unknown>, positions: ReadonlyMa
     const canvasNode: CanvasNode = {
       index,
       id: node.id,
-      type: nodeTypeLabel(node.type),
-      title: asText(node.title),
+      type: node.type,
+      title: node.title,
       isStart: node.id === flow.start,
       position: positions.get(node.id) ?? { x: 0, y: 0 },
       width: size.width,

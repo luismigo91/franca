@@ -7,6 +7,7 @@ import { getIn, isRecord, parsePointer, pointerOf, type Change, type FlowDoc } f
 import { autoLayout, displayPositions } from '@/lib/editor/layout';
 import { connectOutput } from '@/lib/editor/node-ops';
 import { descriptorAt, fieldsOfType, fitsField, type FieldDescriptor } from '@/lib/editor/node-fields';
+import { nodeTypeLabel } from '@/lib/editor/node-types';
 import { nodeOutputs } from '@/lib/editor/outputs';
 import { fixPositions } from '@/lib/editor/positions';
 import { renameNode } from '@/lib/editor/rename';
@@ -74,7 +75,7 @@ function exercise(flow: FlowDoc, where: string): void {
   autoLayout(flow);
   fixPositions(flow, positions);
   const texts: string[] = [];
-  for (const node of model.nodes) texts.push(node.id, node.type, node.title, ...node.outputs.map((output) => output.key));
+  for (const node of model.nodes) texts.push(node.id, nodeTypeLabel(node.type), asText(node.title), ...node.outputs.map((output) => output.key));
   for (const edge of model.edges) texts.push(edge.label, edge.toId);
   (flow.nodes as unknown[]).forEach((raw, index) => {
     for (const output of nodeOutputs(raw)) {

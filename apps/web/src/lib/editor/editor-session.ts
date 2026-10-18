@@ -56,6 +56,8 @@ export interface EditorSnapshot {
   notice: EditorNotice | null;
   /** Para la región de estado: `seq` cambia con cada anuncio, aunque el texto se repita. */
   announcement: { seq: number; text: string } | null;
+  /** Veces que se ha leído el flujo (abrir, «Cargar el guardado», «Descartar cambios»): las pantallas lo usan como `key` para soltar su estado local. */
+  loadCount: number;
 }
 
 export type SaveOutcome =
@@ -93,6 +95,7 @@ const LOADING: EditorSnapshot = {
   busy: null,
   notice: null,
   announcement: null,
+  loadCount: 0,
 };
 
 const notice = (kind: EditorNotice['kind'], text: string, actions: EditorNotice['actions'] = [], currentRevision?: number): EditorNotice =>
@@ -171,7 +174,7 @@ export class EditorSession {
     this.abort.abort();
     this.abort = new AbortController();
     const epoch = this.epoch;
-    this.state = { ...LOADING };
+    this.state = { ...LOADING, loadCount: this.state.loadCount };
     for (const listener of [...this.listeners]) listener();
     const result = await this.client.getFlow(this.flowId, this.abort.signal);
     if (epoch !== this.epoch || this.abort.signal.aborted) return;
@@ -195,7 +198,7 @@ export class EditorSession {
     const saved = toSaved(resource);
     const previous = this.state.selection;
     const selection = previous?.kind === 'node' && !nodeExists(resource.flow, previous.id) ? null : previous;
-    this.patch({ phase, loadError: null, saved, ...derive(resource.flow, saved), selection, busy: null, notice: null, ...extra });
+    this.patch({ phase, loadError: null, saved, ...derive(resource.flow, saved), selection, busy: null, notice: null, loadCount: this.state.loadCount + 1, ...extra });
   }
 
   /**

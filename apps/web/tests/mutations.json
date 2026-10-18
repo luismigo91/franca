@@ -517,8 +517,8 @@
   {
     "id": "persistAutoLayout",
     "file": "src/lib/editor/editor-session.ts",
-    "find": "...derive(resource.flow, saved), selection, busy: null, notice: null, ...extra });",
-    "replace": "...derive({ ...resource.flow, nodes: (resource.flow.nodes as Record<string, unknown>[]).map((node) => ({ ...node, position: { x: 0, y: 0 } })) }, saved), selection, busy: null, notice: null, ...extra });",
+    "find": "...derive(resource.flow, saved), selection, busy: null, notice: null, loadCount:",
+    "replace": "...derive({ ...resource.flow, nodes: (resource.flow.nodes as Record<string, unknown>[]).map((node) => ({ ...node, position: { x: 0, y: 0 } })) }, saved), selection, busy: null, notice: null, loadCount:",
     "tests": [
       "src/lib/editor/editor-session.test.ts"
     ]
@@ -642,6 +642,33 @@
     "replace": "value: JSON.stringify(parsed.value.value)",
     "tests": [
       "src/server/bff/editor-handlers.test.ts"
+    ]
+  },
+  {
+    "id": "renderRawTitle",
+    "file": "src/components/editor/canvas/canvas-node.tsx",
+    "find": "asText(node.title)",
+    "replace": "(node.title as string)",
+    "tests": [
+      "src/components/editor/canvas/canvas-node.test.tsx"
+    ]
+  },
+  {
+    "id": "skipFieldFit",
+    "file": "src/components/editor/inspector/inspector-field.tsx",
+    "find": "descriptor.cls !== 'readonly' && !fitsField(descriptor, value)",
+    "replace": "false",
+    "tests": [
+      "src/components/editor/inspector/node-inspector.test.tsx"
+    ]
+  },
+  {
+    "id": "loadFlowUrls",
+    "file": "src/components/editor/inspector/content-field.tsx",
+    "find": "{/* La URL es texto: no se carga, no se enlaza ni se incrusta (D19). */}",
+    "replace": "<img src={asText(record.url)} alt=\"\" />",
+    "tests": [
+      "src/components/editor/inspector/content-field.test.tsx"
     ]
   }
 ]

@@ -79,10 +79,10 @@ describe('canvasModel', () => {
     expect(model(flow).nodes[0]!.outputs[0]!.key).toBe('choices[0].next');
   });
 
-  it('el nodo se pinta con asText: title {} y type {} no lanzan', () => {
+  it('el modelo conserva el type y el title tal como están en el flujo (la vista los convierte con asText)', () => {
     const flow = { start: 'a', nodes: [{ id: 'a', type: {}, title: { es: 'x' } }, { id: 'b', type: 'end', title: 5 }, { id: 'c', type: 'end', title: null }] } as FlowDoc;
     const { nodes } = model(flow);
-    expect(nodes.map((node) => [node.type, node.title])).toEqual([['{}', '{"es":"x"}'], ['Fin', '5'], ['Fin', 'null']]);
+    expect(nodes.map((node) => [node.type, node.title])).toEqual([[{}, { es: 'x' }], ['end', 5], ['end', null]]);
   });
 
   it('las ocho plantillas de «Añadir nodo» y los nodos mal formados no lanzan', () => {
