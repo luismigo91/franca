@@ -116,7 +116,7 @@ El lienzo SHALL mostrar cada nodo de `nodes` con su `id`, su tipo en español y 
 - **THEN** el lienzo tiene 12 conexiones, entre ellas tres que salen de `pedir-tamano` (`choices[pequena].next` y `choices[mediana].next` hacia `marcar-pyme` y `choices[grande].next` hacia `marcar-empresa`) y `onError` de `enviar-crm` hacia `aviso-error`
 
 ### Requirement: Posiciones de los nodos
-El lienzo SHALL colocar cada nodo en su `position`. Los nodos sin `position` los coloca un diseño automático que sigue las conexiones desde `start`, no se solapa con ningún nodo y da siempre el mismo resultado para el mismo flujo. Esas posiciones no se escriben en el flujo hasta que se mueve o se añade un nodo, o se conecta una salida.
+El lienzo SHALL colocar cada nodo en su `position` (dibujada acotada a ±10 000 000, sin cambiar el flujo). Los nodos sin `position` los coloca un diseño automático que sigue las conexiones desde `start`, no se solapa con ningún nodo y da siempre el mismo resultado para el mismo flujo. Esas posiciones no se escriben en el flujo hasta que se mueve o se añade un nodo, o se conecta una salida.
 
 #### Scenario: Abrir sin posiciones no cambia el flujo
 - **GIVEN** `faq-ia` creado
