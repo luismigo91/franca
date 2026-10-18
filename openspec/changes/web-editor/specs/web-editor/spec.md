@@ -189,7 +189,7 @@ El panel del flujo SHALL editar `name`, `description`, `locale`, `settings`, `st
 - **THEN** el último elemento de `variables` del flujo que recibe la API es exactamente `{"name":"ciudad","type":"string","pii":true}`
 
 ### Requirement: Inspector de cada tipo de nodo
-El inspector SHALL tener un campo por cada propiedad del esquema del tipo del nodo, para los ocho tipos, con `type` de solo lectura. Los saltos se eligen entre los nodos del flujo o «ninguno». `value` de `set`, de opciones y de reglas, y `default`, se escriben como texto, número, sí/no, nulo o JSON, según admita el esquema. `request.body` y los predicados con `all` o `any` se editan como texto JSON.
+El inspector SHALL tener un campo por cada propiedad del esquema del tipo del nodo, para los ocho tipos, con `type` y `position` de solo lectura: la posición cambia al mover el nodo o con «Editar como JSON». Los saltos se eligen entre los nodos del flujo o «ninguno». `value` de `set`, de opciones y de reglas, y `default`, se escriben como texto, número, sí/no, nulo o JSON, según admita el esquema. `request.body` y los predicados con `all` o `any` se editan como texto JSON.
 
 #### Scenario: Los ocho tipos en el inspector
 - **GIVEN** `captacion-leads` y `faq-ia` creados
@@ -202,7 +202,7 @@ El inspector SHALL tener un campo por cada propiedad del esquema del tipo del no
 - **THEN** el `when` de esa regla en el flujo que recibe la API es exactamente `{"variable":"segmento","op":"eq","value":"pyme"}`
 
 ### Requirement: Campos sobre el JSON del flujo
-Cada campo SHALL escribir directamente en el JSON del flujo: un cambio toca solo su propiedad, que conserva su sitio (una nueva va al final de su objeto); los valores por defecto del esquema no se escriben si no se tocan; vaciar un campo opcional quita la propiedad. Un campo numérico guarda un número si el texto es un número decimal y, si no, el texto, para que el validador lo señale.
+Cada campo SHALL escribir directamente en el JSON del flujo: un cambio toca solo su propiedad, que conserva su sitio (una nueva va al final de su objeto); los valores por defecto del esquema no se escriben si no se tocan; vaciar un campo opcional quita la propiedad, y también el objeto o la lista opcionales que deja vacíos. Un campo numérico guarda un número si el texto es decimal y, si no, el texto, para que lo señale el validador.
 
 #### Scenario: Editar un campo no reordena el nodo
 - **GIVEN** el editor de `captacion-leads` abierto
