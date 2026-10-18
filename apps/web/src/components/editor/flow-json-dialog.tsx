@@ -11,7 +11,7 @@ export function FlowJsonDialog({ open, text, onClose, onCopy }: { open: boolean;
       ref={dialog}
       onClose={onClose}
       aria-labelledby="flow-json-title"
-      className="m-auto w-[min(48rem,calc(100vw-2rem))] rounded-lg border border-foreground/30 bg-background p-5 text-foreground backdrop:bg-black/50"
+      className="m-auto w-[min(48rem,calc(100vw-2rem))] rounded-lg border border-foreground/30 bg-background p-5 text-foreground overscroll-contain backdrop:bg-black/50"
     >
       <h2 id="flow-json-title" className="text-lg font-semibold">
         JSON del flujo

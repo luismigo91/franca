@@ -48,7 +48,7 @@ Después, `http://localhost:3000` (chat de prueba) y `http://localhost:3000/fluj
 
 ```bash
 pnpm --filter @franca/web test   # Vitest: unit (también el núcleo del editor), marcado, integración con una API simulada y guardas estáticas
-pnpm --filter @franca/web mutate # mutación dirigida (a mano): 73 mutantes, todos tienen que morir
+pnpm --filter @franca/web mutate # mutación dirigida (a mano): 81 mutantes, todos tienen que morir
 pnpm test:e2e                    # desde la raíz: la API y la web, en serie (necesita Postgres y DATABASE_URL)
 ```
 

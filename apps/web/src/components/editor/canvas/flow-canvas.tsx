@@ -23,6 +23,8 @@ interface FlowCanvasProps {
   positions: ReadonlyMap<string, Point>;
   selectedId: string | null;
   problems: ReadonlyMap<string, { issues: number; warnings: number }>;
+  /** El validador recortó su lista de problemas. */
+  truncated: boolean;
   handleRef?: Ref<CanvasHandle>;
   onSelect: (id: string | null) => void;
   onMoveNode: (id: string, dx: number, dy: number) => void;
@@ -34,7 +36,7 @@ interface FlowCanvasProps {
  * conexiones y un `div` por nodo. Mientras se arrastra, el nodo se pinta desplazado sin tocar el flujo; al soltar, una sola
  * edición. Los límites del mundo quedan congelados durante el arrastre.
  */
-export function FlowCanvas({ flow, positions, selectedId, problems, handleRef, onSelect, onMoveNode, onConnect }: FlowCanvasProps) {
+export function FlowCanvas({ flow, positions, selectedId, problems, truncated, handleRef, onSelect, onMoveNode, onConnect }: FlowCanvasProps) {
   const zoneRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1);
   const base = useMemo(() => canvasModel(flow, positions), [flow, positions]);
@@ -123,7 +125,7 @@ export function FlowCanvas({ flow, positions, selectedId, problems, handleRef, o
         id="flow-canvas"
         tabIndex={0}
         role="group"
-        aria-label="Lienzo del flujo"
+        aria-label="Zona de nodos y conexiones"
         className="relative h-[60dvh] min-h-64 min-w-0 overflow-auto rounded-md border border-foreground/30 bg-foreground/[0.03] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground lg:h-[calc(100dvh-16rem)]"
         onPointerDown={(event) => {
           if (event.target === event.currentTarget || (event.target as HTMLElement).dataset.world === 'true') onSelect(null);
@@ -143,6 +145,7 @@ export function FlowCanvas({ flow, positions, selectedId, problems, handleRef, o
                 node={node}
                 selected={node.id === selectedId}
                 problems={problems.get(node.id)}
+                truncated={truncated}
                 origin={bounds}
                 offset={{ x: 0, y: 0 }}
                 dropState={dropStateOf(node.id)}

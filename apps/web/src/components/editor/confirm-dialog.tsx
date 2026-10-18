@@ -25,7 +25,7 @@ export function ConfirmDialog({ open, title, children, confirmLabel, cancelLabel
       onClose={onCancel}
       aria-labelledby={`${id}-title`}
       aria-describedby={`${id}-body`}
-      className="m-auto w-[min(28rem,calc(100vw-2rem))] rounded-lg border border-foreground/30 bg-background p-5 text-foreground backdrop:bg-black/50"
+      className="m-auto w-[min(28rem,calc(100vw-2rem))] rounded-lg border border-foreground/30 bg-background p-5 text-foreground overscroll-contain backdrop:bg-black/50"
     >
       <h2 id={`${id}-title`} className="text-lg font-semibold">
         {title}

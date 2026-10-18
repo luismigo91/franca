@@ -10,7 +10,7 @@ import { FLOWS } from '../../../../tests/helpers/engine-events';
 const noop = () => undefined;
 
 /** Pinta el primer nodo (o el de `id`) de un flujo con el mismo marcado que el lienzo. */
-function render(flow: FlowDoc, options: { id?: string; selected?: boolean; problems?: { issues: number; warnings: number }; dropState?: DropState | null } = {}): string {
+function render(flow: FlowDoc, options: { id?: string; selected?: boolean; problems?: { issues: number; warnings: number }; truncated?: boolean; dropState?: DropState | null } = {}): string {
   const model = canvasModel(flow, displayPositions(flow));
   const node = model.nodes.find((candidate) => candidate.id === (options.id ?? model.nodes[0]!.id)) as CanvasNode;
   return renderToStaticMarkup(
@@ -18,6 +18,7 @@ function render(flow: FlowDoc, options: { id?: string; selected?: boolean; probl
       node={node}
       selected={options.selected ?? false}
       problems={options.problems}
+      truncated={options.truncated ?? false}
       origin={model.bounds}
       offset={{ x: 0, y: 0 }}
       dropState={options.dropState ?? null}
@@ -40,12 +41,16 @@ describe('CanvasNodeView', () => {
 
   it('es enfocable, un botón, y marca la selección; el nodo de inicio lleva «Inicio» y los problemas, texto', () => {
     const html = render(captacion(), { id: 'bienvenida', selected: true, problems: { issues: 3, warnings: 0 } });
-    expect(html).toContain('role="button"');
-    expect(html).toContain('tabindex="0"');
+    expect(html).toMatch(/^<button type="button"/);
     expect(html).toContain('aria-pressed="true"');
     expect(html).toContain('>Inicio<');
     expect(html).toContain('>3 problemas<');
     expect(render(captacion(), { id: 'pedir-email' })).not.toContain('>Inicio<');
+  });
+
+  it('con la lista de problemas recortada, un nodo sin problemas listados no dice «sin problemas» a secas', () => {
+    expect(render(captacion(), { id: 'pedir-email', truncated: true })).toContain('aria-label="pedir-email, Pregunta, sin problemas conocidos"');
+    expect(render(captacion(), { id: 'pedir-email' })).toContain('pedir-email, Pregunta, sin problemas"');
   });
 
   it('las salidas llevan su nombre, su puntero y data-output, y no reciben el foco', () => {
@@ -58,7 +63,7 @@ describe('CanvasNodeView', () => {
       expect(output).toContain('aria-hidden="true"');
       expect(output).not.toContain('tabindex');
     }
-    expect(html.match(/tabindex/g)).toHaveLength(1);
+    expect(html).not.toContain('tabindex');
   });
 
   it('la caja mide lo que dice nodeSize y recorta lo que no cabe, también con un title de 120 caracteres', () => {
@@ -71,7 +76,7 @@ describe('CanvasNodeView', () => {
     const long = render(flowWith({ title: 'T'.repeat(120) }));
     expect(long).toContain('width:208px;height:64px');
     expect(long).toContain('overflow-hidden');
-    expect(long).toContain('class="truncate text-[11px]"');
+    expect(long).toContain('class="block truncate text-[11px]"');
   });
 
   it('un title o un type que no son texto se pintan con asText y no lanzan (renderRawTitle)', () => {

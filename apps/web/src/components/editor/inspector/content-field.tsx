@@ -49,7 +49,10 @@ function ContentItem({ descriptor, pointer, item, index, ctx }: { descriptor: Fi
           </FieldBox>
         </>
       )}
-      <Button variant="secondary" aria-label={`Quitar ${descriptor.label.toLowerCase()} ${index + 1}`} className="self-start" onClick={() => ctx.edit(removeItem(pointer))}>
+      <Button variant="secondary" aria-label={`Quitar ${descriptor.label.toLowerCase()} ${index + 1}`} className="self-start" onClick={() => {
+          ctx.edit(removeItem(pointer));
+          ctx.focusInspector();
+        }}>
         Quitar elemento
       </Button>
     </fieldset>

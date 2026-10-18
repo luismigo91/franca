@@ -5,6 +5,7 @@ import { CONTROL_CLASS, FieldBox, FieldMessages, useFieldMeta } from '@/componen
 import type { FieldContext } from '@/components/editor/inspector/field-context';
 import { asText } from '@/lib/editor/as-text';
 import { writeNumber } from '@/lib/editor/fields';
+import { localAfterEdit, validLocal, type Local } from '@/lib/editor/local-text';
 import type { FieldDescriptor } from '@/lib/editor/node-fields';
 
 /**
@@ -13,7 +14,8 @@ import type { FieldDescriptor } from '@/lib/editor/node-fields';
  */
 export function NumberField({ descriptor, pointer, value, ctx }: { descriptor: FieldDescriptor; pointer: string; value: unknown; ctx: FieldContext }) {
   const meta = useFieldMeta(ctx, pointer);
-  const [typed, setTyped] = useState<string | null>(null);
+  const [local, setLocal] = useState<Local<string> | null>(null);
+  const typed = validLocal(local, value);
   return (
     <FieldBox label={descriptor.label} htmlFor={meta.id}>
       <input
@@ -25,10 +27,10 @@ export function NumberField({ descriptor, pointer, value, ctx }: { descriptor: F
         aria-invalid={meta.problems.some((problem) => problem.kind === 'issue') || undefined}
         className={CONTROL_CLASS}
         onChange={(event) => {
-          setTyped(event.target.value);
-          ctx.edit(writeNumber(pointer, event.target.value, descriptor.required === true));
+          const result = ctx.edit(writeNumber(pointer, event.target.value, descriptor.required === true));
+          setLocal(localAfterEdit(event.target.value, result, pointer, value));
         }}
-        onBlur={() => setTyped(null)}
+        onBlur={() => setLocal(null)}
       />
       <FieldMessages problems={meta.problems} problemsId={meta.problemsId} errorId={meta.errorId} />
     </FieldBox>

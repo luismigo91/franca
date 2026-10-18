@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { FlowCanvas, type CanvasHandle } from '@/components/editor/canvas/flow-canvas';
 import { ConfirmDialog } from '@/components/editor/confirm-dialog';
 import { EditorActions } from '@/components/editor/editor-actions';
@@ -25,7 +25,7 @@ import { errorCopy } from '@/lib/chat/copy';
 import { NODE_HEADER_HEIGHT, NODE_WIDTH } from '@/lib/editor/canvas-geometry';
 import { editorErrorCopy, EDITOR_COPY } from '@/lib/editor/copy';
 import { resolveDrop } from '@/lib/editor/drop';
-import { hasShapeProblems, problemsByNode, problemsOf, summarizeProblems, type Problem } from '@/lib/editor/issues-view';
+import { hasShapeProblems, isTruncated, problemsByNode, problemsOf, summarizeProblems, type Problem } from '@/lib/editor/issues-view';
 import { isRecord } from '@/lib/editor/json-edit';
 import { deleteNode, replaceNodeJson } from '@/lib/editor/node-ops';
 import { addNode, nextNodeId } from '@/lib/editor/node-templates';
@@ -33,7 +33,7 @@ import { moveNode } from '@/lib/editor/positions';
 import { renameNode } from '@/lib/editor/rename';
 import { checkTryable } from '@/lib/editor/save-gate';
 
-type FocusTarget = 'title' | 'problems' | 'inspector' | 'canvas' | { node: string };
+type FocusTarget = 'title' | 'problems' | 'inspector' | 'canvas' | 'save' | { node: string };
 
 /** Lleva el foco al elemento que corresponde a una acción (D17), una vez pintado. */
 function focusElement(target: FocusTarget): void {
@@ -46,7 +46,9 @@ function focusElement(target: FocusTarget): void {
           ? document.getElementById('inspector-title')
           : target === 'canvas'
             ? document.getElementById('flow-canvas')
-            : document.querySelector<HTMLElement>(`[data-node-id="${CSS.escape(target.node)}"]`);
+            : target === 'save'
+              ? document.getElementById('action-save')
+              : document.querySelector<HTMLElement>(`[data-node-id="${CSS.escape(target.node)}"]`);
   element?.focus();
 }
 
@@ -66,6 +68,18 @@ export function EditorScreen({ flowId }: { flowId: string }) {
   const [tryMessage, setTryMessage] = useState<string | null>(null);
   const start = useStartConversation(() => undefined);
   const lastSummary = useRef<string | null>(null);
+
+  // `<Activity>` conserva el estado de la pantalla al ocultarse: sin esto, un diálogo abierto al salir reaparece al volver.
+  useLayoutEffect(
+    () => () => {
+      setConfirm(null);
+      setNodeToDelete(null);
+      setViewingJson(false);
+      setEditingNodeJson(false);
+      setTryMessage(null);
+    },
+    [],
+  );
 
   const { draft, saved, verdict, positions, selection } = snapshot;
   const ready = snapshot.phase === 'ready' && draft !== null && saved !== null && verdict !== null;
@@ -100,7 +114,7 @@ export function EditorScreen({ flowId }: { flowId: string }) {
         <Notice tone="error">{editorErrorCopy('open', snapshot.loadError ?? 'unknown')}</Notice>
         <div className="flex gap-3">
           <Button onClick={() => void session.open()}>Reintentar</Button>
-          <Link href={WEB_PAGES.flows} className="self-center underline underline-offset-2">
+          <Link href={WEB_PAGES.flows} className="self-center underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground">
             Volver a los flujos
           </Link>
         </div>
@@ -123,6 +137,7 @@ export function EditorScreen({ flowId }: { flowId: string }) {
     nodeIds,
     problems,
     edit: (change) => session.edit(change),
+    focusInspector: () => requestFocus('inspector'),
     rename: (from, to) => {
       const result = session.edit((current) => renameNode(current, from, to));
       if (result.ok) session.select({ kind: 'node', id: to });
@@ -140,6 +155,11 @@ export function EditorScreen({ flowId }: { flowId: string }) {
   const onSave = async () => {
     const outcome = await session.save();
     if (outcome.status === 'blocked' && outcome.reason !== 'unchanged') requestFocus('problems');
+  };
+
+  const onSaveOver = async () => {
+    await session.saveOver();
+    requestFocus('save');
   };
 
   const onTry = () => {
@@ -196,7 +216,7 @@ export function EditorScreen({ flowId }: { flowId: string }) {
                 </Button>
               )}
               {snapshot.notice.actions.includes('saveOver') && (
-                <Button variant="secondary" aria-disabled={snapshot.busy !== null || undefined} onClick={() => void session.saveOver()}>
+                <Button variant="secondary" aria-disabled={snapshot.busy !== null || undefined} onClick={() => void onSaveOver()}>
                   Guardar encima
                 </Button>
               )}
@@ -217,17 +237,23 @@ export function EditorScreen({ flowId }: { flowId: string }) {
           onMoveNode={(id, dx, dy) => {
             session.edit((current) => ({ ok: true, flow: moveNode(current, id, dx, dy, positions) }));
           }}
+          truncated={verdict !== null && isTruncated(verdict)}
           onConnect={(sourceId, pointer, targetId, cancelled) => {
-            const result = resolveDrop({ flow: draft, positions, sourceId, outputPointer: pointer, targetId, cancelled });
-            if (result.kind === 'connect') session.edit(() => ({ ok: true, flow: result.flow }));
-            else if (result.kind === 'reject') session.say(EDITOR_COPY.selfJump);
+            // Se decide dentro de `edit`, sobre el borrador de ese momento y no el del último render.
+            let rejected = false;
+            session.edit((current) => {
+              const result = resolveDrop({ flow: current, positions: session.getSnapshot().positions, sourceId, outputPointer: pointer, targetId, cancelled });
+              rejected = result.kind === 'reject';
+              return result.kind === 'connect' ? { ok: true, flow: result.flow } : { ok: false, error: '' };
+            });
+            if (rejected) session.say(EDITOR_COPY.selfJump);
           }}
         />
         <aside aria-label="Problemas e inspector" className="flex min-w-0 flex-col gap-5 lg:max-h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:pr-1">
           <ProblemsList problems={problems} shapeProblems={verdict !== null && hasShapeProblems(verdict)} onPick={onPick} />
           {selectedId !== null ? (
             <NodeInspector
-              key={`${snapshot.loadCount}:${selectedId}`}
+              key={`${snapshot.loadCount}:${selectedIndex}`}
               ctx={fieldContext}
               index={selectedIndex}
               onEditJson={() => setEditingNodeJson(true)}
@@ -254,7 +280,7 @@ export function EditorScreen({ flowId }: { flowId: string }) {
       />
       <NodeJsonDialog
         open={editingNodeJson}
-        initialText={selectedNode === null ? '' : (JSON.stringify(selectedNode, null, 2) ?? '')}
+        initialText={editingNodeJson && selectedNode !== null ? (JSON.stringify(selectedNode, null, 2) ?? '') : ''}
         onClose={() => setEditingNodeJson(false)}
         onApply={(text) => {
           if (selectedId === null) return 'El nodo ya no existe.';

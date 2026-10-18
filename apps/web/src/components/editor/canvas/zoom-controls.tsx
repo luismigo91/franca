@@ -4,6 +4,8 @@ export const MIN_ZOOM = 0.5;
 export const MAX_ZOOM = 2;
 export const ZOOM_STEP = 1.25;
 
+const PERCENT = new Intl.NumberFormat('es', { style: 'percent', maximumFractionDigits: 0 });
+
 /** Limita el zoom al rango 0,5 a 2. */
 export function clampZoom(zoom: number): number {
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
@@ -22,8 +24,8 @@ export function ZoomControls({ zoom, onChange }: { zoom: number; onChange: (zoom
       <Button variant="secondary" className="min-h-9 px-3" onClick={() => onChange(1)}>
         Tamaño real
       </Button>
-      <span className="text-sm opacity-70" aria-label="Zoom actual">
-        {Math.round(zoom * 100)} %
+      <span className="text-sm opacity-70">
+        {PERCENT.format(zoom)}
       </span>
     </div>
   );

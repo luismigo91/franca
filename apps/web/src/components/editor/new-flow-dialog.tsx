@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useId, useRef, useState } from 'react';
+import { CONTROL_CLASS } from '@/components/editor/inspector/field-shell';
 import { useModalDialog } from '@/components/editor/use-modal-dialog';
 import { Button } from '@/components/ui/button';
 import { Notice } from '@/components/ui/notice';
@@ -19,9 +20,6 @@ interface Issue {
   message: string;
   path: string;
 }
-
-const CONTROL =
-  'w-full min-w-0 rounded-md border border-foreground/30 bg-background px-2 py-1.5 text-sm [overflow-wrap:anywhere] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-foreground aria-[invalid=true]:border-red-700';
 
 export const NAME_ERROR = 'El nombre es obligatorio y tiene como mucho 120 caracteres.';
 
@@ -147,7 +145,7 @@ export function NewFlowDialog({ open, onClose }: { open: boolean; onClose: () =>
       ref={dialog}
       onClose={onClose}
       aria-labelledby={`${uid}-title`}
-      className="m-auto w-[min(36rem,calc(100vw-2rem))] rounded-lg border border-foreground/30 bg-background p-5 text-foreground backdrop:bg-black/50"
+      className="m-auto w-[min(36rem,calc(100vw-2rem))] rounded-lg border border-foreground/30 bg-background p-5 text-foreground overscroll-contain backdrop:bg-black/50"
     >
       <h2 id={`${uid}-title`} className="text-lg font-semibold">
         Nuevo flujo
@@ -181,10 +179,12 @@ export function NewFlowDialog({ open, onClose }: { open: boolean; onClose: () =>
                 id={`${uid}-id`}
                 ref={idInput}
                 type="text"
+                spellCheck={false}
+                autoComplete="off"
                 value={id}
                 aria-invalid={idError !== null || undefined}
                 aria-describedby={idError === null ? undefined : `${uid}-id-error`}
-                className={CONTROL}
+                className={CONTROL_CLASS}
                 onChange={(event) => setId(event.target.value)}
               />
               {idError !== null && (
@@ -201,10 +201,11 @@ export function NewFlowDialog({ open, onClose }: { open: boolean; onClose: () =>
                 id={`${uid}-name`}
                 ref={nameInput}
                 type="text"
+                autoComplete="off"
                 value={name}
                 aria-invalid={nameError !== null || undefined}
                 aria-describedby={nameError === null ? undefined : `${uid}-name-error`}
-                className={CONTROL}
+                className={CONTROL_CLASS}
                 onChange={(event) => setName(event.target.value)}
               />
               {nameError !== null && (
@@ -242,7 +243,7 @@ export function NewFlowDialog({ open, onClose }: { open: boolean; onClose: () =>
               value={json}
               aria-invalid={jsonError !== null || undefined}
               aria-describedby={jsonError === null ? undefined : `${uid}-json-error`}
-              className={`${CONTROL} font-mono text-xs`}
+              className={`${CONTROL_CLASS} font-mono text-xs`}
               onChange={(event) => setJson(event.target.value)}
             />
           </div>

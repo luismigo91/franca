@@ -38,6 +38,8 @@ function HeaderRow({ headersPointer, name, value, ctx }: { headersPointer: strin
         <input
           id={`${meta.id}-name`}
           type="text"
+          spellCheck={false}
+          autoComplete="off"
           value={typedName ?? name}
           className={CONTROL_CLASS}
           aria-invalid={error !== null || undefined}
@@ -58,10 +60,13 @@ function HeaderRow({ headersPointer, name, value, ctx }: { headersPointer: strin
         </select>
       </FieldBox>
       <FieldBox label={mode === 'secret' ? SECRET_LABEL : 'Valor'} htmlFor={`${meta.id}-value`}>
-        <input id={`${meta.id}-value`} type="text" value={valueOf(value)} className={CONTROL_CLASS} onChange={(event) => ctx.edit(writeHeader(headersPointer, name, mode, event.target.value))} />
+        <input id={`${meta.id}-value`} type="text" spellCheck={false} autoComplete="off" value={valueOf(value)} className={CONTROL_CLASS} onChange={(event) => ctx.edit(writeHeader(headersPointer, name, mode, event.target.value))} />
       </FieldBox>
       <FieldMessages problems={meta.problems} problemsId={meta.problemsId} error={error} errorId={meta.errorId} />
-      <Button variant="secondary" className="self-start" aria-label={`Quitar la cabecera ${name}`} onClick={() => ctx.edit(removeHeader(headersPointer, name))}>
+      <Button variant="secondary" className="self-start" aria-label={`Quitar la cabecera ${name}`} onClick={() => {
+          ctx.edit(removeHeader(headersPointer, name));
+          ctx.focusInspector();
+        }}>
         Quitar cabecera
       </Button>
     </fieldset>
@@ -82,13 +87,13 @@ export function HeadersField({ descriptor, pointer, value, ctx }: { descriptor: 
   return (
     <fieldset className="flex min-w-0 flex-col gap-2" aria-describedby={meta.describedBy}>
       <legend className="text-sm font-medium">{descriptor.label}</legend>
-      {entries.map(([headerName, headerValue]) => (
-        <HeaderRow key={headerName} headersPointer={pointer} name={headerName} value={headerValue} ctx={ctx} />
+      {entries.map(([headerName, headerValue], position) => (
+        <HeaderRow key={position} headersPointer={pointer} name={headerName} value={headerValue} ctx={ctx} />
       ))}
       <div role="group" aria-label="Nueva cabecera" className="flex min-w-0 flex-col gap-2 rounded-md border border-dashed border-foreground/30 p-2">
         <p className="text-xs opacity-70">Nueva cabecera</p>
         <FieldBox label="Nombre de la cabecera" htmlFor={`${meta.id}-new-name`}>
-          <input id={`${meta.id}-new-name`} type="text" value={name} className={CONTROL_CLASS} onChange={(event) => setName(event.target.value)} />
+          <input id={`${meta.id}-new-name`} type="text" spellCheck={false} autoComplete="off" value={name} className={CONTROL_CLASS} onChange={(event) => setName(event.target.value)} />
         </FieldBox>
         <FieldBox label="Tipo de la cabecera" htmlFor={`${meta.id}-new-mode`}>
           <select id={`${meta.id}-new-mode`} value={mode} className={CONTROL_CLASS} onChange={(event) => setMode(event.target.value as HeaderMode)}>
@@ -97,7 +102,7 @@ export function HeadersField({ descriptor, pointer, value, ctx }: { descriptor: 
           </select>
         </FieldBox>
         <FieldBox label={mode === 'secret' ? SECRET_LABEL : 'Valor de la cabecera'} htmlFor={`${meta.id}-new-value`}>
-          <input id={`${meta.id}-new-value`} type="text" value={content} className={CONTROL_CLASS} onChange={(event) => setContent(event.target.value)} />
+          <input id={`${meta.id}-new-value`} type="text" spellCheck={false} autoComplete="off" value={content} className={CONTROL_CLASS} onChange={(event) => setContent(event.target.value)} />
         </FieldBox>
         <Button
           variant="secondary"

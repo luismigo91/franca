@@ -21,7 +21,10 @@ export function ListField({ descriptor, pointer, value, ctx }: { descriptor: Fie
           {(descriptor.fields ?? []).map((field) => (
             <InspectorField key={field.key} descriptor={field} pointer={`${pointer}/${index}/${field.key}`} ctx={ctx} />
           ))}
-          <Button variant="secondary" className="self-start" aria-label={`Quitar ${itemLabel} ${index + 1}`} onClick={() => ctx.edit(removeItem(`${pointer}/${index}`))}>
+          <Button variant="secondary" className="self-start" aria-label={`Quitar ${itemLabel} ${index + 1}`} onClick={() => {
+              ctx.edit(removeItem(`${pointer}/${index}`));
+              ctx.focusInspector();
+            }}>
             Quitar {itemLabel}
           </Button>
         </fieldset>

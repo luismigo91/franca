@@ -4,8 +4,7 @@ import { bodyOf, countRequests, dragOutput, fitCanvas, inspector, lastRequest, n
 import { expect, test } from './support/test';
 
 // QA independiente del editor (web-editor, 2026-10-18): equivalencias, deshacer a mano, nombres de cabecera que son punteros
-// RFC 6901, diálogos con `<Activity>`, crear desde JSON pegado en los límites y tres defectos conocidos (`test.fail`: pasan
-// mientras el defecto exista y fallan, para que alguien los convierta en `test`, cuando se corrija).
+// RFC 6901, diálogos con `<Activity>`, crear desde JSON pegado en los límites y defectos que se corrigieron (antes `test.fail`).
 
 type Json = Record<string, unknown>;
 
@@ -233,7 +232,7 @@ test('Diálogos abiertos y el navegador atrás: la ruta oculta no deja ningún d
 // QA-5: el estado de «qué diálogo está abierto» es local de la pantalla y `<Activity>` lo conserva: al volver con «adelante» el
 // efecto de `useModalDialog` se recrea y `showModal()` reabre el diálogo que estaba abierto al salir (visto con `next start`; con
 // `next dev` no ocurre). El diseño (D15) pide que no se recupere nada de la visita anterior.
-test.fail('QA-5 (defecto conocido): al volver con «adelante» no reaparece ningún diálogo abierto al salir', async ({ page, admin }) => {
+test('QA-5: al volver con «adelante» no reaparece ningún diálogo abierto al salir', async ({ page, admin }) => {
   await admin.createDraft('captacion-leads');
   const reappeared: string[] = [];
   for (const [label, open] of dialogOpeners(page)) {
@@ -268,7 +267,7 @@ test('Con cambios sin guardar, tras salir por «Salir» recargar la lista no pre
 
 // QA-2: tras «Guardar encima» el aviso de conflicto (con el botón pulsado) se quita del DOM y el foco cae a la página. La spec
 // («El foco no se pierde en el editor») pide que tras guardar, publicar o un error el foco quede en un elemento con sentido.
-test.fail('QA-2 (defecto conocido): el foco no cae a la página tras «Guardar encima»', async ({ page, admin, context }) => {
+test('QA-2: el foco no cae a la página tras «Guardar encima»', async ({ page, admin, context }) => {
   await admin.createDraft('captacion-leads');
   const other = await context.newPage();
   await openEditor(page, 'captacion-leads');
@@ -284,7 +283,7 @@ test.fail('QA-2 (defecto conocido): el foco no cae a la página tras «Guardar e
 });
 
 // QA-3: «Quitar cabecera» (y los «Quitar» de las listas) quitan del DOM el botón que tenía el foco y este cae a la página.
-test.fail('QA-3 (defecto conocido): el foco no cae a la página al quitar una cabecera', async ({ page, admin }) => {
+test('QA-3: el foco no cae a la página al quitar una cabecera', async ({ page, admin }) => {
   await admin.createDraft('captacion-leads');
   await openEditor(page, 'captacion-leads');
   await node(page, 'enviar-crm').click();
@@ -295,19 +294,17 @@ test.fail('QA-3 (defecto conocido): el foco no cae a la página al quitar una ca
 
 // QA-4: la región de estado conserva «Guardado. Revisión N.» de un guardado anterior mientras se ve el aviso de conflicto de uno
 // posterior: la pantalla dice a la vez que se guardó y que no.
-test.fail('QA-4 (defecto conocido): un guardado que da 412 no deja visible «Guardado. Revisión N.» de otro anterior', async ({ page, admin, context }) => {
+test('QA-4: un guardado que da 412 no deja visible «Guardado. Revisión N.» de otro anterior', async ({ page, admin }) => {
   await admin.createDraft('captacion-leads');
-  const other = await context.newPage();
   await openEditor(page, 'captacion-leads');
-  await openEditor(other, 'captacion-leads');
   await inspector(page).getByLabel('Nombre', { exact: true }).fill('A');
   await save(page);
   await expect(screen(page).getByText('Guardado. Revisión 2.')).toBeVisible();
-  await inspector(other).getByLabel('Nombre', { exact: true }).fill('B');
-  await save(other);
+  // El borrador cambia fuera del editor: el siguiente guardado recibe un 412.
+  await admin.updateDraft({ ...(FLOWS['captacion-leads'] as Json), name: 'B' });
   await inspector(page).getByLabel('Nombre', { exact: true }).fill('A2');
   await save(page);
-  await expect(screen(page).getByText('Otra pestaña', { exact: false }).or(screen(page).getByRole('button', { name: 'Cargar el guardado' }))).toBeVisible();
+  await expect(screen(page).getByRole('button', { name: 'Cargar el guardado' })).toBeVisible();
   await expect(screen(page).getByText('Guardado. Revisión 2.')).toHaveCount(0);
 });
 

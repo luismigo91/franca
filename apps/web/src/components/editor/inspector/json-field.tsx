@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { CONTROL_CLASS, FieldBox, FieldMessages, useFieldMeta } from '@/components/editor/inspector/field-shell';
 import type { FieldContext } from '@/components/editor/inspector/field-context';
 import { writeJson } from '@/lib/editor/fields';
+import { localAfterEdit, validLocal, type Local } from '@/lib/editor/local-text';
 import type { FieldDescriptor } from '@/lib/editor/node-fields';
 
 export const SHAPE_NOTE = 'Este valor no tiene la forma que edita el formulario: corrígelo como JSON.';
@@ -13,8 +14,12 @@ export const SHAPE_NOTE = 'Este valor no tiene la forma que edita el formulario:
  * Un texto que no es JSON se conserva y no se escribe nada; vacío en uno opcional quita la propiedad.
  */
 export function JsonField({ descriptor, pointer, value, ctx, note }: { descriptor: FieldDescriptor; pointer: string; value: unknown; ctx: FieldContext; note?: string }) {
-  const [text, setText] = useState(() => (value === undefined ? '' : (JSON.stringify(value, null, 2) ?? '')));
-  const [error, setError] = useState<string | null>(null);
+  // El texto que se escribe solo vale mientras el valor del flujo sea el que lo originó (`validLocal`): si cambia por otro
+  // camino («Editar como JSON», quitar un elemento de una lista), el campo muestra el valor nuevo y no reescribe el viejo.
+  const [local, setLocal] = useState<Local<{ text: string; error: string | null }> | null>(null);
+  const typed = validLocal(local, value);
+  const text = typed?.text ?? (value === undefined ? '' : (JSON.stringify(value, null, 2) ?? ''));
+  const error = typed?.error ?? null;
   const meta = useFieldMeta(ctx, pointer, error);
   return (
     <FieldBox label={`${descriptor.label} (JSON)`} htmlFor={meta.id}>
@@ -28,9 +33,8 @@ export function JsonField({ descriptor, pointer, value, ctx, note }: { descripto
         aria-invalid={error !== null || undefined}
         className={`${CONTROL_CLASS} font-mono`}
         onChange={(event) => {
-          setText(event.target.value);
           const result = ctx.edit(writeJson(pointer, event.target.value, descriptor.required === true));
-          setError(result.ok ? null : result.error);
+          setLocal(localAfterEdit({ text: event.target.value, error: result.ok ? null : result.error }, result, pointer, value));
         }}
       />
       <FieldMessages problems={meta.problems} problemsId={meta.problemsId} error={error} errorId={meta.errorId} />

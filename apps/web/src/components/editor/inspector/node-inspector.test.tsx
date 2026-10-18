@@ -23,6 +23,7 @@ function context(flow: FlowDoc, index: number): FieldContext {
     problems: problemsOf(validateDraft(flow)),
     edit: () => ({ ok: true, flow }),
     rename: () => ({ ok: true, flow }),
+    focusInspector: () => undefined,
   };
 }
 

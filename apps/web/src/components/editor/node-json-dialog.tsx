@@ -38,7 +38,7 @@ export function NodeJsonDialog({ open, initialText, onClose, onApply }: NodeJson
       ref={dialog}
       onClose={onClose}
       aria-labelledby="node-json-title"
-      className="m-auto w-[min(40rem,calc(100vw-2rem))] rounded-lg border border-foreground/30 bg-background p-5 text-foreground backdrop:bg-black/50"
+      className="m-auto w-[min(40rem,calc(100vw-2rem))] rounded-lg border border-foreground/30 bg-background p-5 text-foreground overscroll-contain backdrop:bg-black/50"
     >
       <h2 id="node-json-title" className="text-lg font-semibold">
         Editar como JSON

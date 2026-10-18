@@ -20,4 +20,6 @@ export interface FieldContext {
   edit: (change: Change) => EditResult;
   /** Renombra un nodo y sigue la selección. */
   rename: (from: string, to: string) => EditResult;
+  /** Lleva el foco al título del inspector: lo piden las acciones que quitan del DOM el botón que lo tenía (los «Quitar»). */
+  focusInspector: () => void;
 }

@@ -9,7 +9,7 @@ import { FLOWS } from '../../../../tests/helpers/engine-events';
 const descriptor = fieldsOfType('message')!.find((field) => field.key === 'content')!;
 
 function render(flow: FlowDoc, nodeIndex: number): string {
-  const ctx: FieldContext = { flow, nodeId: 'm', nodeBase: `/nodes/${nodeIndex}`, positions: new Map(), nodeIds: [], problems: [], edit: () => ({ ok: true, flow }), rename: () => ({ ok: true, flow }) };
+  const ctx: FieldContext = { flow, nodeId: 'm', nodeBase: `/nodes/${nodeIndex}`, positions: new Map(), nodeIds: [], problems: [], edit: () => ({ ok: true, flow }), rename: () => ({ ok: true, flow }), focusInspector: () => undefined };
   const value = ((flow.nodes as Record<string, unknown>[])[nodeIndex] as { content: unknown }).content;
   return renderToStaticMarkup(<ContentField descriptor={descriptor} pointer={`/nodes/${nodeIndex}/content`} value={value} ctx={ctx} />);
 }

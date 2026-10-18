@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, type ReactNode } from 'react';
+import { useLayoutEffect, useState, type ReactNode } from 'react';
 import { ConfirmDialog } from '@/components/editor/confirm-dialog';
 import { WEB_PAGES } from '@/config/endpoints';
 
@@ -16,6 +16,8 @@ export type GuardedPage = 'home' | 'flows';
 export function GuardedLink({ page, dirty, children }: { page: GuardedPage; dirty: boolean; children: ReactNode }) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
+  // `<Activity>` conserva el estado: un diálogo abierto al salir no puede reaparecer al volver.
+  useLayoutEffect(() => () => setConfirming(false), []);
   return (
     <>
       <Link

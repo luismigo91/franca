@@ -27,7 +27,7 @@ export function EditorActions({ snapshot, starting, onSave, onPublish, onTry, on
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <div className="flex flex-wrap items-start gap-2">
-        <Button aria-disabled={busy} onClick={onSave}>
+        <Button id="action-save" aria-disabled={busy} onClick={onSave}>
           {snapshot.busy === 'saving' ? 'Guardando…' : 'Guardar'}
         </Button>
         <Button variant="secondary" aria-disabled={busy} onClick={onPublish}>

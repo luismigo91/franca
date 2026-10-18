@@ -27,6 +27,8 @@ export function IdField({ descriptor, pointer, value, ctx }: { descriptor: Field
       <input
         id={meta.id}
         type="text"
+        spellCheck={false}
+        autoComplete="off"
         value={text}
         aria-describedby={meta.describedBy}
         aria-invalid={problem !== null || undefined}

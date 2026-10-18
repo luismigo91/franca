@@ -14,7 +14,7 @@ export function EditorFlowList({ flows }: { flows: FlowSummary[] }) {
               {flow.name}
             </Link>
             <p className="text-sm opacity-70">
-              <code>{flow.id}</code>
+              <code translate="no">{flow.id}</code>
               {' · '}
               {flow.latestVersion === null ? 'Sin publicar' : `Versión ${flow.latestVersion}`}
             </p>

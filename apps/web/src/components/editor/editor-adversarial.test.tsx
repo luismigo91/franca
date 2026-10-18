@@ -14,8 +14,8 @@ import { validateDraft } from '@/lib/editor/validate-draft';
 
 // QA adversarial del editor (web-editor, 2026-10-18): lo que `malformed-flows.test.ts` (D25) no recorre. Valores raros a
 // nivel de flujo (no de nodo), los nombres de cabecera que son punteros RFC 6901 traicioneros y la geometría con números
-// finitos pero enormes. Los `it.fails` documentan defectos conocidos: pasan mientras el defecto exista y fallan, para que
-// alguien los convierta en `it`, cuando se corrija.
+// finitos pero enormes. Los defectos del QA ya están corregidos y sus tests son normales; antes eran `it.fails`, para que
+// alguien los convirtiera en `it` al corregirlos.
 
 const T = (text: string) => [{ kind: 'text', text }];
 
@@ -31,6 +31,7 @@ function context(flow: FlowDoc, index: number): FieldContext {
     problems: problemsOf(validateDraft(flow)),
     edit: () => ({ ok: true, flow }),
     rename: () => ({ ok: true, flow }),
+    focusInspector: () => undefined,
   };
 }
 
@@ -184,11 +185,11 @@ describe('lienzo con posiciones finitas pero enormes', () => {
   // QA-1: la API acepta `position` con 1e308 (es un número finito) y el SVG recibe `viewBox="… 1e+308 …"` y `d="M 1e+308 …"`, que
   // el navegador rechaza con `console.error` («<svg> attribute viewBox: Expected number»): la consola deja de estar limpia y la
   // conexión no se dibuja. Reproducción: POST /flows con `position: {x: 1e308, y: -1e308}` y abrir /flujos/<id>.
-  it.fails.each([
+  it.each([
     [1e308, -1e308],
     [1e21, 0],
     [0, -1e21],
-  ])('QA-1 (defecto conocido): posición (%s, %s) no debe dar números con exponente al SVG', (x, y) => {
+  ])('QA-1: posición (%s, %s) se dibuja acotada, sin números con exponente en el SVG', (x, y) => {
     expect(edgesSvg(flowAt(x, y))).not.toMatch(EXPONENT);
   });
 });

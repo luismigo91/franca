@@ -74,7 +74,6 @@ const BAD_NODES: [string, unknown][] = [
   ['llm y jump de otro tipo', flow([{ id: 'a', type: 'llm', provider: 5, tools: 'x', next: {} }, { id: 'b', type: 'jump', target: {} }, { id: 'c', type: 'jump', target: 'c' }, END])],
   ['variables, settings, locale y description de otro tipo', flow([END], { start: 'fin', variables: [null, { name: {} }], settings: 5, locale: {}, description: { a: 1 } })],
   ['variables objeto', flow([END], { start: 'fin', variables: {} })],
-  ['1500 niveles de anidamiento en un nodo', flow([msg('a', { x: JSON.parse(deep(1500)) }), END])],
   ['5000 nodos', flow(Array.from({ length: 5000 }, (_, index) => msg(`n${index}`, { next: `n${(index + 1) % 5000}` })), { start: 'n0' })],
 ];
 
@@ -86,6 +85,18 @@ test.describe('flujos con formas que la API real no guardaría', () => {
       await exercise(page);
     });
   }
+
+  test('1500 niveles de anidamiento en un nodo: la API no los guarda y el editor los rechaza al abrir', async ({ page, stack }) => {
+    serve(stack, JSON.stringify(flow([msg('a', { x: JSON.parse(deep(1500)) }), END])));
+    await page.goto('/flujos/malformado');
+    await expect(screen(page).getByRole('heading', { name: 'No se ha podido abrir el flujo' })).toBeVisible();
+  });
+
+  test('ids de nodo repetidos en un flujo servido: se rechaza al abrir, sin avisos de key', async ({ page, stack }) => {
+    serve(stack, JSON.stringify(flow([msg('a'), msg('a'), END])));
+    await page.goto('/flujos/malformado');
+    await expect(screen(page).getByRole('heading', { name: 'No se ha podido abrir el flujo' })).toBeVisible();
+  });
 
   test('type de prototipo: validateFlow lanza con ellos y el editor da el veredicto de tipo desconocido', async ({ page, stack }) => {
     serve(stack, JSON.stringify(flow([{ id: 'a', type: 'constructor' }, { id: 'b', type: '__proto__' }, { id: 'c', type: 'toString' }, END], { start: 'fin' })));
@@ -131,7 +142,7 @@ test.describe('flujos con formas que la API real no guardaría', () => {
   });
 
   // QA-1 (E2E): con una posición finita pero enorme el SVG del lienzo recibe `1e+308` y Chromium escribe `console.error`.
-  test.fail('QA-1 (defecto conocido): una posición de 1e308 no ensucia la consola ni rompe las conexiones', async ({ page, stack }) => {
+  test('QA-1: una posición de 1e308 no ensucia la consola ni rompe las conexiones', async ({ page, stack }) => {
     serve(stack, '{"specVersion":"0.1","id":"malformado","name":"M","start":"a","nodes":[{"id":"a","type":"message","content":[{"kind":"text","text":"x"}],"next":"fin","position":{"x":1e308,"y":-1e308}},{"id":"fin","type":"end","position":{"x":0,"y":0}}]}');
     await openEditor(page, 'malformado');
     const viewBox = await screen(page).locator('#flow-canvas svg').first().getAttribute('viewBox');
@@ -141,11 +152,10 @@ test.describe('flujos con formas que la API real no guardaría', () => {
   // QA-6: `EditorScreen` serializa el nodo seleccionado con `JSON.stringify(selectedNode, null, 2)` en cada render, fuera de
   // `flowText`; con ~5000 niveles lanza `RangeError` y toda la pantalla pasa al límite de error. Solo con un flujo que la API
   // real no admite (más de 1000 niveles), pero `readFlowResource` no lo comprueba.
-  test.fail('QA-6 (defecto conocido): seleccionar un nodo con 5000 niveles de anidamiento no tumba la pantalla', async ({ page, stack }) => {
+  test('QA-6: un flujo servido con 5000 niveles se rechaza al abrir, sin tumbar la pantalla', async ({ page, stack }) => {
     serve(stack, `{"specVersion":"0.1","id":"malformado","name":"M","start":"a","nodes":[{"id":"a","type":"message","content":[{"kind":"text","text":"x"}],"next":"a","x":${deep(5000)}}]}`);
-    await openEditor(page, 'malformado');
-    await node(page, 'a').click();
-    await expect(page.locator('#editor-title')).toBeVisible();
+    await page.goto('/flujos/malformado');
+    await expect(screen(page).getByRole('heading', { name: 'No se ha podido abrir el flujo' })).toBeVisible();
     await expect(page.getByText('Algo ha fallado')).toHaveCount(0);
   });
 });
