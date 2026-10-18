@@ -27,7 +27,7 @@ Requisitos: Node 22+, pnpm y Docker (Postgres para la API).
 ```
 pnpm install
 docker compose up -d   # Postgres local; ver apps/api/README.md para DATABASE_URL
-pnpm dev        # api en :3001 y web en :3000
+pnpm dev        # api en :3001 y web en :3000 (chat de prueba en / y editor de flujos en /flujos)
 pnpm build
 pnpm lint
 pnpm typecheck
@@ -50,7 +50,7 @@ pnpm --filter @franca/api db:migrate
 pnpm dev:demo
 ```
 
-`pnpm dev:demo` arranca un CRM simulado en `127.0.0.1:4010` y lo mismo que `pnpm dev` (la API en `:3001` y la web en `:3000`), siembra la copia local de `captacion-leads` y, cuando escribe «Lista», se abre `http://localhost:3000` y se prueba **Captación de leads (local)**: al responder el nombre, el email y el tamaño de empresa, el flujo envía el lead al CRM simulado y termina en su final feliz. El CRM escribe una línea por petición en la terminal. Necesita los puertos 3000, 3001 y 4010 libres, y Ctrl+C lo para todo.
+`pnpm dev:demo` arranca un CRM simulado en `127.0.0.1:4010` y lo mismo que `pnpm dev` (la API en `:3001` y la web en `:3000`), siembra la copia local de `captacion-leads` y, cuando escribe «Lista», se abre `http://localhost:3000` y se prueba **Captación de leads (local)** (también puedes abrir `http://localhost:3000/flujos`, editarla, publicarla y probarla desde el editor): al responder el nombre, el email y el tamaño de empresa, el flujo envía el lead al CRM simulado y termina en su final feliz. El CRM escribe una línea por petición en la terminal. Necesita los puertos 3000, 3001 y 4010 libres, y Ctrl+C lo para todo.
 
 - **Qué fija la demo.** Solo para esa ejecución, la salida http de la API recibe `FRANCA_HTTP_LOCAL_NAMES`, `FRANCA_HTTP_ALLOWED_DESTINATIONS`, `FRANCA_HTTP_SECRET_ORIGINS` y `FRANCA_SECRET_CRM_TOKEN` (un token aleatorio nuevo que no se escribe en ninguna parte). Si tu shell ya define alguna, la demo no arranca y las nombra: usa `unset` o `pnpm dev`. `pnpm dev` no cambia.
 - **Sin Claude.** La demo arranca la API sin `FRANCA_ANTHROPIC_API_KEY`, aunque la shell la tenga: los flujos con nodos `llm` (por ejemplo `faq-ia`) terminan en `llm_not_configured`.

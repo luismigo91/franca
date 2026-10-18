@@ -4,7 +4,7 @@
 
 ## Qué es
 
-Flujos conversacionales declarativos: mensajes, preguntas, condiciones, llamadas HTTP y pasos con LLM acotados, descritos en JSON y validados contra una spec pública (RFC-0001, borrador v0). El formato es el contrato entre el editor (`apps/web`) y el backend que guarda y ejecuta flujos (`apps/api`).
+Flujos conversacionales declarativos: mensajes, preguntas, condiciones, llamadas HTTP y pasos con LLM acotados, descritos en JSON y validados contra una spec pública (RFC-0001, borrador v0). El formato es el contrato entre el editor (`apps/web`, con su editor visual en `/flujos`) y el backend que guarda y ejecuta flujos (`apps/api`).
 
 Marca de cara al usuario: **Franca**. Repo público con licencia MIT: nada de secretos, PII ni nombres de clientes en el código, los commits o la wiki.
 
@@ -15,7 +15,7 @@ Monorepo pnpm workspaces + Turborepo, Node 22+.
 | Paquete | Ruta | Stack | Puerto |
 |---|---|---|---|
 | `@franca/api` | `apps/api` | NestJS 12 (ESM), Prisma 7 + Postgres, Vitest, oxlint — skill `popi:stack-nestjs` | 3001 |
-| `@franca/web` | `apps/web` | Next.js 16 App Router, React 19, Tailwind 4, ESLint, Vitest y Playwright — skill `popi:stack-nextjs`. Escucha solo en `127.0.0.1:3000` | 3000 |
+| `@franca/web` | `apps/web` | Next.js 16 App Router, React 19, Tailwind 4, ESLint, Vitest y Playwright — skill `popi:stack-nextjs`. Chat de prueba en `/` y editor visual de flujos en `/flujos` (lienzo propio, validación en vivo con `@franca/spec`). Escucha solo en `127.0.0.1:3000` | 3000 |
 | `@franca/spec` | `packages/spec` | JSON Schema 2020-12 + tipos generados + validador (ajv), tsdown, Vitest | — |
 | `@franca/engine` | `packages/engine` | TypeScript puro sin IO (motor de ejecución de flujos), tsdown, Vitest | — |
 | `@franca/llm-anthropic` | `packages/llm-anthropic` | Proveedor de Claude para el nodo `llm` (SDK oficial de Anthropic y zod), tsdown, Vitest | — |
@@ -66,6 +66,7 @@ Lista completa en `.claude/rules/always/gotchas.md`. Los imprescindibles:
 - `apps/api` es ESM: imports relativos con `.js`.
 - El cliente de Prisma se genera en `apps/api/src/generated/prisma` (ignorado por git): turbo lo regenera con `db:generate` antes de compilar, lintar y testear. Si una app sin turbo falla con `Cannot find module '../generated/prisma/client.js'`, ejecuta `pnpm --filter @franca/api db:generate`.
 - Next.js 16 rompe APIs anteriores: lee `apps/web/node_modules/next/dist/docs/` antes de asumir.
+- El editor de flujos (`apps/web/src/lib/editor/`) trabaja sobre el JSON del flujo sin normalizarlo; `@franca/spec` solo entra en el navegador por ahí, `targets` solo por `nodeTargets` y `validateFlow` por `validateDraft`.
 - El formato de flujo vive solo en `@franca/spec`; ni la api ni la web redefinen tipos o reglas de validación.
 
 ## Variables de entorno

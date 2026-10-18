@@ -35,6 +35,9 @@
 - [type=email recorta el valor](../../wiki/gotcha-input-email-recorta-el-valor.md) — por qué las preguntas de texto del chat usan type=text con inputMode
 - [Cache Components: Activity y prerender](../../wiki/gotcha-cache-components-activity-y-prerender.md) — un GET sin connection() se prerenderiza y Activity conserva rutas y DOM
 - [next dev fuera de la frontera](../../wiki/gotcha-next-dev-fuera-de-la-frontera.md) — recursos de desarrollo antes de proxy.ts, inspector y DNS rebinding; por qué el preload y no un guardián, y --inspect desaconsejado
+- [JSON.stringify no aguanta lo que JSON.parse sí](../../wiki/gotcha-json-stringify-recursivo.md) — RangeError con el anidamiento que cabe en 1 MiB; por qué la web reenvía el texto y el editor usa flowText
+- [targets() solo vale con la forma validada](../../wiki/gotcha-targets-asume-forma-valida.md) — TypeError con una condición sin rules o choices mal formado; por qué el editor pasa todo por nodeTargets
+- [validateFlow lanza con type constructor](../../wiki/gotcha-validateflow-type-de-prototipo.md) — NODE_DEFS es un objeto plano; también afecta a la API; por qué el editor usa validateDraft
 - [Turbo y las señales: al grupo, no al pid](../../wiki/gotcha-turbo-senal-al-grupo.md) — turbo ignora un SIGINT a su pid y corre cada tarea en su grupo; un SIGKILL deja huérfanos, pnpm reenvía SIGINT (dos por Ctrl+C) y SIGHUP no llega a un grupo propio
 - [El SDK de Anthropic lee el entorno](../../wiki/gotcha-sdk-anthropic-lee-el-entorno.md) — ANTHROPIC_CUSTOM_HEADERS pisa x-api-key y apiKey/defaultHeaders no lo impiden; por qué la API pasa por una puerta de salida que reconstruye URL y cabeceras
 
@@ -44,7 +47,8 @@
 - [Coste y reintentos del llm en el adaptador](../../wiki/decision-llm-coste-y-reintentos-en-el-adaptador.md) — por qué el proveedor calcula el coste, el motor solo aplica el tope de parada y los reintentos son del SDK; lo facturado puede superar lo contabilizado
 - [matches con regex lineal propia](../../wiki/decision-matches-regex-lineal.md) — por qué no RegExp nativo, timeout ni RE2 en packages/engine
 - [Política de la salida http](../../wiki/decision-salida-http-politica.md) — secretos en variables con origen exacto, resolución mezclada bloqueada entera, http:// solo hacia pares permitidos, nada registrado de una llamada y nombres .test locales solo a loopback y bajo la política; límites (NAT64 de operador, fecha de IANA)
-- [Frontera local de la web](../../wiki/decision-frontera-local-de-la-web.md) — proxy en el servidor y no lista de orígenes; Host en bruto más Origin, sin Server Actions ni marcos, ocho operaciones y fetch en modo cors
+- [Frontera local de la web](../../wiki/decision-frontera-local-de-la-web.md) — proxy en el servidor y no lista de orígenes; Host en bruto más Origin, sin Server Actions ni marcos, catorce operaciones y fetch en modo cors
+- [Lienzo propio, validación síncrona y CSP sin script-src](../../wiki/decision-editor-lienzo-y-validacion.md) — sin librería de grafos, ajv con Function exige una CSP sin script-src, y atrás del navegador con cambios sin guardar no pregunta (límite aceptado)
 - [Filtro de URLs sobre lo parseado](../../wiki/decision-filtro-de-urls-sobre-lo-parseado.md) — href y no el texto, sin next/image (SSRF) ni Referer, iframe sin allow-same-origin
 - [Reclamar, motor sin transacción, aplicar](../../wiki/decision-reclamacion-fuera-de-transaccion.md) — testigo, epoch del contacto, orden de bloqueos contacto -> conversación y los límites aceptados (COMMIT incierto sin If-Match, entrada reclamada antes de caducar)
 
