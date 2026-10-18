@@ -1,8 +1,10 @@
 # Tasks: editor visual de flujos (`web-editor`)
 
+**Revisión 3** (segunda ronda de la revisión): `nodeTargets` filtra los saltos que no son texto y las salidas se identifican por `pointer`; `asText` para todo lo que se pinta; delta `eff3d08`.
+
 **Revisión 2** (tras el FAIL de `popi:architecture-reviewer`): adaptador `node-targets.ts` (B1), 18 ficheros modificados con `operations.test.ts` y `admin.ts` (B2), y los no bloqueantes que resolvió el orquestador (ver `design.md`, cabecera).
 
-Las fases son secuenciales: cada una empieza cuando la anterior pasa su gate. El comportamiento está en `specs/web-editor/spec.md` (44 requisitos y 78 escenarios, con los deltas `4ced695` y `0520b08` pendientes de aprobación) y en el delta de `specs/web-chat/spec.md`. El cómo está en `design.md` (D1-D24, «Contrato» y «Ficheros»).
+Las fases son secuenciales: cada una empieza cuando la anterior pasa su gate. El comportamiento está en `specs/web-editor/spec.md` (44 requisitos y 78 escenarios, con los deltas `4ced695`, `0520b08` y `eff3d08` pendientes de aprobación) y en el delta de `specs/web-chat/spec.md`. El cómo está en `design.md` (D1-D24, «Contrato» y «Ficheros»).
 
 Reglas para todas las fases:
 - **Solo se tocan los ficheros de la tabla «Ficheros» de `design.md`.** En ningún gate imprimen nada `git diff --name-only main...HEAD -- apps/api packages turbo.json pnpm-lock.yaml .github apps/web/package.json`. Los ficheros existentes de `apps/web` que se modifican son solo los 18 de la tabla «Modificados». Uno que falte se añade antes al diseño, con su porqué.
@@ -41,9 +43,11 @@ Reglas para todas las fases:
   - `choices` `"x"` y `[null]`;
   - una opción sin `id` de texto;
   - un `type` desconocido;
-  - los nodos válidos de los ejemplos, con el mismo resultado que `targets`.
+  - los nodos válidos de los ejemplos, con el mismo resultado que `targets`;
+  - en los dos caminos, solo saltos con `id` de texto (la regla de la plantilla, sin `next`, y `{next: 5}` no dan nada), y la clave de una opción con su índice si su `id` no es texto (revisión 3).
 
   Ninguno lanza. `outputs`, `canvas-model`, `layout` y `rename` solo llegan a `targets` a través de él. La guarda estática de 2.9 lo comprueba: ningún fichero de `src/` salvo `node-targets.ts` importa `targets` de `@franca/spec`.
+- [ ] 1.3c `src/lib/editor/as-text.ts` + test (revisión 3, D10): un texto tal cual; `{}`, `[]`, `5`, `null` y `true` con `JSON.stringify`; `undefined` da `""`.
 - [ ] 1.4 `src/lib/editor/node-types.ts` (`NODE_TYPE_LABELS` con los ocho tipos en español) y `src/lib/editor/node-fields.ts` (descriptores de D8), con `node-fields.test.ts`:
   - Paridad recursiva de claves y clases con `schema` de `@franca/spec` para los ocho tipos, `nodeBase`, la raíz y `variable`.
   - Las opciones de cada `enum` salen del esquema en ejecución.
@@ -52,7 +56,7 @@ Reglas para todas las fases:
   - Texto, sin recortar.
   - Número: `abc`, `1.50`, `-3`, `08` y el vacío.
   - `enum` con «(por defecto)».
-  - Casilla que vuelve al `default`: quita la propiedad o, si el último guardado la tenía escrita en esa ruta (`"pii": false`), la vuelve a escribir. Marcar y desmarcar deja el texto como estaba.
+  - Casilla que vuelve al `default`: quita la propiedad o, si el último guardado la tenía escrita **con el valor por defecto** en esa ruta (`"pii": false`), la vuelve a escribir con ese valor en su sitio. Marcar y desmarcar deja el texto como estaba. Con un guardado con `"pii": true`, desmarcar quita la propiedad.
   - Salto con «(ninguno)».
   - Valor en sus cinco modos y «(ninguno)».
   - JSON inválido conservado sin escribir.
@@ -84,6 +88,11 @@ Reglas para todas las fases:
   - Las ocho plantillas de «Añadir nodo» y los nodos mal formados de 1.3b por `canvasModel`, sin lanzar.
   - `it('Salidas de los nodos de los ejemplos')`, con el `jump` añadido.
   - `it('Conexiones de captacion-leads')`: 12 conexiones, las tres de `pedir-tamano` y `onError` de `enviar-crm`.
+  - Revisión 3:
+    - la plantilla de regla añadida a una condición no da conexión para esa regla;
+    - `rules: [{next: 5}]` no da ninguna;
+    - dos opciones con el mismo `id` dan salidas y conexiones con `pointer` distintos;
+    - una opción con `id` `{}` se etiqueta `choices[0].next`.
 - [ ] 1.10 `src/lib/editor/layout.ts` y `positions.ts` + tests (D11):
   - Determinista y sin solapes, también con posiciones existentes en medio.
   - `bienvenida` en `{0, 0}`.
@@ -163,7 +172,7 @@ Reglas para todas las fases:
 - [ ] 2.9 `tests/static-guard.test.ts` (D21):
   - `operations.ts` exporta exactamente las catorce funciones por nombre (el título del test pasa a «…exactamente catorce funciones»).
   - Ficheros de ruta: de 7 a 10 (`expect(routes.length).toBe(10)`), y manejadores: de ≥ 13 a ≥ 19 (los seis nuevos).
-  - Solo `src/lib/editor/node-targets.ts` importa `targets` de `@franca/spec` (B1).
+  - Solo `src/lib/editor/node-targets.ts` llega a `targets` de `@franca/spec` (B1). Fuera de `src/server/**` se rechazan también `import * as … from '@franca/spec'`, `import('@franca/spec')` y cualquier importación con nombre que incluya `targets` (también `targets as x`). Cada caso, con su control.
   - `@franca/spec` en el navegador, solo desde `src/lib/editor/**`.
   - En `src/components/editor/**`, ni `<img`, `<video`, `<audio`, `<iframe`, `<embed`, `<object`, `<source`, `<picture` ni `<a `, y los `href=` solo de `WEB_PAGES`.
 
@@ -182,7 +191,7 @@ Reglas para todas las fases:
   - `readFlowBody` reenvía exactamente lo que `inspectFlowBody` de la API validará.
 
   Lo que falte se añade como test.
-- [ ] 3.2 Los 37 mutantes de D23 en `tests/mutations.json`, con `find` único en su fichero y `tests` con los que lo matan. `pnpm --filter @franca/web mutate`: ninguno sobrevive. La salida se pega en el gate.
+- [ ] 3.2 Los 39 mutantes de D23 en `tests/mutations.json`, con `find` único en su fichero y `tests` con los que lo matan. `pnpm --filter @franca/web mutate`: ninguno sobrevive. La salida se pega en el gate.
 - [ ] 3.3 Cada test negativo nuevo que no es mutante («no llama a la API», «sin `issues`», «no contiene», paridades) se valida una vez a mano, provocando el caso prohibido y viendo que falla. La lista va en el gate.
 - [ ] 3.4 **Gate 3**: `pnpm check` en verde, la mutación sin supervivientes y commit `test(web): mutantes y negativos del editor`.
 
@@ -201,18 +210,22 @@ Reglas para todas las fases:
 - [ ] 4.4 `editor-screen.tsx`, `editor-header.tsx`, `editor-actions.tsx` (Guardar, Publicar, Probar con `useStartConversation` y su nota, Descartar cambios, Ver JSON, Añadir nodo y Borrar flujo), `add-node-menu.tsx`, `flow-json-dialog.tsx` y `node-json-dialog.tsx`. Incluye la región `role="status"` y el foco de la tabla de D17.
 - [ ] 4.5 Lienzo (D9-D12):
   - `flow-canvas.tsx`: zona con desplazamiento, mundo escalado y límites congelados durante el arrastre.
-  - `canvas-node.tsx`: botón, nombre accesible, marcas con texto, flechas, `data-drop` con texto, y `width`/`height` fijos de `nodeSize` con `overflow-hidden` y textos recortados (D10).
+  - `canvas-node.tsx`: botón, nombre accesible, marcas con texto, flechas, `data-drop` con texto, y `width`/`height` fijos de `nodeSize` con `overflow-hidden` y textos recortados (D10). Todo valor del flujo se pinta con `asText`.
+  - Las `key` de React de salidas y conexiones son `<índice del nodo>:<pointer>`, y cada salida lleva `data-pointer` (revisión 3).
   - `canvas-edges.tsx`: `data-edge-*` y conexiones rotas con texto.
   - `zoom-controls.tsx`: solo botones, sin Ctrl/⌘ + rueda.
   - `use-canvas-drag.ts`: mover y conectar con Pointer Events, `elementFromPoint` y `resolveDrop`. La línea provisional y su `<svg>` llevan `pointer-events: none`, y Escape se escucha en `window` mientras dura el arrastre (D12).
   - El selector de salto del inspector usa `connectOutput` (fija posiciones, delta `0520b08`).
-  - `canvas-node.test.tsx` (marcado; el estilo con el tamaño de `nodeSize` también con un `title` de 120 caracteres).
+  - `canvas-node.test.tsx` (marcado):
+    - el estilo con el tamaño de `nodeSize`, también con un `title` de 120 caracteres;
+    - `title` `{}`, `[]`, `5` y `null`, y `type` `{}`, sin lanzar y con su texto JSON (mutante `renderRawTitle`).
 - [ ] 4.6 Inspector y panel por descriptores (D5, D8):
   - `node-inspector.tsx`, `inspector-field.tsx` y un componente por clase de campo.
   - `flow-panel.tsx`.
   - `problems-list.tsx`, con la nota de forma y los avisos.
   - Los problemas de cada campo enlazados con `aria-describedby`.
-  - `content-field.test.tsx` (URLs como texto) y `problems-list.test.tsx` (marcado).
+  - Una lista con elementos que no son objetos (`rules: [null]`, `choices: [null]`) pasa entera a JSON libre con su nota (D8).
+  - `content-field.test.tsx` (URLs como texto) y `problems-list.test.tsx` (marcado; `nodeId` y partes del flujo con `asText`).
 - [ ] 4.7 Composición y 320 px (D18): dos columnas en `lg`, lienzo con altura propia, `min-w-0` y `overflow-wrap: anywhere`.
 - [ ] 4.8 **Verificación en el navegador** (`/popi:verify frontend`) con `pnpm dev` y la API real. Se recorre: importar `captacion-leads`, mover, conectar arrastrando cada clase de salida, renombrar, guardar, publicar y probar, más el 412 con dos pestañas y salir con cambios. Consola limpia, y en la pestaña de red solo `/api/*` del propio origen. Hallazgos anotados en el gate.
 - [ ] 4.9 **Gate 4**: `pnpm check` en verde, la verificación 4.8 hecha y commit `feat(web): editor visual de flujos`.

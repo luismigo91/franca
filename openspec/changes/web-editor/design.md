@@ -6,6 +6,12 @@ Antes de este diseño se corrigió la spec en `4ced695` (`spec:`), con dos cambi
 - En el inspector, `position` es de solo lectura, como `type` (D8).
 - Vaciar el último campo de un objeto o una lista opcionales quita también el contenedor (D5).
 
+**Revisión 3**, tras la segunda ronda de `popi:architecture-reviewer` (tres bloqueantes):
+- `nodeTargets` solo da saltos con `id` de texto, la clave de una opción usa su índice si su `id` no es texto, y la identidad de salidas y conexiones es el `pointer` (D10).
+- `asText` para todo valor del flujo que se pinta, y las listas con elementos que no son objetos pasan enteras a JSON libre (D8, D10).
+- Delta `eff3d08` (`spec:`): «Posiciones de los nodos» y «Sin cambios que guardar» quedan coherentes con `0520b08`.
+- No bloqueantes: la casilla reescribe el valor por defecto solo si estaba escrito (D5), y la guarda estática cierra `import *` e `import()` de `@franca/spec` (D21).
+
 **Revisión 2**, tras el FAIL de `popi:architecture-reviewer`:
 - **B1.** `targets()` de `@franca/spec` lanza `TypeError` con nodos de forma inválida (medido: `{"id":"a","type":"condition"}`, `rules: 5`, `rules: [null]`, `choices: "x"` y `choices: [null]`). Es alcanzable con «Añadir nodo» (una condición sin `rules`) y con «Editar como JSON». Ahora todo el editor pasa por un adaptador, `node-targets.ts` (D10).
 - **B2.** El criterio de ficheros modificados no contaba `src/server/api/operations.test.ts` ni `e2e/support/admin.ts`. Pasan a ser 18, y se detallan los cambios de la guarda estática (D21, «Ficheros»).
@@ -225,7 +231,7 @@ Descartado:
 | Texto (también plantillas) | El texto tal cual, en cada pulsación, sin recortar. Vacío en uno **opcional**: quita la propiedad. Vacío en uno obligatorio (`name`, `url`, `goal`): `""`, que el validador señala |
 | Numérico | Si el texto cumple `^-?[0-9]+(\.[0-9]+)?$`, `Number(texto)`. Si no, el texto (`abc`) para que lo señale el validador. Vacío en uno opcional: quita la propiedad. El campo conserva lo escrito mientras tiene el foco (`1.50` no salta a `1.5`). Mutante `parseLooseNumber` |
 | Lista cerrada (`enum`) | El valor elegido. Si es opcional, tiene la opción «(por defecto: X)» o «(ninguno)», que quita la propiedad. Las opciones salen de `schema.$defs…enum`, no se copian |
-| Sí/no con `default` | Casilla. Al volver al `default` del esquema (`pii` desmarcado, `required` marcado), quita la propiedad, **salvo** que el último guardado tuviera esa propiedad escrita en la misma ruta: entonces la vuelve a escribir con ese valor (`"pii": false` marcado y desmarcado deja el texto como estaba). Nunca escribe un `default` que no estuviera. Mutantes `writeDefaults` y `forgetSavedDefault`. Si la ruta cambió (se borró un elemento anterior de la lista), el caso degrada a quitar la propiedad, que significa lo mismo |
+| Sí/no con `default` | Casilla. Al volver al `default` del esquema (`pii` desmarcado, `required` marcado), quita la propiedad, **salvo** que el último guardado tuviera esa propiedad escrita **con el valor por defecto** en la misma ruta: entonces la vuelve a escribir con el valor por defecto, en su sitio (`"pii": false` marcado y desmarcado deja el texto como estaba). Con un guardado con `"pii": true`, desmarcar quita la propiedad: el valor por defecto no estaba escrito. Nunca escribe un `default` que no estuviera. Mutantes `writeDefaults` y `forgetSavedDefault`; el test de este último cubre los dos casos. Si la ruta cambió (se borró un elemento anterior de la lista), el caso degrada a quitar la propiedad, que significa lo mismo |
 | Salto | Selector con «(ninguno)», que quita la propiedad, y los nodos en el orden de `nodes`. Un salto roto aparece como «`<id>` (no existe)» elegido |
 | Valor (`value` de `set`, de opción y de regla, y `default`) | Modo (texto, número, sí/no, nulo, JSON, y «(ninguno)» si es opcional, según los tipos que admite el esquema) y su valor. JSON: si no se puede parsear, el campo lo dice, conserva el texto y no escribe nada |
 | JSON libre (`request.body`, predicado con `all`/`any`) | Igual que el modo JSON. Vacío en `body`: quita la propiedad |
@@ -287,7 +293,7 @@ Descartado:
 
 - **Paridad** (`node-fields.test.ts`): por cada definición de nodo del esquema (`$defs.node.oneOf`), el conjunto de claves de su descriptor es igual a `nodeBase.properties` ∪ `<tipo>Node.properties` sin `type`, y lo mismo en cada objeto y elemento de lista anidados, en la raíz del flujo y en `variable`. La clase de cada campo es compatible con el esquema (`integer` con `"type": "integer"`, `enum` con su lista…). Si el esquema añade una propiedad, el test falla hasta que el editor la cubra.
 - **`position` de solo lectura** (delta `4ced695`): se muestra «x, y» o «automática» y se cambia moviendo el nodo o con «Editar como JSON». Como campo editable chocaba con «Mover un nodo» (enteros, y fijar todas las posiciones a la vez) y con la regla de los campos numéricos.
-- **Valores que el formulario no sabe editar** (p. ej. `content` que no es una lista tras «Editar como JSON», o un tipo desconocido): el campo pasa a JSON libre con una nota. Un tipo de nodo desconocido muestra solo `id`, `type` y «Usa «Editar como JSON» para este nodo».
+- **Valores que el formulario no sabe editar** (p. ej. `content` que no es una lista tras «Editar como JSON», o un tipo desconocido): el campo pasa a JSON libre con una nota. Lo mismo con una lista cuyos elementos no son todos objetos (`rules: [null]`, `choices: [null]`, `assignments: [5]`): la lista **entera** pasa a JSON libre con la nota «Esta lista tiene elementos que el formulario no edita: corrígela como JSON.», en vez de pintar filas sobre valores que no son objetos. Un tipo de nodo desconocido muestra solo `id`, `type` y «Usa «Editar como JSON» para este nodo».
 - `choices` y `multiple` se muestran con `inputType` `choice` o si ya existen. El resto de campos se muestran siempre.
 - **Renombrar** (`id`): el campo tiene su propio texto y aplica el cambio al perder el foco o con Intro, si es válido (`rename.ts`, que recorre los saltos con `nodeTargets`, D10). Mientras se escribe, dice si el id no cumple el patrón o ya lo tiene otro nodo, y no cambia nada hasta que es válido.
 
@@ -327,13 +333,21 @@ Descartado también:
 - en `condition`, `rules` es una lista y cada elemento es un objeto;
 - en `input`, `choices` falta o es una lista de objetos.
 
-Si se cumple, devuelve `targets(node)` tal cual. Si no, devuelve los saltos que se pueden leer sin lanzar, con las mismas `key` y `pointer`:
-- los campos de texto `next`, `else`, `onError`, `onExhausted` y `target`;
-- los `rules[i].next` y `choices[i].next` de los elementos que son objetos con `next` de texto (la clave de una opción usa su `id` si es texto, y si no, su índice).
+Si se cumple, llama a `targets(node)`; si no, recorre lo que se puede leer sin lanzar (los campos `next`, `else`, `onError`, `onExhausted` y `target`, y los `rules[i].next` y `choices[i].next` de los elementos que son objetos). **En los dos caminos** el resultado se filtra igual (revisión 3, medido en `dist`):
+- **Solo saltos con `id` de tipo texto.** `targets` empuja `rules[i].next` sin mirarlo: la plantilla de regla nueva (`{when: {variable: "", op: "eq"}}`, sin `next`) daría una conexión rota hacia `undefined`, y `rules: [{next: 5}]` una hacia `5`. Un salto que no es texto no es una conexión: el validador ya lo señala en su campo.
+- **La clave de una opción** es `choices[<id>].next` si su `id` es texto, y `choices[<índice>].next` si no lo es. `targets` daría `choices[[object Object]].next`.
+- La `key` es solo la etiqueta visible. Como dos opciones pueden repetir `id`, la identidad de una salida o de una conexión es su **`pointer`**, que es único dentro del nodo. Las `key` de React de las salidas y las conexiones son `<índice del nodo>:<pointer>`, nunca la `key` del salto ni el `id` del nodo.
 
 `nodeOutputs` también es defensivo: una condición sin `rules` válidas tiene solo `else`, y un `input` con `choices` que no es una lista no tiene salidas de opción. Lo prueban, en `node-targets.test.ts`, `canvas-model.test.ts` y `layout.test.ts`:
 - las ocho plantillas de «Añadir nodo» pasadas por `canvasModel` y `autoLayout`;
-- nodos mal formados (`rules` ausente, `5` o `[null]`; `choices` `"x"` o `[null]`; `type` desconocido) sin lanzar, en `canvasModel`, `autoLayout`, `renameNode` y `nodeOutputs`.
+- nodos mal formados (`rules` ausente, `5` o `[null]`; `choices` `"x"` o `[null]`; `type` desconocido) sin lanzar, en `canvasModel`, `autoLayout`, `renameNode` y `nodeOutputs`;
+- en `canvas-model.test.ts`:
+  - una condición con la plantilla de regla añadida no tiene conexión para esa regla (solo su salida vacía);
+  - `rules: [{next: 5}]` no da ninguna conexión;
+  - dos opciones con el mismo `id` dan dos salidas y dos conexiones con `pointer` distintos;
+  - una opción con `id` `{}` da la etiqueta `choices[0].next`.
+
+  Mutante `keepNonTextTargetIds` (quita el filtro de `id` de texto).
 
 Mutante `callTargetsDirect` (llama a `targets` sin la comprobación). La guarda estática exige que solo `node-targets.ts` importe `targets`. El hallazgo va a la wiki (`gotcha-targets-asume-forma-valida`, fase 6). Un E2E añade una condición y comprueba que el lienzo la pinta con su salida `else` y la lista dice que le faltan `rules` (D22). `validateFlow` sigue llamando a `targets` por su cuenta, solo con la forma ya validada.
 
@@ -342,10 +356,28 @@ Mutante `callTargetsDirect` (llama a `targets` sin la comprobación). La guarda 
 **Geometría** (`src/lib/editor/canvas-geometry.ts`, constantes enteras): ancho 208, cabecera 64 (id, tipo en español y `title`, con puntos suspensivos), 24 por salida y separaciones de 96 en horizontal y 40 en vertical. `nodeSize(node)` lo usan el diseño automático y el CSS. El nodo tiene `width` y `height` **fijos** desde `nodeSize`, con `overflow: hidden`, y cada texto (id, tipo, `title` y nombre de salida) va en una línea recortada con puntos suspensivos (`truncate`). El texto completo está en el nombre accesible y en el inspector. Así el pintado nunca pasa de la caja que el diseño automático cree que ocupa. Lo prueban `canvas-node.test.tsx` (el estilo lleva el alto y el ancho de `nodeSize` y `overflow-hidden`, también con un `title` de 120 caracteres) y el E2E «Abrir sin posiciones no cambia el flujo» (la `boundingBox` de cada nodo no pasa de `nodeSize × zoom`, y ninguna se solapa con otra).
 
 **Pintado**:
-- La salida es una fila con su nombre en el nodo y un punto en el borde derecho (`<span data-output="<key>" aria-hidden="true">`, sin `tabIndex`).
+- La salida es una fila con su nombre en el nodo y un punto en el borde derecho (`<span data-output="<key>" data-pointer="<pointer>" aria-hidden="true">`, sin `tabIndex`). Los E2E la buscan por `data-output`, que es único en los flujos de los escenarios.
 - La conexión es una curva desde ese punto hasta el borde izquierdo del destino, y un lazo si apunta al propio nodo (`next` de un `llm`).
 - Una conexión rota es discontinua y acaba en una marca con el texto «`<id>` no existe».
-- Atributos para los tests: `data-edge-from`, `data-edge-key`, `data-edge-to` y `data-broken`.
+- Atributos para los tests: `data-edge-from`, `data-edge-key`, `data-edge-pointer`, `data-edge-to` y `data-broken`.
+
+**Texto de los valores del flujo** (revisión 3, medido: un `title` `{"es":"Saludo"}` o un `type` objeto escritos con «Editar como JSON» dan «Objects are not valid as a React child» y `error.tsx`). Una sola función, `asText(value)` (`src/lib/editor/as-text.ts`, pura), convierte para pintar:
+- un texto, tal cual;
+- cualquier otro valor (`{}`, `[]`, `5`, `null`, `true`), con `JSON.stringify(value)`. Es seguro porque el borrador nunca pasa de 1000 niveles (D5). `undefined` da `""`.
+
+La usan todos los sitios donde un valor del flujo llega a la interfaz como texto:
+- en el nodo: `id`, tipo (la etiqueta de `NODE_TYPE_LABELS` si `type` es uno de los ocho; si no, `asText(type)`), `title` y su nombre accesible;
+- los nombres de las salidas;
+- la marca de conexión rota;
+- la lista de problemas (`nodeId` y la parte del flujo);
+- las opciones del selector de salto y de `start`.
+
+Los campos del inspector no la necesitan: un valor con un tipo que su clase no edita pasa a JSON libre (D8). Lo prueban:
+- `as-text.test.ts`;
+- `canvas-node.test.tsx`, con `title` `{}`, `[]`, `5` y `null`, y `type` `{}`, sin lanzar y con el texto JSON visible;
+- `problems-list.test.tsx`.
+
+Mutante `renderRawTitle` (el nodo pinta `node.title` sin `asText`), que muere con `canvas-node.test.tsx`.
 
 **Nodo**: `<div role="button" tabIndex={0} data-node-id aria-pressed={seleccionado}>`. Lleva visibles el id, el tipo (`NODE_TYPE_LABELS`: Mensaje, Pregunta, Condición, Asignación, Llamada HTTP, Paso con LLM, Salto y Fin), el `title`, la marca «Inicio» y, si los hay, «N problemas» o «N avisos» con texto. Su nombre accesible es «`<id>`, `<tipo>`[, inicio], N problemas | sin problemas». Los textos son nodos de texto de React (sin `dangerouslySetInnerHTML`, ya prohibido por ESLint).
 
@@ -559,7 +591,7 @@ Es la fase 1.1: con ella, `pnpm check` vuelve a verde en la rama (hoy está en r
   - `copy` (cada código con escenario tiene su texto, y ninguno contiene `@franca/`).
 - **Golden pequeño** (en `node-templates.test.ts` y `fields.test.ts`): el texto exacto de «Crear un flujo vacío», «Añadir un mensaje», «Editar un campo no reordena el nodo» y «Mover un nodo guarda su posición» (sobre la posición pintada por `autoLayout`). Son literales en el test, no ficheros regrabables.
 - **Marcado** (`renderToStaticMarkup`):
-  - `canvas-node.test.tsx`: nombre accesible, marca «Inicio» y de problemas con texto, `<b>` como texto, ninguna salida enfocable, y el alto y el ancho fijos de `nodeSize` con `overflow-hidden` (D10);
+  - `canvas-node.test.tsx`: nombre accesible, marca «Inicio» y de problemas con texto, `<b>` como texto, ninguna salida enfocable, el alto y el ancho fijos de `nodeSize` con `overflow-hidden`, y `title` y `type` que no son texto pintados con `asText` (D10);
   - `content-field.test.tsx`: una URL solo en un `value`, sin `img`, `video`, `audio`, `iframe` ni `a`;
   - `problems-list.test.tsx`.
 - **Integración** (`src/server/bff/editor-handlers.test.ts`, contra la API simulada de `tests/helpers/fake-api.ts`):
@@ -582,7 +614,7 @@ Es la fase 1.1: con ella, `pnpm check` vuelve a verde en la rama (hoy está en r
   - el recuento de ficheros de ruta pasa de 7 a **10** (`expect(routes.length).toBe(10)`) y el mínimo de manejadores de 13 a **19** (los seis nuevos: `GET` y `POST` de la lista, `GET`, `PUT` y `DELETE` de un flujo, y `POST` de versiones). Los dos son cambios deliberados de este diseño;
   - `@franca/spec` sin `import type` (y `@franca/spec/flow.schema.json`) solo desde `src/lib/editor/**` y `src/server/**` en el código del navegador;
   - las prohibiciones de D19 en `src/components/editor/**`;
-  - solo `src/lib/editor/node-targets.ts` importa `targets` de `@franca/spec` (B1).
+  - solo `src/lib/editor/node-targets.ts` llega a `targets` de `@franca/spec` (B1). Fuera de `src/server/**`, la guarda rechaza también `import * as … from '@franca/spec'`, `import('@franca/spec')` dinámico y cualquier importación con nombre que incluya `targets` (también `targets as x`). Cada una, con su control (un caso prohibido que la guarda detecta).
 
   Las demás reglas (`connection()`, sin `'use server'`, sin `mode:`, formularios) ya cubren las rutas y componentes nuevos.
 - **Paridad** (`tests/editor-parity.test.ts`):
@@ -656,6 +688,8 @@ Los mutantes nuevos se añaden a `tests/mutations.json`. Todos mueren con Vitest
 | `parseLooseNumber` (`Number(texto)` sin la expresión) | `src/lib/editor/fields.ts` | `fields.test.ts` |
 | `forgetSavedDefault` (desmarcar quita la propiedad aunque estuviera escrita en el último guardado) | `src/lib/editor/fields.ts` | `fields.test.ts` |
 | `callTargetsDirect` (llama a `targets` sin comprobar la forma mínima) | `src/lib/editor/node-targets.ts` | `node-targets.test.ts`, `canvas-model.test.ts` y `layout.test.ts` |
+| `keepNonTextTargetIds` (quita el filtro de `id` de texto) | `src/lib/editor/node-targets.ts` | `canvas-model.test.ts` |
+| `renderRawTitle` | `src/components/editor/canvas/canvas-node.tsx` | `canvas-node.test.tsx` |
 | `skipDepthCheckOnApply` | `src/lib/editor/node-ops.ts` | `node-ops.test.ts` |
 | `inspectorTargetWithoutFix` (el selector del inspector no fija posiciones) | `src/lib/editor/node-ops.ts` | `node-ops.test.ts` |
 | `persistAutoLayout` (abrir fija las posiciones) | `src/lib/editor/editor-session.ts` | `editor-session.test.ts` |
@@ -676,7 +710,7 @@ Los mutantes nuevos se añaden a `tests/mutations.json`. Todos mueren con Vitest
 | `skipEditorFrontierRecheck`, `optionalIfMatchOnEditor` | `src/server/bff/handlers.ts` | `editor-handlers.test.ts` |
 | `acceptNonObjectFlowBody`, `stringifyWithoutDepthGuard` | `src/server/bff/request.ts` | `editor-handlers.test.ts` |
 
-Son 37 nuevos, más los 29 del chat. **`storeDraftInBrowser` de la propuesta no es mutante**: en Node, `sessionStorage` no existe y el mutante moriría por un `ReferenceError`, no por un test que lo vigile. Lo cubren ESLint (`no-restricted-globals`, validado a mano una vez) y el E2E «Marcas fuera de los registros del editor». Los demás tests negativos («no recibe ningún `PUT`», «no contiene», paridad) se validan **una vez a mano**, provocando el caso prohibido y viendo que fallan (`testing-pyramid.md`), como en el chat.
+Son 39 nuevos, más los 29 del chat. **`storeDraftInBrowser` de la propuesta no es mutante**: en Node, `sessionStorage` no existe y el mutante moriría por un `ReferenceError`, no por un test que lo vigile. Lo cubren ESLint (`no-restricted-globals`, validado a mano una vez) y el E2E «Marcas fuera de los registros del editor». Los demás tests negativos («no recibe ningún `PUT`», «no contiene», paridad) se validan **una vez a mano**, provocando el caso prohibido y viendo que fallan (`testing-pyramid.md`), como en el chat.
 
 ### D24. Cobertura de escenarios
 
@@ -760,7 +794,7 @@ Errores: `{"error":"revision_mismatch","currentRevision":2}` · `{"error":"flow_
 |---|---|
 | `src/app/flujos/page.tsx`, `src/app/flujos/[flowId]/page.tsx` | Páginas (D1) |
 | `src/app/api/editor/flows/route.ts`, `…/[flowId]/route.ts`, `…/[flowId]/versions/route.ts` | Rutas de la web (D1, D2) |
-| `src/lib/editor/json-edit.ts`, `flow-text.ts`, `node-targets.ts`, `fields.ts`, `node-fields.ts`, `node-types.ts`, `node-templates.ts`, `node-ops.ts`, `rename.ts`, `outputs.ts`, `canvas-geometry.ts`, `canvas-model.ts`, `layout.ts`, `positions.ts`, `drop.ts`, `issues-view.ts`, `save-gate.ts`, `limits.ts`, `api-types.ts`, `copy.ts`, `editor-session.ts` (+ un `*.test.ts` por cada uno con lógica) | Núcleo puro (D4-D14) |
+| `src/lib/editor/json-edit.ts`, `flow-text.ts`, `node-targets.ts`, `as-text.ts`, `fields.ts`, `node-fields.ts`, `node-types.ts`, `node-templates.ts`, `node-ops.ts`, `rename.ts`, `outputs.ts`, `canvas-geometry.ts`, `canvas-model.ts`, `layout.ts`, `positions.ts`, `drop.ts`, `issues-view.ts`, `save-gate.ts`, `limits.ts`, `api-types.ts`, `copy.ts`, `editor-session.ts` (+ un `*.test.ts` por cada uno con lógica) | Núcleo puro (D4-D14) |
 | `src/hooks/use-editor-session.ts`, `use-unsaved-guard.ts` | Adaptadores de React (D15) |
 | `src/components/editor/flows-screen.tsx`, `editor-flow-list.tsx`, `new-flow-dialog.tsx`, `editor-screen.tsx`, `editor-header.tsx`, `editor-actions.tsx`, `add-node-menu.tsx`, `problems-list.tsx`, `flow-panel.tsx`, `confirm-dialog.tsx`, `flow-json-dialog.tsx`, `node-json-dialog.tsx`, `guarded-link.tsx`, `editor-loading.tsx`, `editor-not-found.tsx` | Pantallas y piezas |
 | `src/components/editor/canvas/flow-canvas.tsx`, `canvas-node.tsx`, `canvas-edges.tsx`, `zoom-controls.tsx`, `use-canvas-drag.ts` | Lienzo (D9-D12) |
@@ -833,7 +867,7 @@ Además, `git diff --name-only --diff-filter=M main...HEAD -- apps/web` lista ex
   - En `test:e2e`: `next start` real para `Host`, `Origin`, `%2F`, cabeceras y el recorrido.
 - **E2E opción-al-menos-una-vez (aplica)**: cada tipo de nodo en el inspector, cada clase de campo editada al menos una vez, cada clase de salida arrastrada, cada acción y cada error con escenario (D22).
 - **Smoke de ruta (aplica)**: `/flujos`, `/flujos/<id>` existente, no válido e inexistente, y el 403 con un `Host` ajeno («Host ajeno en el editor»).
-- **Mutación (aplica, manual)**: los 37 mutantes de D23.
+- **Mutación (aplica, manual)**: los 39 mutantes de D23.
 - **Cobertura de la spec (aplica)**: D24.
 
 ### Escenario → test (título exacto)
@@ -905,6 +939,7 @@ Requieren **aprobación humana** antes de la fase 1:
 2. **Delta `0520b08`** (conductual, decidido por el orquestador tras la revisión; el usuario puede revertirlo):
    - Elegir el destino de una salida en el inspector, también «ninguno», fija las posiciones (D11).
    - Un JSON con el que el flujo anidaría más de 1000 niveles no se aplica (D5).
+   - Su consecuencia en `eff3d08`: «Posiciones de los nodos» y «Sin cambios que guardar» lo dicen igual.
 3. **Lienzo propio sin dependencia** (D9) frente a React Flow. Es técnica, pero cambia lo que verá quien mantenga el editor: unas 700 líneas propias frente a una librería de unos 45 KB que habría que domar para cumplir la accesibilidad de la spec.
 4. **«Cambios sin publicar» también en un flujo que nunca se publicó**: se muestra el dato de la API tal cual (`unpublishedChanges` es `true` al crear). La lista enseña «Sin publicar» y el aviso a la vez. Es la lectura literal de «si los tiene» y compatible con los escenarios. La alternativa (ocultarlo si `latestVersion` es `null`) sería un delta.
 
