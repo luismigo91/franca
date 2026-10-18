@@ -17,6 +17,7 @@ export const WEB_ENDPOINTS = {
 /** Páginas de la web (rutas del navegador, no de la API). */
 export const WEB_PAGES = {
   home: '/',
+  flows: '/flujos',
   conversation: (id: string) => `/conversaciones/${encodeURIComponent(id)}`,
 } as const;
 

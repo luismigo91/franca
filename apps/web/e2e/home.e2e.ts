@@ -48,8 +48,15 @@ test('Más de una página de flujos', async ({ page, admin }) => {
 
 test('Sin flujos publicados', async ({ page }) => {
   await page.goto('/');
-  await expect(text(page, 'Todavía no hay flujos publicados. Publica uno con la API de Franca y vuelve.')).toBeVisible();
+  await expect(text(page, /Todavía no hay flujos publicados\. Publica uno desde el editor de flujos\./)).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Ir al editor de flujos', exact: true })).toHaveAttribute('href', '/flujos');
   await expect(page.getByRole('button', { name: /^Probar/ })).toHaveCount(0);
+});
+
+test('Enlace al editor desde el inicio', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Editor de flujos', exact: true }).click();
+  await expect(page).toHaveURL(/\/flujos$/);
 });
 
 test('API parada', async ({ page, admin, stack }) => {
