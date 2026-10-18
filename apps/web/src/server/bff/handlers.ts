@@ -1,7 +1,7 @@
 import * as operations from '@/server/api/operations';
-import { buildCreateBody, buildInputBody, readIfMatch, readJsonBody, readOffset } from '@/server/bff/request';
-import { emptyResponse, errorResponse, failureResponse, toWebResponse, type ResponseKind } from '@/server/bff/responses';
-import { isConversationId, isFlowId, parseVersion, type ConversationId } from '@/server/ids';
+import { buildCreateBody, buildInputBody, readFlowBody, readIfMatch, readJsonBody, readOffset } from '@/server/bff/request';
+import { emptyResponse, errorResponse, failureResponse, jsonResponse, toWebResponse, type ResponseKind } from '@/server/bff/responses';
+import { isConversationId, isFlowId, parseVersion, type ConversationId, type FlowId } from '@/server/ids';
 import { ApiUrlError } from '@/server/config/api-url.mjs';
 import { checkFrontier } from '@/server/frontier';
 import { logInvalidApiUrl, logServerError } from '@/server/log';
@@ -16,6 +16,9 @@ const TEMPLATES = {
   conversation: '/api/conversations/[conversationId]',
   transcript: '/api/conversations/[conversationId]/transcript',
   inputs: '/api/conversations/[conversationId]/inputs',
+  editorFlows: '/api/editor/flows',
+  editorFlow: '/api/editor/flows/[flowId]',
+  editorVersions: '/api/editor/flows/[flowId]/versions',
   other: '/api/[...rest]',
 } as const;
 
@@ -46,7 +49,8 @@ async function respond(method: string, template: Template, kind: ResponseKind, c
 function rejectedByFrontier(request: Request): Response | null {
   const decision = checkFrontier({ method: request.method, headers: request.headers, pathname: new URL(request.url).pathname });
   if (decision.allowed) return null;
-  return decision.body === null ? emptyResponse(decision.status) : errorResponse(decision.status, 'conversation_not_found');
+  // El cuerpo de la decisión lo fija la frontera: `conversation_not_found` o `flow_not_found` según la ruta.
+  return decision.body === null ? emptyResponse(decision.status) : jsonResponse(decision.status, JSON.parse(decision.body));
 }
 
 const notFoundConversation = () => errorResponse(404, 'conversation_not_found');
@@ -126,6 +130,70 @@ export async function handleDeleteConversation(request: Request, params: { conve
   const id = validId(params);
   if (id === null) return notFoundConversation();
   return respond('DELETE', TEMPLATES.conversation, 'delete', () => operations.deleteConversation(id));
+}
+
+const notFoundFlow = () => errorResponse(404, 'flow_not_found');
+
+function validFlowId(params: { flowId: string }): FlowId | null {
+  return isFlowId(params.flowId) ? params.flowId : null;
+}
+
+/** `GET /api/editor/flows?offset=N`: todos los flujos vivos (sin `published`). */
+export async function handleListEditorFlows(request: Request): Promise<Response> {
+  const offset = readOffset(request);
+  if (!offset.ok) return failureResponse(offset);
+  return respond('GET', TEMPLATES.editorFlows, 'json', () => operations.listFlows(offset.value));
+}
+
+/** `POST /api/editor/flows`. */
+export async function handleCreateFlow(request: Request): Promise<Response> {
+  const rejected = rejectedByFrontier(request);
+  if (rejected) return rejected;
+  const body = await readFlowBody(request);
+  if (!body.ok) return failureResponse(body);
+  return respond('POST', TEMPLATES.editorFlows, 'json', () => operations.createFlow(body.value));
+}
+
+/** `GET /api/editor/flows/:flowId`. */
+export async function handleGetFlow(_request: Request, params: { flowId: string }): Promise<Response> {
+  const id = validFlowId(params);
+  if (id === null) return notFoundFlow();
+  return respond('GET', TEMPLATES.editorFlow, 'json', () => operations.getFlow(id));
+}
+
+/** `PUT /api/editor/flows/:flowId` (con `If-Match`). */
+export async function handleUpdateFlow(request: Request, params: { flowId: string }): Promise<Response> {
+  const rejected = rejectedByFrontier(request);
+  if (rejected) return rejected;
+  const id = validFlowId(params);
+  if (id === null) return notFoundFlow();
+  const ifMatch = readIfMatch(request);
+  if (!ifMatch.ok) return failureResponse(ifMatch);
+  const body = await readFlowBody(request);
+  if (!body.ok) return failureResponse(body);
+  return respond('PUT', TEMPLATES.editorFlow, 'json', () => operations.updateFlow(id, body.value, ifMatch.value));
+}
+
+/** `POST /api/editor/flows/:flowId/versions` (con `If-Match`, sin cuerpo). */
+export async function handlePublishFlow(request: Request, params: { flowId: string }): Promise<Response> {
+  const rejected = rejectedByFrontier(request);
+  if (rejected) return rejected;
+  const id = validFlowId(params);
+  if (id === null) return notFoundFlow();
+  const ifMatch = readIfMatch(request);
+  if (!ifMatch.ok) return failureResponse(ifMatch);
+  return respond('POST', TEMPLATES.editorVersions, 'json', () => operations.publishFlow(id, ifMatch.value));
+}
+
+/** `DELETE /api/editor/flows/:flowId` (con `If-Match`, sin cuerpo). */
+export async function handleDeleteFlow(request: Request, params: { flowId: string }): Promise<Response> {
+  const rejected = rejectedByFrontier(request);
+  if (rejected) return rejected;
+  const id = validFlowId(params);
+  if (id === null) return notFoundFlow();
+  const ifMatch = readIfMatch(request);
+  if (!ifMatch.ok) return failureResponse(ifMatch);
+  return respond('DELETE', TEMPLATES.editorFlow, 'delete', () => operations.deleteFlow(id, ifMatch.value));
 }
 
 /** Cualquier otra ruta o método de `/api`: 404 sin llamar a la API. */

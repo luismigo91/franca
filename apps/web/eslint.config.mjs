@@ -65,7 +65,7 @@ const eslintConfig = defineConfig([
     rules: { "react/no-danger": "error" },
   },
   {
-    files: ["src/components/chat/**/*.{ts,tsx}"],
+    files: ["src/components/chat/**/*.{ts,tsx}", "src/components/editor/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-imports": ["error", { paths: [...networkImports, nextImage] }],
     },

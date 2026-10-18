@@ -8,7 +8,7 @@ import { parseApiUrl, type ApiTarget } from '@/server/config/api-url.mjs';
  * `Authorization`, ni `Referer`, ni `User-Agent`).
  */
 export interface TransportRequest {
-  method: 'GET' | 'POST' | 'DELETE';
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
   /** Ruta y consulta, armadas por `operations.ts` con argumentos ya validados. */
   path: string;
   /** Cuerpo JSON ya serializado. */

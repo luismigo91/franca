@@ -1,5 +1,5 @@
 import { isLocalHost } from '@/server/config/local-host.cjs';
-import { isConversationId } from '@/server/ids';
+import { isConversationId, isFlowId } from '@/server/ids';
 
 /**
  * Cabeceras de seguridad de toda respuesta de la web (D2, D24). Nunca `Access-Control-Allow-*`: la web no tiene CORS.
@@ -30,6 +30,7 @@ export type FrontierDecision =
 
 const SAFE_METHODS = new Set(['GET', 'HEAD']);
 const CONVERSATION_ROUTE = '/api/conversations/';
+const EDITOR_FLOW_ROUTE = '/api/editor/flows/';
 
 function deny(status: 403 | 404, body: string | null, pathname: string): FrontierDecision {
   const headers = securityHeaders(pathname);
@@ -47,6 +48,16 @@ function hasValidConversationSegment(pathname: string): boolean {
   }
 }
 
+/** Indica si el segmento de `/api/editor/flows/<id>/…`, decodificado, cumple el patrón de `id` de un flujo (un `%` mal formado no). */
+function hasValidFlowSegment(pathname: string): boolean {
+  const segment = pathname.slice(EDITOR_FLOW_ROUTE.length).split('/')[0] ?? '';
+  try {
+    return isFlowId(decodeURIComponent(segment));
+  } catch {
+    return false;
+  }
+}
+
 /**
  * La frontera local de la web (D2): decide sobre la cabecera `host` **en bruto**, nunca sobre `x-forwarded-*`, que Next
  * rellena con `??=` y respeta si la manda el cliente.
@@ -54,6 +65,7 @@ function hasValidConversationSegment(pathname: string): boolean {
  * 1. `Host` local (`localhost`, `127.0.0.1` o `[::1]`, con puerto opcional) o 403 sin cuerpo.
  * 2. En todo método que no sea `GET` ni `HEAD`, `Origin` igual a `http://` y el `Host` ya validado, o 403 sin cuerpo.
  * 3. Una ruta de conversación cuyo id no es un UUID en minúsculas: 404 `conversation_not_found`.
+ * 4. Una ruta del editor cuyo id no cumple el patrón de `id` de la spec: 404 `flow_not_found`.
  *
  * @param request Método, cabeceras y ruta.
  * @returns Permitir, o denegar con su estado, cuerpo y cabeceras. En ambos casos van las cabeceras de seguridad.
@@ -67,6 +79,9 @@ export function checkFrontier(request: FrontierRequest): FrontierDecision {
   }
   if (request.pathname.startsWith(CONVERSATION_ROUTE) && !hasValidConversationSegment(request.pathname)) {
     return deny(404, JSON.stringify({ error: 'conversation_not_found' }), request.pathname);
+  }
+  if (request.pathname.startsWith(EDITOR_FLOW_ROUTE) && !hasValidFlowSegment(request.pathname)) {
+    return deny(404, JSON.stringify({ error: 'flow_not_found' }), request.pathname);
   }
   return { allowed: true, headers: securityHeaders(request.pathname) };
 }
