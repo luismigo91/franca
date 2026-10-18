@@ -116,7 +116,7 @@ El lienzo SHALL mostrar cada nodo de `nodes` con su `id`, su tipo en español y 
 - **THEN** el lienzo tiene 12 conexiones, entre ellas tres que salen de `pedir-tamano` (`choices[pequena].next` y `choices[mediana].next` hacia `marcar-pyme` y `choices[grande].next` hacia `marcar-empresa`) y `onError` de `enviar-crm` hacia `aviso-error`
 
 ### Requirement: Posiciones de los nodos
-El lienzo SHALL colocar cada nodo en su `position`. Los nodos sin `position` los coloca un diseño automático que sigue las conexiones desde `start`, no se solapa con ningún nodo y da siempre el mismo resultado para el mismo flujo. Esas posiciones no se escriben en el flujo hasta que se mueve o se añade un nodo.
+El lienzo SHALL colocar cada nodo en su `position`. Los nodos sin `position` los coloca un diseño automático que sigue las conexiones desde `start`, no se solapa con ningún nodo y da siempre el mismo resultado para el mismo flujo. Esas posiciones no se escriben en el flujo hasta que se mueve o se añade un nodo, o se conecta una salida.
 
 #### Scenario: Abrir sin posiciones no cambia el flujo
 - **GIVEN** `faq-ia` creado
@@ -319,7 +319,7 @@ Elegir un problema o aviso de la lista SHALL seleccionar su nodo (`nodeId`), abr
 - **THEN** la página dice que el flujo supera el tamaño máximo de 1 MiB y la API no recibe ningún `PUT`
 
 ### Requirement: Sin cambios que guardar
-El editor SHALL considerar que hay cambios solo si el texto JSON del flujo difiere del último guardado: deshacer a mano un cambio deja el flujo sin cambios. Sin cambios, «Guardar» dice que no hay nada que guardar y no envía nada. Abrir un flujo sin tocarlo nunca envía nada, aunque el lienzo coloque nodos sin `position`.
+El editor SHALL considerar que hay cambios solo si el texto JSON del flujo difiere del último guardado: deshacer a mano un cambio deja el flujo sin cambios, salvo las posiciones que hayan fijado mover, añadir o conectar. Sin cambios, «Guardar» dice que no hay nada que guardar y no envía nada. Abrir un flujo sin tocarlo nunca envía nada, aunque el lienzo coloque nodos sin `position`.
 
 #### Scenario: Cambio deshecho a mano
 - **GIVEN** el editor de `captacion-leads` abierto
