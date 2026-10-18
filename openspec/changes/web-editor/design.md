@@ -1,10 +1,29 @@
 # Design: editor visual de flujos (`web-editor`)
 
-**Fecha**: 2026-10-18 · **Rama**: `feat/web-editor` · Motivación y alcance en `proposal.md`. El comportamiento está en `specs/web-editor/spec.md` (44 requisitos y 77 escenarios) y en el delta de `specs/web-chat/spec.md` (3 requisitos modificados, 1 escenario nuevo). La spec manda sobre este documento.
+**Fecha**: 2026-10-18 · **Rama**: `feat/web-editor` · Motivación y alcance en `proposal.md`. El comportamiento está en `specs/web-editor/spec.md` (44 requisitos y 78 escenarios) y en el delta de `specs/web-chat/spec.md` (3 requisitos modificados, 1 escenario nuevo). La spec manda sobre este documento.
 
 Antes de este diseño se corrigió la spec en `4ced695` (`spec:`), con dos cambios que **el usuario tiene que aprobar o revertir** (ver «Open Questions»):
 - En el inspector, `position` es de solo lectura, como `type` (D8).
 - Vaciar el último campo de un objeto o una lista opcionales quita también el contenedor (D5).
+
+**Revisión 2**, tras el FAIL de `popi:architecture-reviewer`:
+- **B1.** `targets()` de `@franca/spec` lanza `TypeError` con nodos de forma inválida (medido: `{"id":"a","type":"condition"}`, `rules: 5`, `rules: [null]`, `choices: "x"` y `choices: [null]`). Es alcanzable con «Añadir nodo» (una condición sin `rules`) y con «Editar como JSON». Ahora todo el editor pasa por un adaptador, `node-targets.ts` (D10).
+- **B2.** El criterio de ficheros modificados no contaba `src/server/api/operations.test.ts` ni `e2e/support/admin.ts`. Pasan a ser 18, y se detallan los cambios de la guarda estática (D21, «Ficheros»).
+- **No bloqueantes aplicados** (los resolvió el orquestador):
+  - Un JSON que pasaría de 1000 niveles se rechaza al aplicarlo, y desaparece `draftText: null` (D5).
+  - Los tests de profundidad usan 100 000 niveles: Node serializa 5000 y lanza a 10 000 (D2, D21).
+  - Cinco escenarios pasan de E2E a Vitest (D22).
+  - Conectar desde el inspector fija las posiciones (delta `0520b08`, D11, D12).
+  - Al desmarcar una casilla vuelve el valor por defecto que estaba escrito en el último guardado (D5).
+  - La altura de los nodos se fija por CSS (D10).
+  - Publicar llega a la API con `Content-Length: 0` (D2).
+  - Los diálogos se cierran al ocultarse la ruta y antes de navegar (D15).
+  - La línea provisional del arrastre no recibe eventos de puntero y Escape se escucha en `window` (D12).
+  - Sin Ctrl/⌘ + rueda para ampliar (D9).
+
+**Delta `0520b08`** (`spec:`, decisión del orquestador):
+- Elegir el destino de una salida en el inspector (también «ninguno») fija las posiciones, como arrastrar. Escenario nuevo: «Conectar desde el inspector no mueve los nodos».
+- No se aplica un JSON con el que el flujo anidaría más de 1000 niveles.
 
 Resuelve las preguntas técnicas 12-17 de la propuesta: validación local síncrona sin Web Worker ni agrupación (D6), ajv con `Function` y una CSP que no restringe scripts, fijado con test y mutante (D7), sin `issues` de la API (D2), rutas propias `/api/editor/flows/**` (D1, D2), lienzo propio en DOM y SVG sin dependencia nueva, con diseño automático por capas (D9-D12), y relectura al mostrarse con `<Activity>` (D15).
 
@@ -34,7 +53,10 @@ Medido el 2026-10-18 sobre `main` + la rama (`bda1209`), Node 22.23.3, Next 16.4
 |---|---|---|
 | El listado del editor es «`GET /flows` sin `published`» | `GET /api/flows` de la web ya existe y fija `published=true` («Flujos publicados» de `web-chat`) | D1: rutas propias bajo `/api/editor/flows` |
 | «Publicar y borrar con `If-Match`» | En la API es **opcional** en los dos (`checkOptionalIfMatch`) y acepta `*` | D2: la web lo **exige** al navegador (428 si falta, 400 si no es `"<n>"`, también con `*`), como en las entradas del chat |
-| El servidor de la web «envía a la API el texto JSON» del cuerpo | `JSON.stringify` lanza `RangeError` con un anidamiento que cabe en 1 MiB, y `JSON.parse` no | D2: `JSON.stringify` solo si `exceedsFlowDepth` es falso (≤ 1000 niveles); si no, se reenvía el texto recibido y la API responde 400 `invalid_flow`. Lo mismo en el navegador (D5) |
+| `targets(node)` vale para cualquier nodo del borrador | Lanza `TypeError` si el nodo no tiene la forma mínima (`node.rules.forEach`, `(node.choices ?? []).forEach`, `c.next`): una condición sin `rules` o con `rules` que no es una lista de objetos, y un `input` con `choices` que no es una lista de objetos. `validateFlow` solo lo llama con la forma ya validada | D10: el adaptador `node-targets.ts` |
+| El servidor de la web «envía a la API el texto JSON» del cuerpo | `JSON.stringify` lanza `RangeError` con un anidamiento que cabe en 1 MiB (en Node 22.23: 5000 niveles se serializan, 10 000 lanzan; 100 000 niveles ocupan 200 KB), y `JSON.parse` no | D2: `JSON.stringify` solo si `exceedsFlowDepth` es falso (≤ 1000 niveles); si no, se reenvía el texto recibido y la API responde 400 `invalid_flow`. Lo mismo en el navegador (D5) |
+| Publicar sin cuerpo | Node añade `Content-Length: 0` a un `POST` sin cuerpo (y no a un `DELETE`), medido. La API lo trata como cuerpo ausente (`json-body.ts`) | D2: los tests de cabeceras exactas lo esperan |
+| Los tests existentes aceptan operaciones nuevas | `operations.test.ts` exige exactamente las ocho exportaciones y `Object.keys(API_OPERATIONS).length === 8`. La guarda estática exige 7 ficheros de ruta y al menos 13 manejadores. `e2e/support/admin.ts` no lee ni un flujo ni sus versiones | D21 y «Ficheros»: se actualizan como cambios deliberados |
 | `transport.ts` envía cualquier operación | `TransportRequest.method` es `'GET' \| 'POST' \| 'DELETE'` | D2: se añade `'PUT'` (una línea) |
 | Los errores del editor «sin `issues`» | `toWebResponse` ya reduce todo error a `{error}` (+ `currentRevision`) | D2: sin caso nuevo; un test y el mutante `forwardIssues` lo fijan |
 | `rejectedByFrontier` vale para cualquier mutación | Responde `conversation_not_found` fijo cuando la decisión trae cuerpo | D2: devuelve el cuerpo de la decisión (`flow_not_found` en las rutas del editor) |
@@ -51,7 +73,7 @@ No queda ninguna contradicción de producto abierta. Las dos aclaraciones conduc
 ## Goals / Non-Goals
 
 **Goals**
-- Los 77 escenarios de `web-editor` y el nuevo de `web-chat` con un test con su título exacto (D24).
+- Los 78 escenarios de `web-editor` y el nuevo de `web-chat` con un test con su título exacto (D24).
 - Cero ficheros en `apps/api/`, `packages/`, `turbo.json`, el *lockfile* y la CI. **Sin dependencias nuevas.**
 - La frontera sigue auditable en los mismos cuatro ficheros (`proxy.ts`, `frontier.ts`, `operations.ts` y `transport.ts`), ahora con catorce operaciones.
 - Todo lo combinatorio (campos, renombrado, salidas, soltar, diseño automático, guardar) en lógica pura con Vitest y mutantes; en E2E, cada opción de UI al menos una vez.
@@ -125,6 +147,8 @@ Las cuatro mutaciones vuelven a pasar por `checkFrontier` (defensa en profundida
 - Si es verdadero, se reenvía `text` tal cual, sin serializar (ver la auditoría: `JSON.stringify` lanzaría `RangeError`). La API responde 400 `invalid_flow` y el navegador recibe `{"error":"invalid_flow"}`.
 - Más de 1 048 576 bytes (declarados o leídos): `413 payload_too_large`. No es JSON o está vacío: `400 invalid_json`.
 
+Publicar y borrar van sin cuerpo y sin `Content-Type`. Node añade `Content-Length: 0` al `POST` de publicar (no al `DELETE`), y los tests de cabeceras exactas lo esperan así.
+
 **Respuestas** (pregunta 14): sin caso nuevo en `responses.ts`. Los 2xx pasan con su estado y su JSON (`'json'`), el 204 de borrar como 204 (`'delete'`) y los errores como `{error}` más `currentRevision` en el 412. **No** se reenvían `issues` ni `warnings`: el editor tiene el mismo veredicto en local, y reenviarlos obligaría a sanear su forma (`layer`, `path`, `nodeId`, `message`) con otro mutante. Lo fijan un test con el cuerpo `MARCA-ISSUE` y el mutante `forwardIssues`.
 
 Descartado:
@@ -162,7 +186,7 @@ interface EditorSnapshot {
   loadError: ChatErrorCode | null;
   saved: { text: string; revision: number; name: string; latestVersion: number | null; unpublishedChanges: boolean } | null;
   draft: FlowDoc | null;        // la fuente de verdad: el valor JSON del flujo tal como lo devolvió la API, editado
-  draftText: string | null;     // flowText(draft): JSON.stringify, o null si supera la profundidad (D5)
+  draftText: string;            // JSON.stringify(draft): el borrador nunca supera la profundidad (D5)
   dirty: boolean;               // draftText !== saved.text
   verdict: FlowValidationResult | null;   // validateFlow(draft), en cada cambio (D6)
   positions: ReadonlyMap<string, { x: number; y: number }>; // las del flujo más las del diseño automático (D11)
@@ -192,7 +216,7 @@ Descartado:
 
 - **Conserva el sitio**: `setIn` de una clave que existe la sustituye en su posición (se reconstruye con `Object.entries`/`Object.fromEntries`). Una clave nueva va al final. Mutante `reorderOnEdit`.
 - **`__proto__`, `constructor` y claves numéricas** son claves propias normales: nunca `obj[key] = value`, siempre `Object.fromEntries` o *spread* ([[gotcha-variables-nombre-proto]]). Lo prueba un test con una cabecera `__proto__` y un `body` con claves `"10"` y `"a"`, comparando el texto.
-- **Profundidad**: `flowText(value)` (`src/lib/editor/flow-text.ts`) devuelve `null` si `exceedsFlowDepth(value)`, y si no, `JSON.stringify(value)`. Con `null`, el flujo cuenta como cambiado y no se puede guardar (el validador ya da su problema de profundidad), y «Ver JSON» lo explica. Así ningún `RangeError` llega a la interfaz. Solo puede pasar al aplicar un JSON de nodo o de `request.body` escrito a mano.
+- **Profundidad** (delta `0520b08`): el borrador nunca pasa de 1000 niveles. El de la API está validado, y las únicas entradas de JSON escrito a mano son «Editar como JSON», `request.body`, los predicados y el modo JSON de un valor. Todas comprueban `exceedsFlowDepth(flujo resultante)` **antes** de aplicar. Si lo supera, el campo dice «El JSON anida demasiados niveles: el máximo es 1000.», conserva el texto y no cambia nada (mutante `skipDepthCheckOnApply`). Por eso `flowText` (`src/lib/editor/flow-text.ts`) es un `JSON.stringify` sin caso nulo y ningún `RangeError` llega a la interfaz. «Crear desde JSON» no aplica nada: `validateFlow` da el problema de profundidad y no se envía.
 
 `src/lib/editor/fields.ts` traduce lo que escribe un campo a una escritura en el JSON (requisito «Campos sobre el JSON del flujo»):
 
@@ -201,7 +225,7 @@ Descartado:
 | Texto (también plantillas) | El texto tal cual, en cada pulsación, sin recortar. Vacío en uno **opcional**: quita la propiedad. Vacío en uno obligatorio (`name`, `url`, `goal`): `""`, que el validador señala |
 | Numérico | Si el texto cumple `^-?[0-9]+(\.[0-9]+)?$`, `Number(texto)`. Si no, el texto (`abc`) para que lo señale el validador. Vacío en uno opcional: quita la propiedad. El campo conserva lo escrito mientras tiene el foco (`1.50` no salta a `1.5`). Mutante `parseLooseNumber` |
 | Lista cerrada (`enum`) | El valor elegido. Si es opcional, tiene la opción «(por defecto: X)» o «(ninguno)», que quita la propiedad. Las opciones salen de `schema.$defs…enum`, no se copian |
-| Sí/no con `default` | Casilla: si el valor vuelve al `default` del esquema, se quita la propiedad (`pii` desmarcado, `required` marcado). Nunca escribe el `default`. Mutante `writeDefaults` |
+| Sí/no con `default` | Casilla. Al volver al `default` del esquema (`pii` desmarcado, `required` marcado), quita la propiedad, **salvo** que el último guardado tuviera esa propiedad escrita en la misma ruta: entonces la vuelve a escribir con ese valor (`"pii": false` marcado y desmarcado deja el texto como estaba). Nunca escribe un `default` que no estuviera. Mutantes `writeDefaults` y `forgetSavedDefault`. Si la ruta cambió (se borró un elemento anterior de la lista), el caso degrada a quitar la propiedad, que significa lo mismo |
 | Salto | Selector con «(ninguno)», que quita la propiedad, y los nodos en el orden de `nodes`. Un salto roto aparece como «`<id>` (no existe)» elegido |
 | Valor (`value` de `set`, de opción y de regla, y `default`) | Modo (texto, número, sí/no, nulo, JSON, y «(ninguno)» si es opcional, según los tipos que admite el esquema) y su valor. JSON: si no se puede parsear, el campo lo dice, conserva el texto y no escribe nada |
 | JSON libre (`request.body`, predicado con `all`/`any`) | Igual que el modo JSON. Vacío en `body`: quita la propiedad |
@@ -265,7 +289,7 @@ Descartado:
 - **`position` de solo lectura** (delta `4ced695`): se muestra «x, y» o «automática» y se cambia moviendo el nodo o con «Editar como JSON». Como campo editable chocaba con «Mover un nodo» (enteros, y fijar todas las posiciones a la vez) y con la regla de los campos numéricos.
 - **Valores que el formulario no sabe editar** (p. ej. `content` que no es una lista tras «Editar como JSON», o un tipo desconocido): el campo pasa a JSON libre con una nota. Un tipo de nodo desconocido muestra solo `id`, `type` y «Usa «Editar como JSON» para este nodo».
 - `choices` y `multiple` se muestran con `inputType` `choice` o si ya existen. El resto de campos se muestran siempre.
-- **Renombrar** (`id`): el campo tiene su propio texto y aplica el cambio al perder el foco o con Intro, si es válido (`rename.ts`). Mientras se escribe, dice si el id no cumple el patrón o ya lo tiene otro nodo, y no cambia nada hasta que es válido.
+- **Renombrar** (`id`): el campo tiene su propio texto y aplica el cambio al perder el foco o con Intro, si es válido (`rename.ts`, que recorre los saltos con `nodeTargets`, D10). Mientras se escribe, dice si el id no cumple el patrón o ya lo tiene otro nodo, y no cambia nada hasta que es válido.
 
 ### D9. Lienzo propio en DOM y SVG, sin librería (pregunta 16)
 
@@ -273,7 +297,7 @@ El lienzo es un componente propio (`src/components/editor/canvas/`). Una zona co
 - un `<svg aria-hidden="true">` con las conexiones;
 - un `<div>` por nodo, en el orden de `nodes`, con posición absoluta.
 
-**Desplazar**: las barras y la rueda del propio navegador, más arrastrar el fondo con el ratón. **Ampliar**: «Reducir», «Ampliar» y «Tamaño real» (0,5 a 2, por pasos de ×1,25) y Ctrl/⌘ + rueda. «Llevar el lienzo hasta un nodo» es `scrollIntoView({block: 'center', inline: 'center'})` del nodo dentro de la zona.
+**Desplazar**: las barras y la rueda del propio navegador, más arrastrar el fondo con el ratón. **Ampliar**: «Reducir», «Ampliar» y «Tamaño real» (0,5 a 2, por pasos de ×1,25). No hay Ctrl/⌘ + rueda: bastan los botones. «Llevar el lienzo hasta un nodo» es `scrollIntoView({block: 'center', inline: 'center'})` del nodo dentro de la zona.
 
 | | Lienzo propio (elegido) | React Flow (`@xyflow/react` 12) |
 |---|---|---|
@@ -299,9 +323,23 @@ Descartado también:
 - `condition`: `rules[<i>].next` y `else`. `http`: `next` y `onError`. `llm`: `next` y `onExhausted`. `jump`: `target`. `end` y un tipo desconocido: ninguna.
 - En selección múltiple, **no** hay salidas por opción (`resumeInput` las ignora). Mutante `multipleChoiceOutputs`.
 
-**Conexiones** (`src/lib/editor/canvas-model.ts`): una por cada `targets(node)` de `@franca/spec`, sin reimplementarlo. Si el destino no existe, la conexión es rota. Cada una sale de la fila de su salida (por `pointer`). Si no hay salida para ese puntero (opciones con `next` en una selección múltiple), sale del borde del nodo.
+**Saltos de un nodo cualquiera** (`src/lib/editor/node-targets.ts`, revisión 2, B1): `nodeTargets(node)` es la única puerta del editor a `targets` de `@franca/spec`. Lo llaman `outputs`, `canvas-model`, `layout` y `rename`. Antes de llamarlo comprueba la estructura mínima que `targets` recorre sin protección:
+- en `condition`, `rules` es una lista y cada elemento es un objeto;
+- en `input`, `choices` falta o es una lista de objetos.
 
-**Geometría** (`src/lib/editor/canvas-geometry.ts`, constantes enteras): ancho 208, cabecera 64 (id, tipo en español y `title`, con puntos suspensivos), 24 por salida y separaciones de 96 en horizontal y 40 en vertical. `nodeSize(node)` lo usan el diseño automático y el CSS, así que coinciden.
+Si se cumple, devuelve `targets(node)` tal cual. Si no, devuelve los saltos que se pueden leer sin lanzar, con las mismas `key` y `pointer`:
+- los campos de texto `next`, `else`, `onError`, `onExhausted` y `target`;
+- los `rules[i].next` y `choices[i].next` de los elementos que son objetos con `next` de texto (la clave de una opción usa su `id` si es texto, y si no, su índice).
+
+`nodeOutputs` también es defensivo: una condición sin `rules` válidas tiene solo `else`, y un `input` con `choices` que no es una lista no tiene salidas de opción. Lo prueban, en `node-targets.test.ts`, `canvas-model.test.ts` y `layout.test.ts`:
+- las ocho plantillas de «Añadir nodo» pasadas por `canvasModel` y `autoLayout`;
+- nodos mal formados (`rules` ausente, `5` o `[null]`; `choices` `"x"` o `[null]`; `type` desconocido) sin lanzar, en `canvasModel`, `autoLayout`, `renameNode` y `nodeOutputs`.
+
+Mutante `callTargetsDirect` (llama a `targets` sin la comprobación). La guarda estática exige que solo `node-targets.ts` importe `targets`. El hallazgo va a la wiki (`gotcha-targets-asume-forma-valida`, fase 6). Un E2E añade una condición y comprueba que el lienzo la pinta con su salida `else` y la lista dice que le faltan `rules` (D22). `validateFlow` sigue llamando a `targets` por su cuenta, solo con la forma ya validada.
+
+**Conexiones** (`src/lib/editor/canvas-model.ts`): una por cada salto de `nodeTargets(node)`, sin reimplementar `targets`. Si el destino no existe, la conexión es rota. Cada una sale de la fila de su salida (por `pointer`). Si no hay salida para ese puntero (opciones con `next` en una selección múltiple), sale del borde del nodo.
+
+**Geometría** (`src/lib/editor/canvas-geometry.ts`, constantes enteras): ancho 208, cabecera 64 (id, tipo en español y `title`, con puntos suspensivos), 24 por salida y separaciones de 96 en horizontal y 40 en vertical. `nodeSize(node)` lo usan el diseño automático y el CSS. El nodo tiene `width` y `height` **fijos** desde `nodeSize`, con `overflow: hidden`, y cada texto (id, tipo, `title` y nombre de salida) va en una línea recortada con puntos suspensivos (`truncate`). El texto completo está en el nombre accesible y en el inspector. Así el pintado nunca pasa de la caja que el diseño automático cree que ocupa. Lo prueban `canvas-node.test.tsx` (el estilo lleva el alto y el ancho de `nodeSize` y `overflow-hidden`, también con un `title` de 120 caracteres) y el E2E «Abrir sin posiciones no cambia el flujo» (la `boundingBox` de cada nodo no pasa de `nodeSize × zoom`, y ninguna se solapa con otra).
 
 **Pintado**:
 - La salida es una fila con su nombre en el nodo y un punto en el borde derecho (`<span data-output="<key>" aria-hidden="true">`, sin `tabIndex`).
@@ -314,7 +352,7 @@ Descartado también:
 ### D11. Diseño automático y posiciones
 
 `autoLayout(flow)` (`src/lib/editor/layout.ts`, puro y determinista) devuelve la posición entera de cada nodo **sin** `position` válida:
-1. **Capas**: búsqueda en anchura desde `start`, siguiendo `targets` en su orden y solo hacia nodos que existen (el primero que llega gana). Los nodos no alcanzados se recorren en el orden de `nodes`: cada uno empieza su propia búsqueda en la capa siguiente a la última usada.
+1. **Capas**: búsqueda en anchura desde `start`, siguiendo `nodeTargets` en su orden y solo hacia nodos que existen (el primero que llega gana). Los nodos no alcanzados se recorren en el orden de `nodes`: cada uno empieza su propia búsqueda en la capa siguiente a la última usada.
 2. **Columnas**: la capa `L` va en `x = origen.x + L × (ancho + 96)`. El origen es la `position` de `start` si la tiene (redondeada), o `(0, 0)`.
 3. **Filas**: dentro de la capa, en el orden de descubrimiento, desde `origen.y` hacia abajo. Un nodo que choca con otro ya colocado o con uno con `position` (con un margen de 40) baja hasta debajo de él. Mutante `skipOverlapCheck`.
 4. Los nodos con `position` no se mueven y ocupan su sitio.
@@ -332,7 +370,8 @@ El coste es lineal más las comprobaciones contra los nodos con `position` de la
   - mover con el ratón (al soltar);
   - mover con las flechas (10 unidades por pulsación);
   - «Añadir nodo» (fija todas y crea el nuevo con su `position` en el centro de la zona visible);
-  - conectar arrastrando.
+  - conectar una salida, arrastrando **o eligiendo su destino en el selector del inspector**, también «(ninguno)» (delta `0520b08`). Los dos caminos usan `connectOutput(flow, positions, nodeId, pointer, destino)` = `setTarget(fixPositions(flow, positions), …)`, así que dan el mismo JSON, posiciones incluidas. Mutante `inspectorTargetWithoutFix`.
+- El resto de ediciones (textos, renombrar, borrar un nodo, «Editar como JSON») no fijan posiciones. Borrar un nodo o cambiar saltos por JSON puede recolocar los nodos que siguen sin `position`, como dice la spec.
 - Un nodo con una `position` inválida (escrita a mano) se pinta en la automática y no se toca hasta moverlo.
 
 **Mundo**: los límites son el mínimo y el máximo de las posiciones mostradas, con margen. Mientras se arrastra un nodo, los límites quedan congelados. Al soltar, si el origen del mundo cambia, la zona corrige su `scrollLeft`/`scrollTop` en la misma diferencia, para que nada salte bajo el puntero.
@@ -342,7 +381,7 @@ El coste es lineal más las comprobaciones contra los nodos con `position` de la
 Con Pointer Events y `setPointerCapture`, en `src/components/editor/canvas/use-canvas-drag.ts`:
 
 - **Mover**: `pointerdown` en el cuerpo del nodo. Mientras dura, el nodo se pinta desplazado en el estado local, sin tocar el flujo. Al soltar, si se movió más de 3 px, `session.edit(moveNode(…, dx/zoom, dy/zoom))`, una sola escritura. Si no, es un clic y selecciona. Escape o `pointercancel` lo cancelan.
-- **Conectar**: `pointerdown` en el punto de una salida. Una línea provisional sigue al puntero. En cada `pointermove`, el nodo bajo el puntero es `document.elementFromPoint(x, y)?.closest('[data-node-id]')`, solo si está dentro de la zona del lienzo. Mientras dura, cada nodo lleva `data-drop="allowed"` o `"denied"`, según `canDropOn`:
+- **Conectar**: `pointerdown` en el punto de una salida. Una línea provisional sigue al puntero. Ella y su `<svg>` llevan `pointer-events: none`, así que `elementFromPoint` nunca la devuelve en lugar del nodo de debajo. En cada `pointermove`, el nodo bajo el puntero es `document.elementFromPoint(x, y)?.closest('[data-node-id]')`, solo si está dentro de la zona del lienzo. Mientras dura, cada nodo lleva `data-drop="allowed"` o `"denied"`, según `canDropOn`:
   - Uno permitido muestra un borde discontinuo y el texto «Soltar aquí».
   - El prohibido (el propio nodo, salvo en el `next` de un `llm`) se atenúa y muestra «No se puede soltar aquí».
 
@@ -358,7 +397,9 @@ function resolveDrop(input: { flow; positions; sourceId; outputPointer; targetId
 
 - `cancelled` (Escape, `pointercancel`) o `targetId === null` (vacío o fuera del lienzo): `none` y el flujo no cambia (mutante `clearOnEmptyDrop`).
 - `targetId === sourceId`: `reject` salvo que el nodo sea `llm` y la salida `next` (mutantes `allowSelfDrop` y `allowLlmExhaustedSelf`). La pantalla anuncia «Un nodo no puede saltar a sí mismo.» en la región de estado y no cambia nada.
-- Si no: `connect` con `setTarget(fixPositions(flow, positions), sourceId, outputPointer, targetId)`. Es la **misma** función que usa el selector del inspector, sin `fixPositions` (escenario «El arrastre y el inspector dan el mismo flujo»). La salida que ya tenía destino se sustituye en su sitio.
+- Si no: `connect` con `connectOutput(flow, positions, sourceId, outputPointer, targetId)`. Es la **misma** función que usa el selector del inspector (D11; escenario «El arrastre y el inspector dan el mismo flujo»). La salida que ya tenía destino se sustituye en su sitio.
+
+**Escape** se escucha en `window` (`keydown`, añadido al empezar el arrastre y quitado al terminarlo), no en el nodo ni en la salida, que no tienen el foco. Cancela mover y conectar.
 
 Las salidas no reciben el foco. La vía del teclado es el selector de cada salto en el inspector (requisito «Crear conexiones arrastrando»).
 
@@ -369,7 +410,7 @@ Las salidas no reciben el foco. La vía del teclado es el selector de cada salto
    1. `!dirty`: «No hay cambios que guardar.»
    2. `!verdict.valid`: «Corrige los problemas antes de guardar.» (mutante `saveInvalid`).
    3. Algún `credential_header_literal` en la lista completa: «Hay una credencial escrita en una cabecera: usa un secreto.» (mutante `skipLiteralCredentialCheck`).
-   4. `draftText === null`, o sus bytes UTF-8 (`TextEncoder`) pasan de 1 048 576: «El flujo supera el tamaño máximo de 1 MiB.» (mutante `countCharsNotBytes`). El tope es `MAX_FLOW_BYTES` (`src/lib/editor/limits.ts`), con paridad contra el número de la spec (D21).
+   4. Los bytes UTF-8 de `draftText` (`TextEncoder`) pasan de 1 048 576: «El flujo supera el tamaño máximo de 1 MiB.» (mutante `countCharsNotBytes`). El tope es `MAX_FLOW_BYTES` (`src/lib/editor/limits.ts`), con paridad contra el número de la spec (D21).
 2. `PUT` con el texto `sent = draftText` e `If-Match: "<saved.revision>"`.
 3. Resultado:
 
@@ -389,19 +430,19 @@ Ningún texto lleva el `message` de la API (no llega al navegador, D2). Releer y
 ### D14. Publicar, Probar, Descartar, Ver JSON y Borrar flujo
 
 - **Publicar** (`publish()`):
-  - Con `dirty`: «Guarda los cambios antes de publicar.», sin enviar nada (mutante `publishWithChanges`).
+  - Con `dirty`: «Guarda los cambios antes de publicar.», sin enviar nada (`checkPublishable` de `save-gate.ts`; mutante `publishWithChanges`).
   - Si no, `POST …/versions` con `If-Match: "<saved.revision>"`.
   - 201: «Publicada la versión N.»; 200: «La versión N ya tiene este borrador.». Los dos ponen `latestVersion = N` y `unpublishedChanges = false` (publicar no cambia `revision`).
   - 412: «El flujo ha cambiado fuera del editor.» con «Cargar el guardado».
   - El resto de códigos, como en D13 (sin releer: publicar no tiene el escenario de respuesta perdida, y repetirlo sobre el mismo borrador da 200), con su genérico «No se ha podido publicar el flujo.» y «No se puede conectar con la API de Franca.» para la conexión.
-- **Probar**: `useStartConversation` y `startConversation` del chat tal cual, con contacto `''` (cuerpo `{"flowId"}`). El botón está siempre en el orden del foco, con `aria-disabled` cuando no se puede, y al pulsarlo:
+- **Probar**: `useStartConversation` y `startConversation` del chat tal cual, con contacto `''` (cuerpo `{"flowId"}`). El botón está siempre en el orden del foco, con `aria-disabled` cuando no se puede, y al pulsarlo decide `checkTryable` (`save-gate.ts`, puro, sobre la instantánea):
   - sin versión: «Publica el flujo antes de probarlo.»;
   - con `dirty`: «Guarda los cambios antes de probar.»;
   - si se puede, crea la conversación y navega.
 
   Sin `dirty` y con `unpublishedChanges`, una nota enlazada con `aria-describedby` dice «Se probará la versión N, no el borrador.». Los errores usan `errorCopy('start', code)` («Errores al empezar» de `web-chat`).
 - **Descartar cambios** y **Cargar el guardado** (`reloadSaved()`): «Descartar cambios» pide confirmación antes. Las dos vuelven a leer con `getFlow` y sustituyen `draft` y `saved`. Si la lectura falla, conservan los cambios con el aviso de conexión. Con 404, el aviso de flujo borrado fuera.
-- **Ver JSON**: un `<dialog>` modal con un `<textarea readOnly>` con `draftText` (lo que se enviaría al guardar, sin formatear) y «Copiar» (`navigator.clipboard.writeText`, anuncia «Copiado.»).
+- **Ver JSON**: un `<dialog>` modal con un `<textarea readOnly>` con `draftText` (lo que se enviaría al guardar, sin formatear; siempre existe, D5) y «Copiar» (`navigator.clipboard.writeText`, anuncia «Copiado.»).
 - **Borrar flujo**: confirmación «El identificador «`<id>`» queda reservado para siempre: no se podrá crear otro flujo con él. Las versiones publicadas y sus conversaciones se conservan.».
   - 204: navega a `/flujos`.
   - 404: navega a `/flujos`.
@@ -422,9 +463,13 @@ Ningún texto lleva el `message` de la API (no llega al navegador, D2). Releer y
 - **Enlaces de la web** del editor (`GuardedLink`, sobre `<Link>`): `onNavigate` con `dirty` llama a `event.preventDefault()` y abre `ConfirmDialog` («Hay cambios sin guardar. Si sales, se pierden.», «Salir» / «Seguir editando»). «Salir» hace `router.push(href)`. `onNavigate` solo corre en navegaciones del cliente, así que abrir en otra pestaña no pregunta. La cabecera del editor (enlaces a «Chat de prueba» y «Flujos») solo usa `GuardedLink`.
 - **Recargar o cerrar**: un `beforeunload` con `preventDefault()` registrado en un efecto solo mientras `dirty` (`use-unsaved-guard.ts`). Al ocultarse la ruta, el efecto se limpia y deja de preguntar.
 - Las navegaciones del propio editor (tras borrar, y «Probar», que solo va sin `dirty`) no pasan por la confirmación.
-- La flecha «atrás» del navegador no pregunta: la spec habla de enlaces, recargar y cerrar.
+- La flecha «atrás» del navegador no pregunta: la spec habla de enlaces, recargar y cerrar. Con `<Activity>`, atrás oculta el editor, `reset()` descarta los cambios y no hay confirmación. Es una pérdida aceptada en la v0 y queda escrita en la ficha `decision-editor-lienzo-y-validacion` (fase 6). Interceptar `popstate` del *router* de Next no tiene API estable.
 
-`FlowsScreen` reutiliza `usePagedList`, que ya relee al mostrarse y vuelve a `loading` al ocultarse. El diálogo «Nuevo flujo» se cierra y se vacía al ocultarse (`useLayoutEffect`).
+**Diálogos y `<Activity>`**: un `<dialog>` modal abierto en una ruta oculta seguiría en la capa superior del documento y bloquearía la ruta visible. Por eso:
+- cada `<dialog>` del editor y de `/flujos` (`ConfirmDialog`, «Ver JSON», «Editar como JSON» y «Nuevo flujo») se cierra con `close()` en el *cleanup* de un `useLayoutEffect`, y el menú de «Añadir nodo» se pliega igual;
+- toda navegación del editor (`router.push` tras crear, borrar, «Salir» de `GuardedLink` y «Probar») cierra antes los diálogos abiertos.
+
+`FlowsScreen` reutiliza `usePagedList`, que ya relee al mostrarse y vuelve a `loading` al ocultarse. El diálogo «Nuevo flujo» se cierra y se vacía al ocultarse.
 
 Descartado:
 - **`key={bfcacheId}`**: Next lo presenta como herramienta de migración, y además restauraría el estado viejo con atrás/adelante, que es justo lo que no se quiere.
@@ -498,26 +543,33 @@ Es la fase 1.1: con ella, `pnpm check` vuelve a verde en la rama (hoy está en r
 - **Unit puros** (`src/lib/editor/*.test.ts`):
   - `json-edit` (orden, `__proto__`, claves numéricas);
   - `flow-text`;
-  - `fields` (cada fila de D5 y los contenedores vacíos);
+  - `node-targets` (B1: la forma mínima, los saltos legibles de nodos mal formados y que nada lanza);
+  - `fields` (cada fila de D5, los contenedores vacíos y la casilla con el `default` escrito en el último guardado);
   - `node-fields` (paridad con el esquema);
   - `node-templates` (los ocho, `<tipo>-<n>` con el menor `n` libre, y el JSON exacto de «Añadir un mensaje»);
-  - `node-ops` (borrar sin tocar saltos, JSON de nodo con y sin cambio de `id`, cambio de `type`);
-  - `rename` (todas las clases de `targets`, `start`, patrón y duplicado);
-  - `outputs`, `canvas-model`, `drop`, `layout`, `positions`, `issues-view` y `save-gate`;
-  - `editor-session`, con un cliente falso, todas las filas de D13 y D14, la época y `dirty`;
+  - `node-ops`:
+    - borrar sin tocar saltos;
+    - JSON de nodo con y sin cambio de `id`, y cambio de `type`;
+    - un JSON de 100 000 niveles rechazado antes de serializar, sin `RangeError`;
+    - `connectOutput` con y sin `fixPositions` (mutante `inspectorTargetWithoutFix`);
+  - `rename`: todas las clases de saltos, `start`, patrón, duplicado y nodos mal formados;
+  - `outputs`, `canvas-model` y `layout`, también con las ocho plantillas de «Añadir nodo» y nodos mal formados (D10);
+  - `drop`, `positions`, `issues-view` y `save-gate` (con `checkSavable`, `checkPublishable` y `checkTryable`);
+  - `editor-session`, con un cliente falso: todas las filas de D13 y D14, la época, `dirty` y los cinco escenarios de D22 que se prueban aquí;
   - `copy` (cada código con escenario tiene su texto, y ninguno contiene `@franca/`).
 - **Golden pequeño** (en `node-templates.test.ts` y `fields.test.ts`): el texto exacto de «Crear un flujo vacío», «Añadir un mensaje», «Editar un campo no reordena el nodo» y «Mover un nodo guarda su posición» (sobre la posición pintada por `autoLayout`). Son literales en el test, no ficheros regrabables.
 - **Marcado** (`renderToStaticMarkup`):
-  - `canvas-node.test.tsx`: nombre accesible, marca «Inicio» y de problemas con texto, `<b>` como texto y ninguna salida enfocable;
+  - `canvas-node.test.tsx`: nombre accesible, marca «Inicio» y de problemas con texto, `<b>` como texto, ninguna salida enfocable, y el alto y el ancho fijos de `nodeSize` con `overflow-hidden` (D10);
   - `content-field.test.tsx`: una URL solo en un `value`, sin `img`, `video`, `audio`, `iframe` ni `a`;
   - `problems-list.test.tsx`.
 - **Integración** (`src/server/bff/editor-handlers.test.ts`, contra la API simulada de `tests/helpers/fake-api.ts`):
-  - método, ruta, consulta, cabeceras y bytes exactos de las seis operaciones;
+  - método, ruta, consulta, cabeceras y bytes exactos de las seis operaciones (publicar con `Content-Length: 0` y sin `Content-Type`, borrar sin `Content-Length`);
   - `If-Match` ausente → 428, y `*`, `W/"1"` o `1` → 400, sin llamar;
   - ids inválidos → 404 sin llamar;
   - la frontera repetida (403 sin llamar);
   - 413, `invalid_json` e `invalid_request` (incluido el escenario «Cuerpo de un flujo demasiado grande»);
-  - cuerpo profundo reenviado sin 500;
+  - un cuerpo poco profundo con espacios no canónicos llega a la API serializado de nuevo (sin esos espacios);
+  - un cuerpo de **100 000 niveles** (unos 200 KB) con espacios no canónicos llega a la API **exactamente** como se recibió, y la web no responde 500. Con 1001 o 5000 niveles el test no serviría: Node los serializa sin lanzar, y el mutante `stringifyWithoutDepthGuard` sobreviviría;
   - errores sin `message`, `issues` ni `warnings`, y `currentRevision`;
   - el 204;
   - la lista sin `published`;
@@ -526,9 +578,11 @@ Es la fase 1.1: con ella, `pnpm check` vuelve a verde en la rama (hoy está en r
   Las respuestas de la API simulada se copian de la real (`tests/helpers/real-flow-shapes.ts`, medidas con `curl -i` en la fase 2) y las compara con la real `e2e/editor-api-shapes.e2e.ts`.
 - **Frontera**: `src/server/frontier-editor.test.ts` (el segmento de `/api/editor/flows/` con `%2F`, mayúsculas y `%` mal formado, y la CSP de D7) y `src/lib/web-client-editor.test.ts` (las seis llamadas con un `fetch` falso: método, URL, `If-Match`, cuerpo y lectura por estado).
 - **Guarda estática** (`tests/static-guard.test.ts`):
-  - `operations.ts` exporta **exactamente** estas catorce funciones, por nombre;
+  - `operations.ts` exporta **exactamente** estas catorce funciones, por nombre. El test se llama ahora «…exporta exactamente catorce funciones»;
+  - el recuento de ficheros de ruta pasa de 7 a **10** (`expect(routes.length).toBe(10)`) y el mínimo de manejadores de 13 a **19** (los seis nuevos: `GET` y `POST` de la lista, `GET`, `PUT` y `DELETE` de un flujo, y `POST` de versiones). Los dos son cambios deliberados de este diseño;
   - `@franca/spec` sin `import type` (y `@franca/spec/flow.schema.json`) solo desde `src/lib/editor/**` y `src/server/**` en el código del navegador;
-  - las prohibiciones de D19 en `src/components/editor/**`.
+  - las prohibiciones de D19 en `src/components/editor/**`;
+  - solo `src/lib/editor/node-targets.ts` importa `targets` de `@franca/spec` (B1).
 
   Las demás reglas (`connection()`, sin `'use server'`, sin `mode:`, formularios) ya cubren las rutas y componentes nuevos.
 - **Paridad** (`tests/editor-parity.test.ts`):
@@ -536,10 +590,17 @@ Es la fase 1.1: con ella, `pnpm check` vuelve a verde en la rama (hoy está en r
   - `NODE_TYPE_LABELS` tiene exactamente los tipos de `$defs.node.oneOf`.
 
   `openspec/**` ya está en los `inputs` de `@franca/web#test` de turbo: no hace falta tocar `turbo.json`.
+- **`src/server/api/operations.test.ts`** (modificado): «exporta exactamente las catorce operaciones», con la lista de nombres y `Object.keys(API_OPERATIONS).length === 14`. El método y la ruta de las seis nuevas se prueban en `editor-handlers.test.ts`, para no tocar los casos existentes.
 
 ### D22. E2E con Playwright
 
-La misma pila única (D20 de `web-chat`): API real con Postgres, API simulada delante y `next start`, un *worker* en serie y la base vaciada entre tests. Los flujos de partida salen de `e2e/fixtures/flows/` y `packages/spec/examples/`, y se crean con `Admin` contra la API real. No hay *fixtures* nuevos: el flujo de 1 040 000 bytes se genera en el test con un relleno determinista.
+La misma pila única (D20 de `web-chat`): API real con Postgres, API simulada delante y `next start`, un *worker* en serie y la base vaciada entre tests. Los flujos de partida salen de `e2e/fixtures/flows/` y `packages/spec/examples/`, y se crean con `Admin` contra la API real. No hay *fixtures* nuevos.
+
+**Leer el estado en la API real** (B2): se **amplía `e2e/support/admin.ts`**, la única ayuda «directamente en la API» de los E2E, con dos métodos:
+- `flow(flowId)`: `GET /flows/:id`, que espera 200 y devuelve el recurso; un 404 se comprueba con `call` (`expectStatus`).
+- `versions(flowId)`: `GET /flows/:id/versions?limit=100`, que devuelve la página.
+
+Lo necesitan «Guardar un cambio», «Publicar sin cambios desde el editor», «Dos pestañas editan el mismo flujo», «Borrar un flujo cambiado fuera», «Flujo cambiado fuera del editor» y «Borrar un flujo desde el editor». Se descarta que `e2e/support/editor.ts` lea la API con su propio `fetch`: serían dos clientes de prueba de la misma API con dos formas de fallar.
 
 `e2e/support/editor.ts` (nuevo):
 - `openEditor(page, id)` y `node(page, id)`;
@@ -553,9 +614,9 @@ La misma pila única (D20 de `web-chat`): API real con Postgres, API simulada de
 | `editor-list.e2e.ts` | 11 (lista, estados, crear vacío y desde JSON, id en uso) | API real; «API parada en el editor» con la simulada parada |
 | `editor-open.e2e.ts` | 5 (abrir, estados, URLs sin cargar) | Real salvo «Flujo que no existe en el editor» |
 | `editor-canvas.e2e.ts` | 8 más «cada clase de salida se conecta arrastrando» | Real |
-| `editor-inspector.e2e.ts` | 13 | Real |
-| `editor-save.e2e.ts` | 12 | Real salvo «Validar no llama a la API» y «Guardado con respuesta perdida» |
-| `editor-publish.e2e.ts` | 11 (publicar, probar, ver JSON, borrar) | Real |
+| `editor-inspector.e2e.ts` | 13 (con «Conectar desde el inspector no mueve los nodos») más «añadir una condición no rompe el lienzo» (B1) | Real |
+| `editor-save.e2e.ts` | 10 | Real salvo «Validar no llama a la API» y «Guardado con respuesta perdida» |
+| `editor-publish.e2e.ts` | 9 (publicar, probar, ver JSON, borrar) | Real |
 | `editor-frontier.e2e.ts` | 7 (recorrido, ids, `Origin`/`Host`, cabeceras, error sin mensaje, privacidad) | Servidor real de la web; peticiones en bruto donde no hace falta navegador |
 | `editor-accessibility.e2e.ts` | 3 (teclado, foco, 320 px) | Real |
 | `editor-api-shapes.e2e.ts` | Forma de `real-flow-shapes.ts` frente a la API real (sin escenario) | Real |
@@ -569,10 +630,19 @@ La misma pila única (D20 de `web-chat`): API real con Postgres, API simulada de
 
   Soltar en vacío, Escape y el propio nodo tienen su escenario. El resto de combinaciones (destino ya conectado, salida vacía, selección múltiple, autosalto por `onExhausted`) va en `drop.test.ts`.
 - **«Recargar con cambios»**: se observa el `dialog` de tipo `beforeunload` de Playwright al recargar con `page.reload()` después de escribir (activación del usuario). Si Chromium sin cabeza no lo emitiera, el escenario pasa a comprobar que `beforeunload` queda cancelado (`dispatchEvent` con `cancelable`) y la recarga real queda como verificación manual de la fase 6, con ese motivo en el test.
+- **Cinco escenarios pasan a Vitest** (`editor-session.test.ts`, con el cliente falso; no bloqueante de la revisión). Su THEN es una decisión de la sesión o de una barrera, no del navegador:
+  - «JSON de un nodo roto»: el error y el borrador idéntico. Que el campo conserva el texto lo da el diálogo, cuyo texto es local.
+  - «Publicar con cambios sin guardar»: `checkPublishable` y ninguna llamada al cliente falso.
+  - «Probar sin versión publicada»: `checkTryable` da «Publica el flujo antes de probarlo.» y no se llama al `start` falso.
+  - «Cambio deshecho a mano»: `dirty` falso y ninguna llamada.
+  - «Flujo de más de 1 MiB»: un flujo válido de 1 040 000 bytes con un texto de 10 000 caracteres añadido da `too_large`, y no hay ninguna llamada.
+
+  El aviso de las barreras en pantalla lo ejerce «No se guarda un flujo inválido», que usa el mismo componente.
+- **«añadir una condición no rompe el lienzo»** (sin escenario, B1): en `hola`, «Añadir nodo» → condición. El lienzo pinta `condition-1` con su salida `else`, la lista dice que le falta `rules` y la consola sigue limpia.
 - **Portapapeles**: `context.grantPermissions(['clipboard-read', 'clipboard-write'])` y `navigator.clipboard.readText()`.
 - **Consola limpia** y **navegador sin Internet**: las *fixtures* de `e2e/support/test.ts`. «El editor no carga direcciones del flujo» comprueba `external` vacío.
 
-**Coste en la CI**: 70 escenarios de navegador más dos de apoyo. Con unos 3 s de media (abrir, unas interacciones y comprobar; dos pestañas y 1 MiB algo más), son unos **4 minutos más** de `test:e2e`, en serie con los del chat. Se mide en el *runner*, nunca en el portátil, y se anota en el PR (FOLLOW-UP 7.1). Si pasara de 8 minutos, el primer recorte es juntar en un mismo test las páginas de inspector que comparten flujo, sin perder títulos (cada escenario sigue en su `test`, con un `beforeAll` común).
+**Coste en la CI**: 66 escenarios de navegador más tres de apoyo. Con unos 3 s de media (abrir, unas interacciones y comprobar; dos pestañas algo más), son unos **3,5 minutos más** de `test:e2e`, en serie con los del chat. Se mide en el *runner*, nunca en el portátil, y se anota en el PR (FOLLOW-UP 7.1). El umbral de recorte es del **job de E2E de la web completo** (`pnpm --filter @franca/web test:e2e`: chat, editor y el `@lento` de 150 s). Si en el *runner* pasa de 12 minutos, el primer recorte es juntar en un mismo test las páginas de inspector que comparten flujo, sin perder títulos (cada escenario sigue en su `test`, con un `beforeAll` común).
 
 ### D23. Mutación
 
@@ -584,6 +654,10 @@ Los mutantes nuevos se añaden a `tests/mutations.json`. Todos mueren con Vitest
 | `writeDefaults` (la casilla escribe el `default`) | `src/lib/editor/fields.ts` | `fields.test.ts` |
 | `keepEmptyContainers` | `src/lib/editor/fields.ts` | `fields.test.ts` |
 | `parseLooseNumber` (`Number(texto)` sin la expresión) | `src/lib/editor/fields.ts` | `fields.test.ts` |
+| `forgetSavedDefault` (desmarcar quita la propiedad aunque estuviera escrita en el último guardado) | `src/lib/editor/fields.ts` | `fields.test.ts` |
+| `callTargetsDirect` (llama a `targets` sin comprobar la forma mínima) | `src/lib/editor/node-targets.ts` | `node-targets.test.ts`, `canvas-model.test.ts` y `layout.test.ts` |
+| `skipDepthCheckOnApply` | `src/lib/editor/node-ops.ts` | `node-ops.test.ts` |
+| `inspectorTargetWithoutFix` (el selector del inspector no fija posiciones) | `src/lib/editor/node-ops.ts` | `node-ops.test.ts` |
 | `persistAutoLayout` (abrir fija las posiciones) | `src/lib/editor/editor-session.ts` | `editor-session.test.ts` |
 | `fixOnlyMovedNode` | `src/lib/editor/positions.ts` | `positions.test.ts` |
 | `skipOverlapCheck` | `src/lib/editor/layout.ts` | `layout.test.ts` |
@@ -602,11 +676,11 @@ Los mutantes nuevos se añaden a `tests/mutations.json`. Todos mueren con Vitest
 | `skipEditorFrontierRecheck`, `optionalIfMatchOnEditor` | `src/server/bff/handlers.ts` | `editor-handlers.test.ts` |
 | `acceptNonObjectFlowBody`, `stringifyWithoutDepthGuard` | `src/server/bff/request.ts` | `editor-handlers.test.ts` |
 
-Son 33 nuevos, más los 29 del chat. **`storeDraftInBrowser` de la propuesta no es mutante**: en Node, `sessionStorage` no existe y el mutante moriría por un `ReferenceError`, no por un test que lo vigile. Lo cubren ESLint (`no-restricted-globals`, validado a mano una vez) y el E2E «Marcas fuera de los registros del editor». Los demás tests negativos («no recibe ningún `PUT`», «no contiene», paridad) se validan **una vez a mano**, provocando el caso prohibido y viendo que fallan (`testing-pyramid.md`), como en el chat.
+Son 37 nuevos, más los 29 del chat. **`storeDraftInBrowser` de la propuesta no es mutante**: en Node, `sessionStorage` no existe y el mutante moriría por un `ReferenceError`, no por un test que lo vigile. Lo cubren ESLint (`no-restricted-globals`, validado a mano una vez) y el E2E «Marcas fuera de los registros del editor». Los demás tests negativos («no recibe ningún `PUT`», «no contiene», paridad) se validan **una vez a mano**, provocando el caso prohibido y viendo que fallan (`testing-pyramid.md`), como en el chat.
 
 ### D24. Cobertura de escenarios
 
-`tests/spec-coverage.test.ts` recorre dos capacidades con sus mínimos: `web-chat` (los suyos, con el escenario nuevo) y `web-editor` (44 requisitos y 77 escenarios), cada una leída con `effectiveSpec`. Exige títulos únicos **entre las dos** (el buscador es global) y un `it('<título>'`/`test('<título>'` exacto en `src/**/*.test.{ts,tsx}`, `tests/**/*.test.ts` o `e2e/**/*.e2e.ts`. La extensión entra al final de la fase 5. Desde la fase 1 están los títulos de Vitest, y en la 5 los de E2E.
+`tests/spec-coverage.test.ts` recorre dos capacidades con sus mínimos: `web-chat` (los suyos, con el escenario nuevo) y `web-editor` (44 requisitos y 78 escenarios), cada una leída con `effectiveSpec`. Exige títulos únicos **entre las dos** (el buscador es global) y un `it('<título>'`/`test('<título>'` exacto en `src/**/*.test.{ts,tsx}`, `tests/**/*.test.ts` o `e2e/**/*.e2e.ts`. La extensión entra al final de la fase 5. Desde la fase 1 están los títulos de Vitest, y en la 5 los de E2E.
 
 Ningún escenario queda solo como verificación manual (ver el caso límite de «Recargar con cambios» en D22).
 
@@ -686,7 +760,7 @@ Errores: `{"error":"revision_mismatch","currentRevision":2}` · `{"error":"flow_
 |---|---|
 | `src/app/flujos/page.tsx`, `src/app/flujos/[flowId]/page.tsx` | Páginas (D1) |
 | `src/app/api/editor/flows/route.ts`, `…/[flowId]/route.ts`, `…/[flowId]/versions/route.ts` | Rutas de la web (D1, D2) |
-| `src/lib/editor/json-edit.ts`, `flow-text.ts`, `fields.ts`, `node-fields.ts`, `node-types.ts`, `node-templates.ts`, `node-ops.ts`, `rename.ts`, `outputs.ts`, `canvas-geometry.ts`, `canvas-model.ts`, `layout.ts`, `positions.ts`, `drop.ts`, `issues-view.ts`, `save-gate.ts`, `limits.ts`, `api-types.ts`, `copy.ts`, `editor-session.ts` (+ un `*.test.ts` por cada uno con lógica) | Núcleo puro (D4-D14) |
+| `src/lib/editor/json-edit.ts`, `flow-text.ts`, `node-targets.ts`, `fields.ts`, `node-fields.ts`, `node-types.ts`, `node-templates.ts`, `node-ops.ts`, `rename.ts`, `outputs.ts`, `canvas-geometry.ts`, `canvas-model.ts`, `layout.ts`, `positions.ts`, `drop.ts`, `issues-view.ts`, `save-gate.ts`, `limits.ts`, `api-types.ts`, `copy.ts`, `editor-session.ts` (+ un `*.test.ts` por cada uno con lógica) | Núcleo puro (D4-D14) |
 | `src/hooks/use-editor-session.ts`, `use-unsaved-guard.ts` | Adaptadores de React (D15) |
 | `src/components/editor/flows-screen.tsx`, `editor-flow-list.tsx`, `new-flow-dialog.tsx`, `editor-screen.tsx`, `editor-header.tsx`, `editor-actions.tsx`, `add-node-menu.tsx`, `problems-list.tsx`, `flow-panel.tsx`, `confirm-dialog.tsx`, `flow-json-dialog.tsx`, `node-json-dialog.tsx`, `guarded-link.tsx`, `editor-loading.tsx`, `editor-not-found.tsx` | Pantallas y piezas |
 | `src/components/editor/canvas/flow-canvas.tsx`, `canvas-node.tsx`, `canvas-edges.tsx`, `zoom-controls.tsx`, `use-canvas-drag.ts` | Lienzo (D9-D12) |
@@ -708,8 +782,10 @@ Errores: `{"error":"revision_mismatch","currentRevision":2}` · `{"error":"flow_
 | `src/lib/web-client.ts` | `'PUT'`, `createEditorClient` y `editorClient`: único `fetch` del navegador |
 | `src/lib/chat/copy.ts`, `src/components/chat/home-screen.tsx`, `src/components/chat/list-state.tsx` | Delta de `web-chat` (D20) |
 | `eslint.config.mjs` | `next/image` prohibido también en `src/components/editor/**` |
-| `tests/static-guard.test.ts`, `tests/spec-coverage.test.ts`, `tests/mutations.json` | Catorce operaciones y reglas nuevas, capacidad `web-editor` y mutantes |
+| `src/server/api/operations.test.ts` | «Exporta exactamente las catorce operaciones» y `API_OPERATIONS` con 14 claves. Hoy exige las ocho y fallaría con cualquier operación nueva (B2) |
+| `tests/static-guard.test.ts`, `tests/spec-coverage.test.ts`, `tests/mutations.json` | Catorce operaciones por nombre, rutas de 7 a 10 y manejadores de ≥ 13 a ≥ 19, reglas nuevas, capacidad `web-editor` y mutantes |
 | `e2e/home.e2e.ts` | «Sin flujos publicados» y «Enlace al editor desde el inicio» |
+| `e2e/support/admin.ts` | `flow(flowId)` y `versions(flowId)`: leer en la API real lo que comprueban seis escenarios (D22, B2) |
 | `README.md` (de la web) | El editor: rutas, cómo se prueba |
 
 `src/lib/chat/api-types.ts`, los *hooks* del chat, `responses.ts`, `limits.ts`, `next.config.ts`, `package.json` y `tsconfig.json` **no cambian**.
@@ -720,8 +796,8 @@ Errores: `{"error":"revision_mismatch","currentRevision":2}` · `{"error":"flow_
 |---|---|
 | `openspec/changes/web-editor/**` | Este cambio |
 | `.claude/rules/frontend/architecture.md` | «Catorce operaciones fijas», `/api/editor/flows` y el editor en `src/lib/editor/` |
-| `.claude/rules/always/gotchas.md` | Dos líneas: `JSON.stringify` recursivo y la CSP sin `script-src` mientras el editor valide con ajv |
-| `.claude/rules/always/knowledge-wiki.md`, `.claude/wiki/gotcha-json-stringify-recursivo.md` (nuevo), `.claude/wiki/decision-editor-lienzo-y-validacion.md` (nuevo), `.claude/wiki/decision-frontera-local-de-la-web.md` | Hechos no derivables (fase 6) |
+| `.claude/rules/always/gotchas.md` | Tres líneas: `JSON.stringify` recursivo, `targets()` con nodos de forma inválida y la CSP sin `script-src` mientras el editor valide con ajv |
+| `.claude/rules/always/knowledge-wiki.md`, `.claude/wiki/gotcha-json-stringify-recursivo.md` (nuevo), `.claude/wiki/gotcha-targets-asume-forma-valida.md` (nuevo), `.claude/wiki/decision-editor-lienzo-y-validacion.md` (nuevo, con el límite de atrás del navegador), `.claude/wiki/decision-frontera-local-de-la-web.md` | Hechos no derivables (fase 6) |
 | `CLAUDE.md` | La ruta del editor en «Qué es» y en la fila de la web |
 | `README.md` (raíz) | `/flujos` en el recorrido local |
 
@@ -734,13 +810,13 @@ git diff --name-only main...HEAD -- apps/api packages turbo.json pnpm-lock.yaml 
 git diff --name-only main...HEAD | grep -v -E '^(apps/web/|openspec/|\.claude/wiki/|\.claude/rules/(always/(gotchas|knowledge-wiki)|frontend/architecture)\.md$|CLAUDE\.md$|README\.md$)'
 ```
 
-Además, `git diff --name-only --diff-filter=M main...HEAD -- apps/web` lista exactamente los 16 ficheros de la tabla «Modificados». Uno más exige una decisión escrita aquí antes del PR.
+Además, `git diff --name-only --diff-filter=M main...HEAD -- apps/web` lista exactamente los 18 ficheros de la tabla «Modificados». Uno más exige una decisión escrita aquí antes del PR.
 
 ## Coherencia (checklist)
 
 - [x] Cada campo de respuesta que lee el editor está en la tabla de 2xx. Los que pasan sin uso son de la API, con su porqué.
 - [x] Cada llamada del navegador tiene su ruta de la web, cada ruta su operación, y cada operación su función en `operations.ts`. El comodín no llama a nada. «Probar» usa la operación del chat.
-- [x] Tipos y validación de flujo desde `@franca/spec` (`validateFlow`, `targets`, `exceedsFlowDepth`, `capWarnings`, `schema`). Las listas del formulario salen del esquema en ejecución, y los descriptores tienen paridad con él. La web solo declara las formas de los recursos de la API (`api-types.ts`), y las comprueba `editor-api-shapes.e2e.ts`.
+- [x] Tipos y validación de flujo desde `@franca/spec` (`validateFlow`, `targets` a través de `nodeTargets`, `exceedsFlowDepth`, `capWarnings`, `schema`). Las listas del formulario salen del esquema en ejecución, y los descriptores tienen paridad con él. La web solo declara las formas de los recursos de la API (`api-types.ts`), y las comprueba `editor-api-shapes.e2e.ts`.
 - [x] Cada error de la API tiene manejo en cada contexto, aunque sea el genérico. La lista espejada de códigos ya tiene paridad, y no hay códigos nuevos.
 - [x] Permisos: no hay usuarios. `Host` y `Origin` en toda mutación nueva (`proxy.ts` y la defensa en profundidad), y ids validados en la frontera, la ruta y la página.
 - [x] Constantes espejadas con paridad: `MAX_FLOW_BYTES` frente a la spec, `NODE_TYPE_LABELS` y los descriptores frente al esquema, y `API_ERROR_CODES` (la existente).
@@ -757,7 +833,7 @@ Además, `git diff --name-only --diff-filter=M main...HEAD -- apps/web` lista ex
   - En `test:e2e`: `next start` real para `Host`, `Origin`, `%2F`, cabeceras y el recorrido.
 - **E2E opción-al-menos-una-vez (aplica)**: cada tipo de nodo en el inspector, cada clase de campo editada al menos una vez, cada clase de salida arrastrada, cada acción y cada error con escenario (D22).
 - **Smoke de ruta (aplica)**: `/flujos`, `/flujos/<id>` existente, no válido e inexistente, y el 403 con un `Host` ajeno («Host ajeno en el editor»).
-- **Mutación (aplica, manual)**: los 33 mutantes de D23.
+- **Mutación (aplica, manual)**: los 37 mutantes de D23.
 - **Cobertura de la spec (aplica)**: D24.
 
 ### Escenario → test (título exacto)
@@ -769,18 +845,27 @@ Además, `git diff --name-only --diff-filter=M main...HEAD -- apps/web` lista ex
 | `src/lib/editor/drop.test.ts` | Conectar una salida vacía arrastrando | Unit |
 | `src/lib/editor/fields.test.ts` | Editar un campo no reordena el nodo · Vaciar un campo opcional | Unit (golden) |
 | `src/lib/editor/rename.test.ts` | Renombrar un nodo | Unit |
+| `src/lib/editor/editor-session.test.ts` | JSON de un nodo roto · Publicar con cambios sin guardar · Probar sin versión publicada · Cambio deshecho a mano · Flujo de más de 1 MiB | Unit (cliente falso) |
 | `src/server/bff/editor-handlers.test.ts` | Cuerpo de un flujo demasiado grande | Integración |
 | `e2e/editor-list.e2e.ts` | Del editor al chat · Borradores y publicados en la lista · Más de una página en el editor · Sin flujos en el editor · API parada en el editor · Crear un flujo vacío · Identificador no admitido · Importar un ejemplo · JSON pegado que no es un flujo válido · Id repetido en el editor · Id reservado en el editor | E2E |
 | `e2e/editor-open.e2e.ts` | Abrir captacion-leads · Flujo cambiado fuera del editor · Flujo que no existe en el editor · API parada al abrir un flujo · El editor no carga direcciones del flujo | E2E |
 | `e2e/editor-canvas.e2e.ts` | Abrir sin posiciones no cambia el flujo · Mover un nodo guarda su posición · Sustituir una conexión arrastrando · Soltar una conexión en vacío · El arrastre y el inspector dan el mismo flujo · Conectar arrastrando no mueve los nodos · Soltar sobre el propio nodo · Un llm que vuelve a sí mismo | E2E |
-| `e2e/editor-inspector.e2e.ts` | Declarar una variable personal · Los ocho tipos en el inspector · Regla de una condición · Número escrito con letras · Cabecera con un secreto · Token pegado en una cabecera · Añadir un mensaje · Renombrar al id de otro nodo · Borrar un nodo con saltos hacia él · Aplicar el JSON de un nodo · JSON de un nodo roto · Error al dejar un nodo sin conectar · Del problema al nodo | E2E |
-| `e2e/editor-save.e2e.ts` | Validar no llama a la API · Guardar un cambio · No se guarda un flujo inválido · Flujo de más de 1 MiB · Cambio deshecho a mano · Dos pestañas editan el mismo flujo · Cargar el guardado tras un conflicto · Guardado con respuesta perdida · Flujo borrado mientras se edita · Descartar cambios · Salir con cambios sin guardar · Recargar con cambios | E2E |
-| `e2e/editor-publish.e2e.ts` | Publicar un flujo desde el editor · Publicar sin cambios desde el editor · Publicar con cambios sin guardar · Publicar tras mover un nodo · Publicar un borrador cambiado fuera · Probar tras publicar · Probar sin versión publicada · Probar con cambios sin publicar · Ver y copiar el JSON · Borrar un flujo desde el editor · Borrar un flujo cambiado fuera | E2E |
+| `e2e/editor-inspector.e2e.ts` | Conectar desde el inspector no mueve los nodos · Declarar una variable personal · Los ocho tipos en el inspector · Regla de una condición · Número escrito con letras · Cabecera con un secreto · Token pegado en una cabecera · Añadir un mensaje · Renombrar al id de otro nodo · Borrar un nodo con saltos hacia él · Aplicar el JSON de un nodo · Error al dejar un nodo sin conectar · Del problema al nodo | E2E |
+| `e2e/editor-save.e2e.ts` | Validar no llama a la API · Guardar un cambio · No se guarda un flujo inválido · Dos pestañas editan el mismo flujo · Cargar el guardado tras un conflicto · Guardado con respuesta perdida · Flujo borrado mientras se edita · Descartar cambios · Salir con cambios sin guardar · Recargar con cambios | E2E |
+| `e2e/editor-publish.e2e.ts` | Publicar un flujo desde el editor · Publicar sin cambios desde el editor · Publicar tras mover un nodo · Publicar un borrador cambiado fuera · Probar tras publicar · Probar con cambios sin publicar · Ver y copiar el JSON · Borrar un flujo desde el editor · Borrar un flujo cambiado fuera | E2E |
 | `e2e/editor-frontier.e2e.ts` | Recorrido del editor · Id de flujo con una ruta dentro · Otra web intenta guardar un flujo · Host ajeno en el editor · Cabeceras de un guardado · Error de la API sin su mensaje · Marcas fuera de los registros del editor | E2E |
 | `e2e/editor-accessibility.e2e.ts` | Crear un flujo solo con teclado · El foco tras añadir y borrar un nodo · Editor en pantalla estrecha | E2E |
 | `e2e/home.e2e.ts` (`web-chat`) | Enlace al editor desde el inicio (nuevo) · Sin flujos publicados (comprueba el enlace) | E2E |
 
-Son 7 en Vitest y 70 en Playwright: los 77, uno por escenario. **Por qué siete van en Vitest aunque su THEN diga «la API recibe»**: el texto que recibe la API es `draftText` byte a byte. Lo demuestran una vez, de punta a punta, «Guardar un cambio», «Cabeceras de un guardado» y el test de integración de bytes exactos. Lo que distingue esos siete escenarios es la transformación del JSON, que es pura, y su golden la fija sin navegador. La UI de cada clase de campo se ejerce igualmente en otro E2E (texto en «Declarar una variable personal» y «Regla de una condición», número en «Número escrito con letras», renombrar en «Renombrar al id de otro nodo», y salto en «El arrastre y el inspector dan el mismo flujo»).
+Son 12 en Vitest y 66 en Playwright: los 78, uno por escenario. Además hay tres E2E de apoyo sin escenario: «cada clase de salida se conecta arrastrando», «añadir una condición no rompe el lienzo» y la forma real de `editor-api-shapes.e2e.ts`.
+
+**Por qué siete escenarios van en Vitest aunque su THEN diga «la API recibe»**: el texto que recibe la API es `draftText` byte a byte. Lo demuestran una vez, de punta a punta, «Guardar un cambio», «Cabeceras de un guardado» y el test de integración de bytes exactos. Lo que distingue esos siete escenarios es la transformación del JSON, que es pura, y su golden la fija sin navegador. La UI de cada clase de campo se ejerce igualmente en otro E2E:
+- texto, en «Declarar una variable personal» y «Regla de una condición»;
+- número, en «Número escrito con letras»;
+- renombrar, en «Renombrar al id de otro nodo»;
+- salto, en «El arrastre y el inspector dan el mismo flujo» y «Conectar desde el inspector no mueve los nodos».
+
+Los otros cinco que van a `editor-session.test.ts` se explican en D22.
 
 ## Plan de ejecución
 
@@ -792,7 +877,7 @@ Detalle, ficheros exactos y gates en `tasks.md`. Resumen:
 | 2. Frontera y servidor de la web | `popi:frontend-developer` | D2, D3, rutas, guarda estática, respuestas reales medidas con `curl -i` | `pnpm check` y `curl` a `next start` contra la API real |
 | 3. QA del núcleo y la frontera | `popi:qa-tester` (unit, integración y mutación) | Mutantes de D23, negativos validados a mano, revisión de los dobles frente a lo real | `pnpm --filter @franca/web mutate` sin supervivientes |
 | 4. Pantallas | `popi:frontend-developer` | Páginas, *hooks*, componentes, lienzo e inspector; marcado; verificación en el navegador | `pnpm check` y `/popi:verify frontend` con consola y red limpias |
-| 5. E2E y cobertura | `popi:qa-tester` (E2E) | Los 70 E2E, la forma real, `spec-coverage` con `web-editor` y la revisión `web-design-guidelines` | `pnpm test:e2e` en verde y tiempo anotado |
+| 5. E2E y cobertura | `popi:qa-tester` (E2E) | Los 66 E2E de escenario y los tres de apoyo, la forma real, `spec-coverage` con `web-editor` y la revisión `web-design-guidelines` | `pnpm test:e2e` en verde y tiempo anotado |
 | 6. Docs y cierre | `popi:frontend-developer` | Reglas, wiki, `CLAUDE.md`, README, criterio del *diff* | Lint de la wiki, `openspec validate`, *diff* |
 
 **Modo recomendado: `apply normal`**, fase a fase con sus gates. El espacio de comportamiento es grande y visual (lienzo, foco, arrastre, 320 px) y necesita verificación en el navegador. Un `bucle aislado` (`popi:loop`) solo encaja en la fase 3, cuyo espacio es cerrado (una lista de mutantes y un veredicto mecánico). La elección es del usuario.
@@ -805,9 +890,11 @@ Detalle, ficheros exactos y gates en `tasks.md`. Resumen:
 - **R4. `beforeunload` sin cabeza** (D22). **Medida**: el E2E escucha el `dialog`. Si Chromium sin cabeza no lo emite, el *fallback* está escrito en el test y la recarga real queda en la verificación manual 6.4.
 - **R5. Revisiones de más por normalizar.** **Medida**: el borrador es el JSON recibido sin tocar (D4), y lo vigilan el golden, «Abrir sin posiciones no cambia el flujo», «Cambio deshecho a mano» y los mutantes `reorderOnEdit`, `writeDefaults`, `keepEmptyContainers` y `persistAutoLayout`. Mover y publicar sí crean versión, a propósito.
 - **R6. La frontera crece a 14 operaciones, cuatro de ellas escriben flujos.** **Medida**: `Origin` y `Host` existentes y repetidos en los manejadores, ids validados en tres sitios, cuerpos con tope y mutantes de cada defensa nueva. Aguas abajo, un flujo publicado por un CSRF que pasara seguiría sin secretos de otro origen ([[decision-salida-http-politica]]).
-- **R7. Coste de los E2E** (unos 4 minutos más, D22). **Medida**: tiempo del *job* en el *runner*, anotado en el PR (FOLLOW-UP 7.1).
-- **R8. Ficheros ajenos tocados** (16 en `apps/web`). Es el contacto mínimo, porque la frontera, el cliente, las URLs y las guardas son únicos por diseño. **Medida**: el criterio del *diff*. Ninguno cambia el comportamiento del chat salvo el delta de `web-chat`, y todos los tests del chat siguen en verde en cada gate.
-- **R9. `<Activity>` conserva el DOM oculto** (hasta 3 rutas). **Medida**: el editor vuelve a `loading` al ocultarse (D15), y los E2E miran solo lo visible (`text(page, …)`), como en el chat.
+- **R7. Coste de los E2E** (unos 3,5 minutos más, D22). **Medida**: tiempo del *job* de E2E de la web completo en el *runner*, anotado en el PR (FOLLOW-UP 7.1). Recorte por encima de 12 minutos.
+- **R8. Ficheros ajenos tocados** (18 en `apps/web`). Es el contacto mínimo, porque la frontera, el cliente, las URLs y las guardas son únicos por diseño. **Medida**: el criterio del *diff*. Ninguno cambia el comportamiento del chat salvo el delta de `web-chat`, y todos los tests del chat siguen en verde en cada gate.
+- **R9. `<Activity>` conserva el DOM oculto** (hasta 3 rutas). **Medida**: el editor vuelve a `loading` al ocultarse y cierra sus diálogos (D15), y los E2E miran solo lo visible (`text(page, …)`), como en el chat.
+- **R10. Nodos de forma inválida en el borrador** (B1). «Añadir nodo» y «Editar como JSON» producen nodos que `targets` no recorre. **Medida**: todo pasa por `nodeTargets` y `nodeOutputs` defensivos, con tests de las ocho plantillas y de los nodos mal formados, el mutante `callTargetsDirect` y el E2E «añadir una condición no rompe el lienzo». Un *render* que lanzara llegaría a `error.tsx` con la consola sucia, que los E2E rechazan.
+- **R11. Atrás del navegador pierde los cambios sin preguntar** (D15). Se acepta en la v0 y queda escrito en la wiki. **Medida**: ninguna. Es una limitación conocida, no un fallo.
 
 ## Open Questions
 
@@ -815,7 +902,10 @@ Requieren **aprobación humana** antes de la fase 1:
 1. **Delta `4ced695`** (conductual, el usuario puede revertirlo):
    - En el inspector, `position` es de solo lectura (D8).
    - Al vaciar el último campo de un contenedor opcional, se quita el contenedor (D5).
-2. **Lienzo propio sin dependencia** (D9) frente a React Flow. Es técnica, pero cambia lo que verá quien mantenga el editor: unas 700 líneas propias frente a una librería de unos 45 KB que habría que domar para cumplir la accesibilidad de la spec.
-3. **«Cambios sin publicar» también en un flujo que nunca se publicó**: se muestra el dato de la API tal cual (`unpublishedChanges` es `true` al crear). La lista enseña «Sin publicar» y el aviso a la vez. Es la lectura literal de «si los tiene» y compatible con los escenarios. La alternativa (ocultarlo si `latestVersion` es `null`) sería un delta.
+2. **Delta `0520b08`** (conductual, decidido por el orquestador tras la revisión; el usuario puede revertirlo):
+   - Elegir el destino de una salida en el inspector, también «ninguno», fija las posiciones (D11).
+   - Un JSON con el que el flujo anidaría más de 1000 niveles no se aplica (D5).
+3. **Lienzo propio sin dependencia** (D9) frente a React Flow. Es técnica, pero cambia lo que verá quien mantenga el editor: unas 700 líneas propias frente a una librería de unos 45 KB que habría que domar para cumplir la accesibilidad de la spec.
+4. **«Cambios sin publicar» también en un flujo que nunca se publicó**: se muestra el dato de la API tal cual (`unpublishedChanges` es `true` al crear). La lista enseña «Sin publicar» y el aviso a la vez. Es la lectura literal de «si los tiene» y compatible con los escenarios. La alternativa (ocultarlo si `latestVersion` es `null`) sería un delta.
 
 No queda nada técnico pendiente.
