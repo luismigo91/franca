@@ -124,12 +124,61 @@ El lienzo SHALL colocar cada nodo en su `position`. Los nodos sin `position` los
 - **THEN** ningún nodo se solapa con otro, cada nodo aparece las dos veces en el mismo sitio, «Guardar» dice que no hay cambios y la API no ha recibido ningún `PUT`
 
 ### Requirement: Mover un nodo
-Un nodo del lienzo SHALL poderse mover arrastrándolo y, con el foco en él, con las flechas del teclado (10 unidades por pulsación). Mover o añadir un nodo escribe su `position` y, a la vez, la de todos los nodos que no la tenían, con la posición en que se ven, así que nada cambia de sitio después. Las posiciones se escriben como enteros.
+Un nodo del lienzo SHALL poderse mover arrastrándolo y, con el foco en él, con las flechas del teclado (10 unidades por pulsación). Mover o añadir un nodo, o crear una conexión arrastrando, escribe su `position` y, a la vez, la de todos los nodos que no la tenían, con la posición en que se ven, así que nada cambia de sitio después. Las posiciones se escriben como enteros.
 
 #### Scenario: Mover un nodo guarda su posición
 - **GIVEN** `captacion-leads` creado y su editor abierto
 - **WHEN** se lleva el foco a `pedir-nombre`, se pulsa dos veces la flecha derecha y se pulsa «Guardar»
 - **THEN** en el flujo que recibe la API todos los nodos tienen `position` con enteros, `bienvenida` sigue en `{x: 0, y: 0}` y `pedir-nombre` tiene `x` 20 unidades mayor que la posición en que se pintó al abrir, y la misma `y`
+
+### Requirement: Salidas de cada tipo de nodo
+Cada nodo SHALL mostrar en el lienzo una salida por cada salto que usa el motor según su tipo: `next` en `message`, `set` e `input` que no sea de selección única; `choices[<id>].next` de cada opción en la selección única; `rules[<i>].next` de cada regla y `else` en `condition`; `next` y `onError` en `http`; `next` y `onExhausted` en `llm`, y `target` en `jump`. `end` no tiene salidas. Cada salida lleva el nombre de su campo.
+
+#### Scenario: Salidas de los nodos de los ejemplos
+- **GIVEN** `captacion-leads` y `faq-ia` creados
+- **WHEN** se abren sus editores y, en el de `captacion-leads`, se añade un nodo `jump`
+- **THEN** `bienvenida` tiene la salida `next`; `pedir-tamano`, `choices[pequena].next`, `choices[mediana].next` y `choices[grande].next`; `ruta-segmento`, `rules[0].next` y `else`; `enviar-crm`, `next` y `onError`; `asistente`, `next` y `onExhausted`; el `jump`, `target`, y ningún nodo `end` tiene salidas
+
+### Requirement: Crear conexiones arrastrando
+Una salida SHALL poderse arrastrar hasta otro nodo del lienzo: al soltarla, su campo pasa a ser el `id` del destino, con el mismo JSON que si se eligiera en el inspector, y la conexión que ya tuviera se sustituye. Soltarla en vacío, fuera del lienzo o cancelar con Escape no cambia nada. Las salidas no reciben el foco: la vía del teclado es el inspector, donde cada salida es un selector de nodo y se puede hacer todo lo que hace el arrastre.
+
+#### Scenario: Sustituir una conexión arrastrando
+- **GIVEN** el editor de `captacion-leads` abierto
+- **WHEN** se arrastra la salida `next` de `pedir-nombre` hasta `pedir-tamano` y se suelta
+- **THEN** el `next` de `pedir-nombre` es `pedir-tamano`, el lienzo ya no dibuja la conexión de `pedir-nombre` a `pedir-email` y la lista de problemas tiene «nodo inalcanzable desde start» en `pedir-email`
+
+#### Scenario: Conectar una salida vacía arrastrando
+- **GIVEN** el editor de `hola` con un mensaje añadido (`message-1`, sin `next`)
+- **WHEN** se arrastra la salida `next` de `message-1` hasta `fin` y se suelta
+- **THEN** el lienzo dibuja la conexión de `message-1` a `fin` y la lista de problemas ya no dice que a `message-1` le falta `next`
+
+#### Scenario: Soltar una conexión en vacío
+- **GIVEN** el editor de `captacion-leads` abierto
+- **WHEN** se arrastra la salida `onError` de `enviar-crm` y se suelta sobre una zona vacía del lienzo, y después se arrastra otra vez y se pulsa Escape antes de soltar
+- **THEN** el `onError` de `enviar-crm` sigue siendo `aviso-error` y «Guardar» dice que no hay cambios
+
+#### Scenario: El arrastre y el inspector dan el mismo flujo
+- **GIVEN** el editor de `captacion-leads` abierto en dos pestañas
+- **WHEN** en la primera se arrastra la salida `else` de `ruta-segmento` hasta `fin-empresa`, y en la segunda se elige `fin-empresa` como `else` en el inspector de `ruta-segmento` usando solo el teclado
+- **THEN** «Ver JSON» muestra el mismo texto en las dos pestañas, salvo las `position`
+
+#### Scenario: Conectar arrastrando no mueve los nodos
+- **GIVEN** el editor de `faq-ia` abierto
+- **WHEN** se arrastra la salida `onError` de `crear-ticket` hasta `fin-resuelto` y se suelta
+- **THEN** ningún nodo cambia de sitio en el lienzo y, en «Ver JSON», todos los nodos tienen `position` con enteros
+
+### Requirement: Destinos no permitidos al arrastrar
+Soltar una salida sobre su propio nodo SHALL no cambiar nada y decir que un nodo no puede saltar a sí mismo, salvo la salida `next` de un `llm`, que sí puede (otra vuelta de la conversación, como admite el validador). Mientras se arrastra una salida, el lienzo distingue, con algo más que el color, los nodos donde se puede soltar de los que no.
+
+#### Scenario: Soltar sobre el propio nodo
+- **GIVEN** el editor de `faq-ia` abierto
+- **WHEN** se arrastra la salida `next` de `pedir-email` hasta `pedir-email` y se suelta, y después la salida `onExhausted` de `asistente` hasta `asistente`
+- **THEN** las dos veces el editor dice que un nodo no puede saltar a sí mismo y el flujo no cambia
+
+#### Scenario: Un llm que vuelve a sí mismo
+- **GIVEN** el editor de `faq-ia` abierto
+- **WHEN** se arrastra la salida `next` de `asistente` hasta `asistente` y se suelta
+- **THEN** el `next` de `asistente` es `asistente`, el lienzo dibuja la conexión de `asistente` a sí mismo y la lista de problemas no tiene ninguno sobre `asistente` (solo «nodo inalcanzable desde start» en `comprobar` y `fin-resuelto`)
 
 ### Requirement: Propiedades del flujo
 El panel del flujo SHALL editar `name`, `description`, `locale`, `settings`, `start` (elegido entre los nodos) y `variables` (añadir, cambiar y quitar, con `name`, `type`, `scope`, `pii`, `description` y `default`), con las reglas de «Campos sobre el JSON del flujo». El `id` y `specVersion` se muestran sin poderse cambiar.
