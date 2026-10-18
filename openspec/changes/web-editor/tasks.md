@@ -296,6 +296,8 @@ Reglas para todas las fases:
 - [ ] 7.3 DEPLOY-TIME: no aplica. Es una herramienta local sin despliegue: el cambio se cierra con el merge.
 - [ ] 7.4 FOLLOW-UP: si alguna vez la web necesita una CSP con `script-src`, precompilar ajv (*standalone*) en `packages/spec` con su propio cambio antes de añadirla (D7, R2).
 
+- [ ] 7.5 FOLLOW-UP: `NODE_DEFS` de `packages/spec/src/shape.ts` con `Map`/`Object.hasOwn` (`validateFlow` lanza con `type` `constructor`/`toString`/`__proto__`; la API responde 500). Se arregla en un cambio propio, con su test de regresión; después se puede quitar `validateDraft`.
+
 ## 8. Desviaciones y notas de la aplicación (apply, 2026-10-18)
 
 Lo que se hizo distinto de lo escrito, con su porqué. Nada toca `apps/api`, `packages/`, `turbo.json`, el *lockfile*, la CI ni `apps/web/package.json`.
@@ -326,3 +328,10 @@ Lo que se hizo distinto de lo escrito, con su porqué. Nada toca `apps/api`, `pa
 - Rendimiento con un flujo de 1 MiB o de 5000 nodos en el *runner* (7.2) y el coste del job de E2E en el *runner* (7.1).
 - «Atrás» del navegador con cambios sin guardar: es el límite aceptado de D15 y no tiene prueba.
 - La revisión de interfaz con `web-design-guidelines` (5.5).
+
+**Correcciones tras el QA y la revisión de código**
+- El estado local de un campo (texto JSON, número, modo de un valor) guarda el valor del flujo del que salió (`local-text.ts`, `validLocal`) y solo vale mientras no cambie por otro camino; el inspector usa la posición del nodo como `key` y no su `id`, y las cabeceras, la suya.
+- Los «Quitar», «Guardar encima» y el cierre de «Editar como JSON» devuelven el foco a un elemento con sentido (`focusInspector`, `#action-save`).
+- Una `position` de más de 10 000 000 se dibuja acotada (delta de spec `a01b9ee`); `readFlowResource` rechaza más de 1000 niveles e ids de nodo repetidos.
+- El nodo del lienzo es un `<button>`; el punto de salida tiene una zona de toque de 24 px.
+- Los diálogos y avisos locales de `EditorScreen` y `GuardedLink` se cierran al ocultarse la ruta (`<Activity>` los reabría en producción).
