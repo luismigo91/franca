@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { FLOWS } from '../../../tests/helpers/engine-events';
 import { NODE_WIDTH, nodeSize } from '@/lib/editor/canvas-geometry';
 import type { FlowDoc } from '@/lib/editor/json-edit';
-import { autoLayout, displayPositions, validPosition } from '@/lib/editor/layout';
+import { autoLayout, displayPositions, drawnPosition, MAX_COORDINATE, validPosition } from '@/lib/editor/layout';
 import { addNode } from '@/lib/editor/node-templates';
 
 const clone = (name: keyof typeof FLOWS): FlowDoc => structuredClone(FLOWS[name]) as FlowDoc;
@@ -112,5 +112,23 @@ describe('autoLayout', () => {
     const positions = displayPositions(flow);
     expect(positions.get('constructor')).toEqual({ x: 0, y: 0 });
     expect(positions.get('__proto__')!.x).toBe(NODE_WIDTH + 96);
+  });
+});
+
+describe('posiciones enormes (QA-1)', () => {
+  it('una position finita pero enorme se dibuja acotada y el flujo no cambia (mutante noClamp)', () => {
+    const flow = clone('hola');
+    (flow.nodes as Record<string, unknown>[])[0]!.position = { x: 1e308, y: -1e308 };
+    const before = JSON.stringify(flow);
+    expect(displayPositions(flow).get('fin')).toEqual({ x: MAX_COORDINATE, y: -MAX_COORDINATE });
+    expect(JSON.stringify(flow)).toBe(before);
+    expect(drawnPosition({ x: 5, y: -7 })).toEqual({ x: 5, y: -7 });
+    expect(Object.values(displayPositions(flow).get('fin')!).every((value) => !/e/i.test(String(value)))).toBe(true);
+  });
+
+  it('el diseño automático no se solapa con un nodo enorme', () => {
+    const flow = { start: 'a', nodes: [{ id: 'a', type: 'jump', target: 'b' }, { id: 'b', type: 'end', position: { x: 1e21, y: 1e21 } }] } as FlowDoc;
+    expect(() => autoLayout(flow)).not.toThrow();
+    expect(displayPositions(flow).get('b')!.x).toBe(MAX_COORDINATE);
   });
 });

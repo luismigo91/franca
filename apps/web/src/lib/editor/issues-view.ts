@@ -60,14 +60,23 @@ export function problemsAt(problems: readonly Problem[], pointer: string): Probl
   return problems.filter((problem) => problem.path === pointer || problem.path.startsWith(`${pointer}/`));
 }
 
-/** «3 problemas y 1 aviso», «1 problema», «2 avisos» o «Sin problemas». */
-export function summarizeProblems(problems: readonly Problem[]): string {
-  const issues = problems.filter((problem) => problem.kind === 'issue').length;
-  const warnings = problems.length - issues;
+/** «3 problemas y 1 aviso», «1 problema», «2 avisos» o `''` si no hay ninguno. */
+export function describeCounts(issues: number, warnings: number): string {
   const parts: string[] = [];
   if (issues > 0) parts.push(`${issues} ${issues === 1 ? 'problema' : 'problemas'}`);
   if (warnings > 0) parts.push(`${warnings} ${warnings === 1 ? 'aviso' : 'avisos'}`);
-  return parts.length === 0 ? 'Sin problemas' : parts.join(' y ');
+  return parts.join(' y ');
+}
+
+/** «3 problemas y 1 aviso», «1 problema», «2 avisos» o «Sin problemas». */
+export function summarizeProblems(problems: readonly Problem[]): string {
+  const issues = problems.filter((problem) => problem.kind === 'issue').length;
+  return describeCounts(issues, problems.length - issues) || 'Sin problemas';
+}
+
+/** El validador recortó su lista (`too_many_issues` o `too_many_warnings`): un nodo sin problemas listados puede tenerlos. */
+export function isTruncated(verdict: FlowValidationResult): boolean {
+  return verdict.issues.some((issue) => issue.code === 'too_many_issues') || verdict.warnings.some((warning) => warning.code === 'too_many_warnings');
 }
 
 /** Dónde está un problema, en palabras: su nodo, o «Flujo» si es del flujo entero. */

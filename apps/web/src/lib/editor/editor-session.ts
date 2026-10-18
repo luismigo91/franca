@@ -182,10 +182,10 @@ export class EditorSession {
       this.patch(result.code === 'flow_not_found' ? { phase: 'not_found' } : { phase: 'load_error', loadError: result.code });
       return;
     }
-    this.install(result.body, 'ready');
+    this.install(result.body);
   }
 
-  /** Aborta lo que haya en curso, sube la época (una respuesta tardía se descarta) y suelta el borrador. */
+  /** Aborta lo que haya en curso, sube la época (una respuesta tardía se descarta) y suelta el borrador. `loadCount` vuelve a 0: la pantalla se desmonta mientras carga. */
   reset(): void {
     this.epoch += 1;
     this.abort.abort();
@@ -194,11 +194,11 @@ export class EditorSession {
   }
 
   /** Sustituye el guardado y el borrador por lo leído; conserva la selección si el nodo sigue existiendo. */
-  private install(resource: FlowResource, phase: 'ready', extra: Partial<EditorSnapshot> = {}): void {
+  private install(resource: FlowResource): void {
     const saved = toSaved(resource);
     const previous = this.state.selection;
     const selection = previous?.kind === 'node' && !nodeExists(resource.flow, previous.id) ? null : previous;
-    this.patch({ phase, loadError: null, saved, ...derive(resource.flow, saved), selection, busy: null, notice: null, loadCount: this.state.loadCount + 1, ...extra });
+    this.patch({ phase: 'ready', loadError: null, saved, ...derive(resource.flow, saved), selection, busy: null, notice: null, loadCount: this.state.loadCount + 1 });
   }
 
   /**
@@ -265,7 +265,8 @@ export class EditorSession {
 
   private async send(sent: string, revision: number): Promise<SaveOutcome> {
     const epoch = this.epoch;
-    this.patch({ busy: 'saving', notice: null });
+    // Un aviso de «Guardado» de antes no puede seguir a la vista junto al resultado de este guardado.
+    this.patch({ busy: 'saving', notice: null, announcement: null });
     const result = await this.client.updateFlow(this.flowId, sent, revision);
     if (epoch !== this.epoch) return { status: 'ignored' };
     if (result.ok) return this.finishSave(result.body);
@@ -361,7 +362,7 @@ export class EditorSession {
     const result = await this.client.getFlow(this.flowId);
     if (epoch !== this.epoch) return { status: 'ignored' };
     if (result.ok) {
-      this.install(result.body, 'ready');
+      this.install(result.body);
       return { status: 'reloaded' };
     }
     if (result.code === 'flow_not_found') {

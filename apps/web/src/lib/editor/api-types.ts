@@ -1,3 +1,4 @@
+import { exceedsFlowDepth } from '@franca/spec';
 import { isRecord, type FlowDoc } from '@/lib/editor/json-edit';
 
 /** El recurso flujo de la API: lo que usa el editor. `flow` es el borrador tal como lo guardó la API. */
@@ -19,10 +20,18 @@ export interface VersionResource {
 
 const isInteger = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value);
 
-/** El borrador tiene la estructura mínima que el editor da por cierta (D25): `nodes` lista de objetos con `id` de texto y `start` de texto. */
+/**
+ * El borrador tiene la estructura mínima que el editor da por cierta (D25): `nodes` lista de objetos con `id` de texto y sin
+ * repetir, `start` de texto y como mucho 1000 niveles de anidamiento (la API no guarda más).
+ */
 function readFlow(value: unknown): FlowDoc | null {
-  if (!isRecord(value) || typeof value.start !== 'string' || !Array.isArray(value.nodes)) return null;
-  return value.nodes.every((node: unknown) => isRecord(node) && typeof node.id === 'string') ? value : null;
+  if (!isRecord(value) || typeof value.start !== 'string' || !Array.isArray(value.nodes) || exceedsFlowDepth(value)) return null;
+  const ids = new Set<string>();
+  for (const node of value.nodes as unknown[]) {
+    if (!isRecord(node) || typeof node.id !== 'string' || ids.has(node.id)) return null;
+    ids.add(node.id);
+  }
+  return value;
 }
 
 /**

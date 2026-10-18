@@ -5,8 +5,6 @@ import { indexOfNode } from '@/lib/editor/rename';
 
 export type DropResult = { kind: 'none' } | { kind: 'reject'; reason: 'self' } | { kind: 'connect'; flow: FlowDoc };
 
-export const SELF_JUMP_MESSAGE = 'Un nodo no puede saltar a sí mismo.';
-
 /**
  * Indica si se puede soltar una salida sobre un nodo. Sobre sí mismo, solo el `next` de un `llm` (otra vuelta de la
  * conversación); el `onExhausted` de un `llm` no (un ciclo sin tope).

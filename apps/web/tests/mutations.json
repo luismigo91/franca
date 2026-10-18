@@ -670,5 +670,77 @@
     "tests": [
       "src/components/editor/inspector/content-field.test.tsx"
     ]
+  },
+  {
+    "id": "noClamp",
+    "file": "src/lib/editor/layout.ts",
+    "find": "Math.min(MAX_COORDINATE, Math.max(-MAX_COORDINATE, value))",
+    "replace": "value",
+    "tests": [
+      "src/lib/editor/layout.test.ts"
+    ]
+  },
+  {
+    "id": "skipDepthOnRead",
+    "file": "src/lib/editor/api-types.ts",
+    "find": " || exceedsFlowDepth(value)",
+    "replace": "",
+    "tests": [
+      "src/lib/editor/api-types.test.ts"
+    ]
+  },
+  {
+    "id": "allowDuplicateIds",
+    "file": "src/lib/editor/api-types.ts",
+    "find": " || ids.has(node.id)",
+    "replace": "",
+    "tests": [
+      "src/lib/editor/api-types.test.ts"
+    ]
+  },
+  {
+    "id": "nonTextNodeIdOnRead",
+    "file": "src/lib/editor/api-types.ts",
+    "find": "typeof node.id !== 'string' || ids.has",
+    "replace": "false || ids.has",
+    "tests": [
+      "src/lib/editor/api-types.test.ts"
+    ]
+  },
+  {
+    "id": "staleJsonText",
+    "file": "src/lib/editor/local-text.ts",
+    "find": "local !== null && local.basis === canonicalOf(value) ? local.data : null",
+    "replace": "local !== null ? local.data : null",
+    "tests": [
+      "src/lib/editor/local-text.test.ts"
+    ]
+  },
+  {
+    "id": "validateDraftNoCatch",
+    "file": "src/lib/editor/validate-draft.ts",
+    "find": "  } catch {\n    const nodes",
+    "replace": "  } catch (error) {\n    throw error;\n    const nodes",
+    "tests": [
+      "src/lib/editor/validate-draft.test.ts"
+    ]
+  },
+  {
+    "id": "problemsAtPrefix",
+    "file": "src/lib/editor/issues-view.ts",
+    "find": "problem.path.startsWith(`${pointer}/`)",
+    "replace": "problem.path.startsWith(pointer)",
+    "tests": [
+      "src/lib/editor/issues-view.test.ts"
+    ]
+  },
+  {
+    "id": "keepOldAnnouncement",
+    "file": "src/lib/editor/editor-session.ts",
+    "find": "notice: null, announcement: null });",
+    "replace": "notice: null });",
+    "tests": [
+      "src/lib/editor/editor-session.test.ts"
+    ]
   }
 ]

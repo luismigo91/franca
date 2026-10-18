@@ -493,3 +493,18 @@ describe('reloadSaved', () => {
     expect(session.getSnapshot().announcement!.seq).toBe(first + 1);
   });
 });
+
+describe('aviso de guardado tras un conflicto (QA-4)', () => {
+  it('un 412 no deja a la vista «Guardado. Revisión N.» de un guardado anterior', async () => {
+    const { session, client } = await opened();
+    session.edit(renameTo('A'));
+    client.puts = [ok(resource({ ...clone('captacion-leads'), name: 'A' }, { revision: 2 }))];
+    await session.save();
+    expect(session.getSnapshot().announcement?.text).toBe('Guardado. Revisión 2.');
+    session.edit(renameTo('A2'));
+    client.puts = [fail(412, 'revision_mismatch', 3)];
+    await session.save();
+    expect(session.getSnapshot().announcement).toBeNull();
+    expect(session.getSnapshot().notice?.kind).toBe('conflict');
+  });
+});

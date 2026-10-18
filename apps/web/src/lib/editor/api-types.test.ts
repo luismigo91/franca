@@ -43,3 +43,21 @@ describe('readVersionResource', () => {
     for (const value of [null, {}, { flowId: 'a', version: '1', name: 'x' }, { flowId: 5, version: 1, name: 'x' }, { flowId: 'a', version: 1 }]) expect(readVersionResource(value)).toBeNull();
   });
 });
+
+describe('readFlowResource: lo que la API no guarda (QA-6)', () => {
+  const body = (flow: unknown) => ({ ...good(), flow });
+
+  it('rechaza un borrador de más de 1000 niveles (mutante skipDepthOnRead)', () => {
+    let deep: unknown = 1;
+    for (let level = 0; level < 1001; level++) deep = [deep];
+    expect(readFlowResource(body({ start: 'a', nodes: [{ id: 'a' }], x: deep }))).toBeNull();
+    let ok: unknown = 1;
+    for (let level = 0; level < 900; level++) ok = [ok];
+    expect(readFlowResource(body({ start: 'a', nodes: [{ id: 'a' }], x: ok }))).not.toBeNull();
+  });
+
+  it('rechaza ids de nodo repetidos (mutante allowDuplicateIds)', () => {
+    expect(readFlowResource(body({ start: 'a', nodes: [{ id: 'a' }, { id: 'a' }] }))).toBeNull();
+    expect(readFlowResource(body({ start: 'a', nodes: [{ id: 'a' }, { id: 'b' }] }))).not.toBeNull();
+  });
+});

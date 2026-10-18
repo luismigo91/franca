@@ -1,4 +1,5 @@
 import type { ChatErrorCode } from '@/lib/chat/copy';
+import { GATE_COPY } from '@/lib/editor/save-gate';
 
 /** Dónde ocurrió el error en el editor: cada contexto tiene sus textos y su genérico (tabla de errores del contrato). */
 export type EditorErrorContext = 'create' | 'open' | 'save' | 'publish' | 'delete';
@@ -7,7 +8,7 @@ const CONNECTION = 'No se puede conectar con la API de Franca.';
 const DATABASE = 'La base de datos de Franca no está disponible.';
 const INVALID_FLOW = 'La API de Franca considera que el flujo no es válido.';
 const LITERAL_CREDENTIAL = 'La API de Franca no guarda credenciales escritas: usa un secreto.';
-const TOO_LARGE = 'El flujo supera el tamaño máximo de 1 MiB.';
+const TOO_LARGE = GATE_COPY.tooLarge;
 const GONE = 'El flujo se ha borrado fuera del editor. Usa «Ver JSON» para copiar lo que has editado.';
 const CHANGED_OUTSIDE = 'El flujo ha cambiado fuera del editor.';
 

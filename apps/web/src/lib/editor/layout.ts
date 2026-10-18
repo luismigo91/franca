@@ -9,6 +9,16 @@ export function validPosition(value: unknown): Point | null {
   return typeof x === 'number' && typeof y === 'number' && Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
 }
 
+/** Coordenada máxima con la que se dibuja un nodo: una `position` mayor se acota al pintar (el flujo no cambia). */
+export const MAX_COORDINATE = 10_000_000;
+
+const clamp = (value: number): number => Math.min(MAX_COORDINATE, Math.max(-MAX_COORDINATE, value));
+
+/** Acota una posición válida al rango que el SVG del lienzo admite (sin notación exponencial). */
+export function drawnPosition(position: Point): Point {
+  return { x: clamp(position.x), y: clamp(position.y) };
+}
+
 interface Box {
   x: number;
   y: number;
@@ -73,8 +83,8 @@ export function autoLayout(flow: Record<string, unknown>): Map<string, Point> {
     sizes.set(node.id, size);
     const position = validPosition(node.position);
     if (position === null) needs.add(node.id);
-    else fixed.push({ ...position, ...size });
-    if (node.id === flow.start && position !== null) origin = { x: Math.round(position.x), y: Math.round(position.y) };
+    else fixed.push({ ...drawnPosition(position), ...size });
+    if (node.id === flow.start && position !== null) origin = { x: Math.round(drawnPosition(position).x), y: Math.round(drawnPosition(position).y) };
   }
   const { order, layerOf } = layers(nodes, flow.start);
   const cursor = new Map<number, number>();
@@ -111,7 +121,8 @@ export function displayPositions(flow: Record<string, unknown>): Map<string, Poi
   const all = new Map<string, Point>();
   for (const node of nodesOf(flow)) {
     if (typeof node.id !== 'string' || all.has(node.id)) continue;
-    all.set(node.id, validPosition(node.position) ?? automatic.get(node.id) ?? { x: 0, y: 0 });
+    const own = validPosition(node.position);
+    all.set(node.id, own === null ? (automatic.get(node.id) ?? { x: 0, y: 0 }) : drawnPosition(own));
   }
   return all;
 }
