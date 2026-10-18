@@ -134,18 +134,14 @@ const compare = (
   expect(1 - accepted / cases, 'el generador no es trivial').toBeGreaterThan(0.1);
 };
 
-// Decenas de miles de textos por test: medio segundo en solitario, más de 5 s con turbo corriendo a la vez los
-// tests de todos los paquetes. El límite de 5 s por defecto daba falsos rojos en `pnpm check`.
-const HEAVY = { timeout: 30_000 };
-
-describe('conversores contra un oráculo independiente', HEAVY, () => {
+describe('conversores contra un oráculo independiente', () => {
   it('email', () => compare('email', oracleEmail, buildEmail, 11));
   it('phone', () => compare('phone', oraclePhone, buildPhone, 12));
   it('number', () => compare('number', oracleNumber, buildNumber, 13));
   it('date', () => compare('date', oracleDate, buildDate, 14));
 });
 
-describe('idempotencia: un valor guardado es un fixpoint de su conversor', HEAVY, () => {
+describe('idempotencia: un valor guardado es un fixpoint de su conversor', () => {
   const idempotent = (name: 'email' | 'phone' | 'url' | 'date', build: (rand: Rand) => string, seed: number): void => {
     const next = generator(seed, build);
     let accepted = 0;
@@ -173,7 +169,7 @@ describe('idempotencia: un valor guardado es un fixpoint de su conversor', HEAVY
     ));
 });
 
-describe('el valor guardado nunca supera 4096 unidades ni contiene caracteres no guardables', HEAVY, () => {
+describe('el valor guardado nunca supera 4096 unidades ni contiene caracteres no guardables', () => {
   it('sobre textos de cualquier tipo con alfabeto hostil', () => {
     const pool = ['a', '1', '.', '@', ':', '/', '\u0000', '\ud800', '\udc00', '\u{1f600}', 'ñ', ' ', '-', '+', 'example.com', 'x'.repeat(400)];
     const next = generator(31, (rand) => repeat(rand, 1, 8, () => pick(rand, pool)));
