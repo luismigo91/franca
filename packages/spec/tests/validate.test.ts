@@ -75,6 +75,17 @@ describe('forma', () => {
     ]);
   });
 
+  it.each(['constructor', 'toString', '__proto__', 'hasOwnProperty', 'valueOf'])(
+    'un tipo con nombre de Object.prototype (%s) es un tipo desconocido, sin lanzar',
+    (type) => {
+      const flow = leads();
+      flow.nodes[0].type = type;
+      expect(issues(flow)).toEqual([
+        { path: '/nodes/0', nodeId: 'bienvenida', message: `tipo de nodo desconocido: ${JSON.stringify(type)}` },
+      ]);
+    },
+  );
+
   it('da errores solo del tipo del nodo, no de las otras ramas', () => {
     const flow = leads();
     flow.nodes[6].timeoutMs = 50;

@@ -32,6 +32,17 @@ describe('POST /flows/validate (e2e)', () => {
     });
   });
 
+  it('un nodo con type constructor es un tipo desconocido y no un 500', async () => {
+    const flow = leads();
+    flow.nodes[0].type = 'constructor';
+    const res = await validate(flow).expect(200);
+    expect(res.body).toEqual({
+      valid: false,
+      issues: [{ layer: 'shape', path: '/nodes/0', nodeId: 'bienvenida', message: 'tipo de nodo desconocido: "constructor"' }],
+      warnings: [],
+    });
+  });
+
   it('Flujo válido con avisos', async () => {
     const flow = leads();
     flow.nodes[HTTP_NODE].request.url = 'https://crm.example.com{{segmento}}/api/leads';
