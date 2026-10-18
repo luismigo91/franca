@@ -17,16 +17,17 @@ export const SHAPE_DETAIL_MAX_CHARS = 8192;
 /** Caracteres máximos que suman las piezas de las que se da todo el detalle. */
 export const SHAPE_DETAIL_BUDGET_CHARS = 65536;
 
-const NODE_DEFS: Record<string, string> = {
-  message: 'messageNode',
-  input: 'inputNode',
-  condition: 'conditionNode',
-  set: 'setNode',
-  http: 'httpNode',
-  llm: 'llmNode',
-  jump: 'jumpNode',
-  end: 'endNode',
-};
+// Map y no objeto plano: un `type` como `constructor` o `__proto__` encontraría el prototipo de Object.
+const NODE_DEFS: ReadonlyMap<string, string> = new Map([
+  ['message', 'messageNode'],
+  ['input', 'inputNode'],
+  ['condition', 'conditionNode'],
+  ['set', 'setNode'],
+  ['http', 'httpNode'],
+  ['llm', 'llmNode'],
+  ['jump', 'jumpNode'],
+  ['end', 'endNode'],
+]);
 
 interface Validators {
   /** El esquema completo. */
@@ -112,7 +113,7 @@ function nodeIssues(node: unknown, index: number, budget: Budget): FlowIssue[] {
   const path = `/nodes/${index}`;
   const nodeId = isObject(node) && typeof node.id === 'string' ? node.id : undefined;
   const kind = isObject(node) ? node.type : undefined;
-  const def = typeof kind === 'string' ? NODE_DEFS[kind] : undefined;
+  const def = typeof kind === 'string' ? NODE_DEFS.get(kind) : undefined;
   if (!def) return [issue(path, `tipo de nodo desconocido: ${JSON.stringify(kind ?? null)}`, nodeId)];
   return checkPiece({ value: node, measured: node, prefix: path, nodeId, validators: (v) => v.node(def), budget });
 }
