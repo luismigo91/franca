@@ -5,11 +5,14 @@ import { timed } from './helpers/flows.js';
 /**
  * Flujos de ~1 MiB (el tope del cuerpo de la API) con la parte ancha en sitios distintos: cada array o mapa que el
  * esquema recorre elemento a elemento, con elementos válidos y rotos de varias formas. Ninguno debe lanzar, tardar
- * más de 2 s (las medidas locales están por debajo de 0,1 s) ni devolver más de 100 issues más el del tope.
- * Complementa a `shape-cost.test.ts`, que fija los escenarios de la spec.
+ * más de 10 s ni devolver más de 100 issues más el del tope.
+ * Complementa a `shape-cost.test.ts`, que fija los escenarios de la spec con su presupuesto de 2 s.
  */
 const LIMIT = 1_048_576;
-const BUDGET_MS = 2000;
+// Lo que se descarta es un coste cuadrático, que sobre 1 MiB son minutos o nunca. En local cada forma tarda menos de
+// 0,1 s, pero en el runner de la CI, con los tests de todos los paquetes a la vez, una lineal ya ha llegado a 2,2 s.
+const BUDGET_MS = 10_000;
+const HEAVY = { timeout: 30_000 };
 
 const base = (over: Record<string, unknown> = {}): any => ({
   specVersion: '0.1',
@@ -145,7 +148,7 @@ const SHAPES: Shape[] = [
   { name: 'una regla matches con un patrón de 600 000 caracteres', valid: false, build: () => base({ variables: [{ name: 'q', type: 'string' }], nodes: [END, node({ id: 'c', type: 'condition', else: 'a', rules: [{ next: 'a', when: { variable: 'q', op: 'matches', value: '(a*)*b'.repeat(100_000) } }] })] }) },
 ];
 
-describe('Coste acotado de la validación: flujos anchos de ~1 MiB en cada array y mapa', () => {
+describe('Coste acotado de la validación: flujos anchos de ~1 MiB en cada array y mapa', HEAVY, () => {
   it.each(SHAPES.map((shape) => [shape.name, shape] as const))('%s: no lanza, es lineal y el veredicto es el esperado', (_name, shape) => {
     const flow = JSON.parse(JSON.stringify(shape.build()));
     const { result, ms } = timed(() => validateFlow(flow));
